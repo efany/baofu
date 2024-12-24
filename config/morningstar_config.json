@@ -1,0 +1,32 @@
+{
+    "fund_type": {
+        "enabled": true,
+        "categories": [
+            "普通债券",
+            "纯债",
+            "利率债",
+            "信用债",
+            "短债"
+        ]
+    },
+    "rating": {
+        "enabled": true,
+        "three_year": "5",
+        "five_year": "0"
+    },
+    "fund_status": {
+        "enabled": false,
+        "value": ""
+    },
+    "size": {
+        "enabled": true,
+        "range": "0~5"
+    },
+    "min_investment": {
+        "enabled": true,
+        "range": "0~5"
+    },
+    "page_size": 50,
+    "max_records": 25,
+    "delay": 0.5
+} 
