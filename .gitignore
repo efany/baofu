@@ -2,3 +2,5 @@ data_process/src/__pycache__
 data_science/src/backtester/__pycache__
 data_science/src/strategy/__pycache__
 web_crawler/src/__pycache__
+output/
+cache/
