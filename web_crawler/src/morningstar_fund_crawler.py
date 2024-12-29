@@ -182,7 +182,7 @@ class MorningstarFundCrawler:
                         
                         user_config = json.loads(content)
                     except json.JSONDecodeError as e:
-                        print(f"配置��件格式错误: {str(e)} config_file: {config_file} content: {content}")
+                        print(f"配置文件格式错误: {str(e)} config_file: {config_file} content: {content}")
                         print("使用默认配置")
                         return config
                         
@@ -262,29 +262,67 @@ class MorningstarFundCrawler:
             print(traceback.format_exc())
             return ''
         
+    def _update_cookies(self):
+        """Fetch and update cookies for the session."""
+        try:
+            # Example URL to fetch cookies from
+            url = 'https://www.morningstar.cn/fundselect/default.aspx'
+            response = self.session.get(url, headers=self.headers)
+            # Update session cookies
+            self.session.cookies.update(response.cookies)
+            print("Cookies updated successfully.")
+        except Exception as e:
+            print(f"Failed to update cookies: {str(e)}")
+
     def _make_request(self, method: str, url: str, **kwargs) -> requests.Response:
-        """发送请求并处理超时重试"""
+        """Send request and handle timeout retries with cookie updates."""
         max_retries = 3
         retry_count = 0
-        timeout = (10, 30)  # (连接时, 读取超时)
-        
+        timeout = (10, 30)  # (connect timeout, read timeout)
+
+        # Define valid HTTP headers
+        headers = {
+            'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+            'accept-encoding': 'gzip, deflate, br, zstd',
+            'accept-language': 'en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7',
+            'cache-control': 'max-age=0',
+            'content-type': 'application/x-www-form-urlencoded',
+            'origin': 'https://www.morningstar.cn',
+            'referer': 'https://www.morningstar.cn/fundselect/default.aspx',
+            'sec-ch-ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+            'sec-ch-ua-mobile': '?0',
+            'sec-ch-ua-platform': '"Windows"',
+            'sec-fetch-dest': 'document',
+            'sec-fetch-mode': 'navigate',
+            'sec-fetch-site': 'same-origin',
+            'sec-fetch-user': '?1',
+            'upgrade-insecure-requests': '1',
+            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            # Add your cookies here if needed
+            # 'cookie': 'sensorsdata2015jssdkcross=%7B%22distinct_id%22%3A%2218ad026433649e-03338d1936b62f6-26031f51-2073600-18ad0264337f86%22%2C%22first_id%22%3A%22%22%2C%22props%22%3A%7B%22%24latest_traffic_source_type%22%3A%22%E8%87%AA%E7%84%B6%E6%90%9C%E7%B4%A2%E6%B5%81%E9%87%8F%22%2C%22%24latest_search_keyword%22%3A%22%E6%9C%AA%E5%8F%96%E5%88%B0%E5%80%BC%22%2C%22%24latest_referrer%22%3A%22https%3A%2F%2Fwww.baidu.com%2Flink%22%7D%2C%22identities%22%3A%22eyIkaWRlbnRpdHlfY29va2llX2lkIjoiMThhZDAyNjQzMzY0OWUtMDMzMzhkMTkzNmI2MmY2LTI2MDMxZjUxLTIwNzM2MDAtMThhZDAyNjQzMzdmODYifQ%3D%3D%22%2C%22history_login_id%22%3A%7B%22name%22%3A%22%22%2C%22value%22%3A%22%22%7D%2C%22%24device_id%22%3A%2218ad026433649e-03338d1936b62f6-26031f51-2073600-18ad0264337f86%22%7D; ASP.NET_SessionId=omdkbj45tzaekuet4x5uv245; Hm_lvt_eca85e284f8b74d1200a42c9faa85464=1734613870,1735056104,1735139821,1735224185; HMACCOUNT=E35BABC01AD885AA; Hm_lpvt_eca85e284f8b74d1200a42c9faa85464=1735224403; AWSALB=Bb0cXtv9fRo+CnwKsXvt6qSSrTI2QUSq3xtWGbozwlpNcAYFxuxdSwv8Usgu5nU4Y/7yQcXingd4cy3Pj/RsujgAbT/QIjj7NufoYNR86P5dKM+9p1l48hindW6o; AWSALBCORS=Bb0cXtv9fRo+CnwKsXvt6qSSrTI2QUSq3xtWGbozwlpNcAYFxuxdSwv8Usgu5nU4Y/7yQcXingd4cy3Pj/RsujgAbT/QIjj7NufoYNR86P5dKM+9p1l48hindW6o'
+        }
+
+        # Remove headers from kwargs if it exists
+        kwargs.pop('headers', None)
+
         while retry_count < max_retries:
             try:
                 if method.upper() == 'GET':
-                    response = self.session.get(url, timeout=timeout, **kwargs)
+                    response = self.session.get(url, headers=headers, timeout=timeout, **kwargs)
                 else:
-                    response = self.session.post(url, timeout=timeout, **kwargs)
+                    response = self.session.post(url, headers=headers, timeout=timeout, **kwargs)
                 response.raise_for_status()
                 return response
             except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
                 retry_count += 1
                 wait_time = retry_count * 2
-                print(f"\n请求超时，{wait_time}秒后进行第{retry_count}次重试...")
+                print(f"\nRequest timed out, retrying in {wait_time} seconds... (Attempt {retry_count})")
                 time.sleep(wait_time)
+                self._update_cookies()  # Update cookies before retrying
                 if retry_count == max_retries:
                     raise e
             except requests.exceptions.RequestException as e:
-                print(f"请求失败: {str(e)}")
+                print(f"Request failed: {str(e)}")
                 raise e
         
     def _get_fund_type_map(self, html: str) -> Dict[str, str]:
@@ -875,7 +913,7 @@ class MorningstarFundCrawler:
             # 如果是第一次运行，计算地片哈希值
             if not hasattr(self, '_rating_hash_map'):
                 self._rating_hash_map = {}
-                rating_dir = "C:/Users/yanyifan/code/baofu/web_crawler/res/morningstar/rating/"
+                rating_dir = "res/morningstar/rating"
                 
                 if os.path.exists(rating_dir):
                     for filename in os.listdir(rating_dir):
