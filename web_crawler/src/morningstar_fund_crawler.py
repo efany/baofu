@@ -4,7 +4,7 @@ import pandas as pd
 from datetime import datetime
 import os
 import time
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 import urllib3
 import json
 import hashlib
@@ -623,8 +623,29 @@ class MorningstarFundCrawler:
             import traceback
             print(traceback.format_exc())
             return {}
+        
+    def __try_load_cache(self) -> Tuple[int, bool]:
+        """尝试从缓存中加载数据"""
+        page_index = 1
+        max_records = self.config.get('max_records', 0)
+        while True:
+            cache_file = self._find_latest_cache(page_index)
+            if cache_file:
+                df = pd.read_excel(cache_file, dtype={'fund_code': str})
+                self.fund_data.extend(df.to_dict('records'))
+                print(f"第{page_index}页缓存找到: {cache_file}, 加载{len(df)}条数据, 共取 {len(self.fund_data)} 条记录")
+                page_index += 1
+            else:
+                print(f"第{page_index}页缓存未找到")
+                break
 
-    def _find_latest_cache(self) -> Optional[str]:
+            # 判断是否已经达到最大读取数量限制
+            if max_records > 0 and len(self.fund_data) >= self.config['max_records']:
+                print(f"已达到最大读取数量限制: {self.config['max_records']}条数据")
+                return page_index, True
+        return page_index, False
+
+    def _find_latest_cache(self, page_index: int) -> Optional[str]:
         """
         查找最新的缓存文件
         
@@ -636,13 +657,12 @@ class MorningstarFundCrawler:
                 return None
             
             # 查找所有匹配的缓存文件
-            cache_pattern = f"morningstar_funds_{self.config_hash}_*.xlsx"
             cache_files = []
             
             for file in os.listdir(self.cache_dir):
-                if file.startswith(f"morningstar_funds_{self.config_hash}_") and file.endswith(".xlsx"):
+                if file.startswith(f"morningstar_funds_{self.config_hash}_page_{page_index}_") and file.endswith(".xlsx"):
                     cache_path = os.path.join(self.cache_dir, file)
-                    # 获取文件日期（文件名格式：morningstar_funds_<hash>_YYYYMMDD.xlsx）
+                    # 获取文件日期（文件名格式：morningstar_funds_<hash>_page_<page_index>_YYYYMMDD.xlsx）
                     date_str = file.split('_')[-1].split('.')[0]
                     cache_files.append((cache_path, date_str))
             
@@ -651,16 +671,15 @@ class MorningstarFundCrawler:
             
             # 按日期排序，返回最新的
             latest_cache = sorted(cache_files, key=lambda x: x[1], reverse=True)[0][0]
-            print(f"找到最新缓存: {latest_cache}")
+            print(f"找到第{page_index}页最新缓存: {latest_cache}")
             return latest_cache
             
         except Exception as e:
-            print(f"查找缓存失败: {str(e)}")
+            print(f"查找第{page_index}页缓存失败: {str(e)}")
             return None
         
-    def __request_fund_data(self) -> List[Dict]:
+    def __request_fund_data(self, read_cache_page_index: int) -> int:
         """获取满足条件的基金数据"""
-        fund_datas = []
         try:
             print("正在访问晨星网...")
             
@@ -668,14 +687,14 @@ class MorningstarFundCrawler:
             max_records = self.config.get('max_records', 0)
             delay = float(self.config.get('delay', 2.0))  # 确保是浮点数
             
-            page = 1
+            page = read_cache_page_index
             while True:
                 print(f"\n正在获取第 {page} 页数据...")
                 
                 try:
                     response = self._make_business_request(page)
                 except Exception as e:
-                    print(f"请求失败: {str(e)}")
+                    print(f"第{page}页请求失败: {str(e)}")
                     break
                 
                 # 解析数据
@@ -684,21 +703,22 @@ class MorningstarFundCrawler:
                 # 查找数据表格
                 table = soup.find('table', {'id': 'ctl00_cphMain_gridResult'})
                 if not table:
-                    print("未找到数据表格")
+                    print(f"第{page}页未找到数据表格")
                     break
                 
                 # 处理当前页数据
                 rows = table.find_all('tr')[1:]  # 跳过表头
                 if not rows:
-                    print("没有更多数据")
+                    print(f"第{page}页没有更多数据")
                     break
                 
                 # 检查是否达到最大数条数限制
-                remaining = max_records - len(fund_datas) if max_records > 0 else len(rows)
+                remaining = max_records - len(self.fund_data) if max_records > 0 else len(rows)
                 if remaining <= 0:
-                    print(f"\n已达到最大数据条数限制: {max_records}")
+                    print(f"\n第{page}页已达到最大数据条数限制: {max_records}")
                     break
                 
+                page_fund_datas = []
                 # 处理数据
                 for row in rows[:remaining]:
                     cells = row.find_all('td')
@@ -708,7 +728,7 @@ class MorningstarFundCrawler:
                         fund_link = cells[2].find('a')['href'] if cells[2].find('a') else None
                         
                         if not fund_link:
-                            print(f"未找到基金 {fund_code} 的链接")
+                            print(f"第{page}页未找到基金 {fund_code} 的链接")
                             continue
                         
                         # 确保链接是完整的URL
@@ -742,71 +762,70 @@ class MorningstarFundCrawler:
                             **fund_detail  # 展开详情数据
                         }
                         
-                        fund_datas.append(fund_data)
-                        time.sleep(0.5)  # 添加延迟避免请求过快
+                        page_fund_datas.append(fund_data)
+                        time.sleep(1)  # 添加延迟避免请求过快
                 
-                print(f"已取 {len(fund_datas)} 条记录")
-                
+                if len(page_fund_datas) > 0:
+                    self.__export_to_cache(page_fund_datas, page)
+                    self.fund_data.extend(page_fund_datas)
+                    print(f"第{page}页读取{len(page_fund_datas)}条数据, 共取 {len(self.fund_data)} 条记录")
+
                 # 检查是否有下一页
                 pager = soup.find('div', {'id': 'ctl00_cphMain_AspNetPager1'})
                 if not pager:
-                    print("未找到分页控件")
+                    print(f"第{page}页未找到分页控件")
                     break
                 
                 # 查找下一页链接
                 next_link = pager.find('a', text='>')
                 if not next_link:
-                    print("已到达最后一页")
+                    print(f"第{page}页已到达最后一页")
                     break
                 
                 # 检查是否已达到最大记录数
-                if max_records > 0 and len(fund_datas) >= max_records:
-                    print(f"\n已达到最大数据条数限制: {max_records}")
+                if max_records > 0 and len(self.fund_data) >= max_records:
+                    print(f"\n第{page}页已达到最大数据条数限制: {max_records}")
                     break
                 
                 page += 1
                 time.sleep(delay)  # 使用配置中的延迟时间
             
-            print(f"\n共获取 {len(fund_datas)} 条基金数据")
+            print(f"\n共获取 {len(self.fund_data)} 条基金数据")
             if max_records > 0:
                 print(f"最大限制: {max_records} 条")
-            return fund_datas
+            return page
             
         except Exception as e:
-            print(f"获取数据失败: {str(e)}")
+            print(f"第{page}页获取数据失败: {str(e)}")
             import traceback
             print(traceback.format_exc())
-            return fund_datas
+            return page
 
     def fetch_fund_data(self) -> List[Dict[str, Any]]:
         """获取基金数据"""
         # 如果允许使用缓存，先尝试读取缓存
+        read_cache_page_index = 0
         if self.use_cache:
-            cache_file = self._find_latest_cache()
-            if cache_file:
-                try:
-                    print(f"正在读取缓存: {cache_file}")
-                    df = pd.read_excel(cache_file, dtype={'fund_code': str})
-                    self.fund_data = df.to_dict('records')
-                    self.is_cache_used = True
-                    print(f"从缓存读取了 {len(self.fund_data)} 条数据")
+            try:
+                read_cache_page_index, load_cache_reach_max_records = self.__try_load_cache()
+                if load_cache_reach_max_records:
                     return self.fund_data
-                except Exception as e:
-                    print(f"读取缓存失败: {str(e)}")
-                    print("将重新获取数据")
-        self.fund_data = self.__request_fund_data()
-        self.export_to_cache()
+            except Exception as e:
+                print(f"读取缓存失败: {str(e)}")
+                print(f"将重新获取数据，从第{read_cache_page_index}页开始")
+
+        self.__request_fund_data(read_cache_page_index)
         return self.fund_data
     
-    def export_to_cache(self) -> str:
+    def __export_to_cache(self, fund_data: List[Dict], page_index: int = 0) -> str:
         """
         将数据导出到缓存目录
         
         Returns:
             str: 缓存文件路径
         """
-        if not self.fund_data:
-            print("没有数据可导出到缓存")
+        if not fund_data:
+            print(f"没有数据可导出到缓存,第{page_index}页")
             return ""
         
         try:
@@ -815,24 +834,24 @@ class MorningstarFundCrawler:
             
             # 生成文件名
             timestamp = datetime.now().strftime("%Y%m%d")
-            filename = f"morningstar_funds_{self.config_hash}_{timestamp}.xlsx"
+            filename = f"morningstar_funds_{self.config_hash}_page_{page_index}_{timestamp}.xlsx"
             cache_path = os.path.join(self.cache_dir, filename)
             
             # 导出数据
             with pd.ExcelWriter(cache_path, engine='openpyxl') as writer:
                 # 转换为DataFrame
-                df = pd.DataFrame(self.fund_data)
+                df = pd.DataFrame(fund_data)
                 # 导出到Excel
                 df.to_excel(writer, sheet_name='基金列表', index=False)
 
-            print(f"\n数据已缓存到: {cache_path}")
+            print(f"\n第{page_index}页数据已缓存到: {cache_path}")
             print(f"总记录数: {len(df)}")
             print(f"配置Hash: {self.config_hash}")
             
             return cache_path
             
         except Exception as e:
-            print(f"导出缓存失败: {str(e)}")
+            print(f"第{page_index}页导出缓存失败: {str(e)}")
             import traceback
             print(traceback.format_exc())
             return ""
@@ -1135,44 +1154,4 @@ class MorningstarFundCrawler:
         except Exception as e:
             print(f"计算配置hash失败: {str(e)}")
             return "default"
-    
-    def export_to_cache(self) -> str:
-        """
-        将数据导出到缓存目录
-        
-        Returns:
-            str: 缓存文件路径
-        """
-        if not self.fund_data:
-            print("没有数据可导出到缓存")
-            return ""
-        
-        try:
-            # 确保缓存目录存在
-            os.makedirs(self.cache_dir, exist_ok=True)
-            
-            # 生成文件名
-            timestamp = datetime.now().strftime("%Y%m%d")
-            filename = f"morningstar_funds_{self.config_hash}_{timestamp}.xlsx"
-            cache_path = os.path.join(self.cache_dir, filename)
-            
-            # 导出数据
-            with pd.ExcelWriter(cache_path, engine='openpyxl') as writer:
-                # 转换为DataFrame
-                df = pd.DataFrame(self.fund_data)
-                # 导出到Excel
-                df.to_excel(writer, sheet_name='基金列表', index=False)
-
-            print(f"\n数据已缓存到: {cache_path}")
-            print(f"总记录数: {len(df)}")
-            print(f"配置Hash: {self.config_hash}")
-            
-            return cache_path
-            
-        except Exception as e:
-            print(f"导出缓存失败: {str(e)}")
-            import traceback
-            print(traceback.format_exc())
-            return ""
-    
     
