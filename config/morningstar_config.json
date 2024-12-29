@@ -27,6 +27,6 @@
         "range": "0~5"
     },
     "page_size": 25,
-    "max_records": 25,
+    "max_records": 0,
     "delay": 0.5
 } 
