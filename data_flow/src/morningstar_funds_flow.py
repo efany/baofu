@@ -301,8 +301,8 @@ def main():
     fund_datas = {}
 
     # 创建带时间戳的输出目录
-    timestamp = time.strftime("%Y%m%d_%H%M%S")
-    output_dir = f'output/morningstar_funds_flow_{timestamp}'
+    # timestamp = time.strftime("%Y%m%d_%H%M%S")
+    # output_dir = f'output/morningstar_funds_flow_{timestamp}'
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
