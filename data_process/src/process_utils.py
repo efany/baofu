@@ -2,6 +2,7 @@ import pandas as pd
 import os
 from datetime import datetime
 from typing import Dict, Any
+from loguru import logger
 
 def export_analysis_to_excel(fund_code: str, fund_data: Dict[str, Any], output_dir: str = "output") -> None:
     """
@@ -186,4 +187,4 @@ def export_analysis_to_excel(fund_code: str, fund_data: Dict[str, Any], output_d
             total_shares_data = total_shares_data.rename(columns=column_mapping)
             total_shares_data.to_excel(writer, sheet_name='总份额分析', index=False)
     
-    print(f"\n分析结果已导出到: {filepath}")
+    logger.info(f"\n分析结果已导出到: {filepath}")

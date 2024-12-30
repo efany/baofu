@@ -3,6 +3,7 @@ import os
 import time
 import pandas as pd
 from datetime import datetime, timedelta
+from loguru import logger
 
 # Add src directories to Python path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'web_crawler', 'src'))
@@ -87,20 +88,20 @@ def export_filtered_results(result_funds: list, output_dirs: str) -> None:
     # 导出到Excel
     output_file = os.path.join(output_dirs, 'funds.xlsx')
     export_funds_df.to_excel(output_file, index=False)
-    print(f"\n筛选结果已导出到: {output_file}")
+    logger.info(f"\n筛选结果已导出到: {output_file}")
     
     # 打印缺失的列（用于调试）
     missing_columns = set(column_mapping.keys()) - set(result_funds_df.columns)
     if missing_columns:
-        print("\n警告：以下字段在数据中不存在：")
+        logger.warning("\n警告：以下字段在数据中不存在：")
         for col in missing_columns:
-            print(f"- {col}")
+            logger.warning(f"- {col}")
 
 def get_period_return(fund_data, period):
     for period in fund_data['period_returns']:
         if period['period'] == period:
             return float(period['reinvest_annualized'])
-    print(f"基金 {fund_data['fund_code']} 没有3年再投资收益率")
+    logger.warning(f"基金 {fund_data['fund_code']} 没有3年再投资收益率")
     return -100.0
 
 def compute_filter_params(morningstar_fund_datas: list, fund_datas: dict) -> list:
@@ -272,21 +273,32 @@ def compute_filter_params(morningstar_fund_datas: list, fund_datas: dict) -> lis
             fund['manager_1_duration_days'] = total_days
             
         except:
-            print(f"基金 {fund.get('fund_code', '--')} 基金经理1任期解析失败")
+            logger.warning(f"基金 {fund.get('fund_code', '--')} 基金经理1任期解析失败")
             fund['manager_1_duration_days'] = 0
         
     return morningstar_fund_datas
 
+def __init_logger(log_dir):
+    logger.add(os.path.join(log_dir, "app.log"), rotation="100 KB")
+    logger.info(f"日志目录设置为: {log_dir}")
+
 def main():
     output_dir = ""  # 默认输出目录
+    log_dir = ""
     if len(sys.argv) > 1:
         try:
-            dir_index = sys.argv.index("--output_dir") 
+            dir_index = sys.argv.index("--output_dir")
             output_dir = sys.argv[dir_index + 1]
+
+            log_dir_index = sys.argv.index("--log_dir")
+            log_dir = sys.argv[log_dir_index + 1]
+
+            __init_logger(log_dir)
+
             # 更新cache_dir为用户指定的目录
             global cache_dir
             cache_dir = output_dir
-            print(f"输出目录设置为: {output_dir}")
+            logger.info(f"输出目录设置为: {output_dir}, 日志目录设置为: {log_dir}")
         except (ValueError, IndexError):
             pass
     # 创建爬虫实例
@@ -306,14 +318,14 @@ def main():
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-        print(f"创建目录: {output_dir}")
+        logger.info(f"创建目录: {output_dir}")
     
     # 导出原始数据到Excel
     crawler.export_to_excel(output_dir)
 
     for fund in morningstar_fund_datas:
         fund_code = fund['fund_code']
-        print(f"\n正在从东方财富获取基金 {fund_code} 的数据...")
+        logger.info(f"\n正在从东方财富获取基金 {fund_code} 的数据...")
         
         # 创建东方财富爬虫实例
         eastmoney_crawler = FundEastmoneyCrawler(
@@ -365,4 +377,12 @@ def main():
     export_filtered_results(result_funds, output_dir)
     
 if __name__ == "__main__":
-    main() 
+    try:
+        
+        main() 
+    except Exception as e:
+        logger.error(f"程序运行错误: {e}")
+        logger.error(f"错误类型: {type(e)}")
+        logger.error(f"错误信息: {e}")
+        import traceback
+        logger.error(f"错误堆栈: {traceback.format_exc()}")

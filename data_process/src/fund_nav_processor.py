@@ -1,6 +1,7 @@
 from typing import List, Dict, Any
 import pandas as pd
 from datetime import datetime
+from loguru import logger
 
 class FundNavProcessor:
     """基金净值数据处理类"""
@@ -24,11 +25,12 @@ class FundNavProcessor:
         Returns:
             Dict: 处理后的数据，包含年度收益率和分红记录
         """
+        logger.info("开始处理净值数据...")
         try:
             # 转换为DataFrame并过滤掉非法值
             self.df = pd.DataFrame(self.nav_data)
             # 过滤掉nav和acc_nav为空或非数字的记录
-            print(len(self.df))
+            logger.info(f"数据长度: {len(self.df)}")
             self.df = self.df[
                 self.df['nav'].apply(lambda x: pd.to_numeric(x, errors='coerce')).notna() &
                 self.df['acc_nav'].apply(lambda x: pd.to_numeric(x, errors='coerce')).notna() &
@@ -37,7 +39,6 @@ class FundNavProcessor:
                 (self.df['nav'] != 'None') &
                 (self.df['acc_nav'] != 'None')
             ]
-            print(len(self.df))
             
             # 转换日期列
             self.df['date'] = pd.to_datetime(self.df['date'])
@@ -147,7 +148,6 @@ class FundNavProcessor:
             
             # 计算区间收益率
             period_returns = self._calculate_period_returns()
-            self._print_period_returns(period_returns)
             
             return {
                 'yearly_returns': yearly_data,  # 年度收益率表
@@ -157,9 +157,9 @@ class FundNavProcessor:
             }
             
         except Exception as e:
-            print(f"处理净值数据失败: {str(e)}")
+            logger.error(f"处理净值数据失败: {str(e)}")
             import traceback
-            print(traceback.format_exc())
+            logger.error(traceback.format_exc())
             return {
                 'yearly_returns': [],
                 'quarterly_returns': [],
@@ -294,28 +294,18 @@ class FundNavProcessor:
         # 获取费率信息用于显示
         purchase_rate = self.fee_data.get('actual_rate', '--')
         
-        print("\n=== 年度收益率统计 ===")
-        if purchase_rate != '--':
-            print(f"实际申购费率: {purchase_rate}%")
+        logger.info("=== 年度收益率统计 ===")
         
         for year, data in sorted(returns.items()):
-            print(f"\n{year}年:")
-            print(f"期间: {data['start_date']:%Y-%m-%d} 至 {data['end_date']:%Y-%m-%d}")
-            print(f"净值变化: {data['start_nav']:.4f} -> {data['end_nav']:.4f}")
-            print(f"年度分红: {data['total_dividend']:.4f}")
-            print(f"净值涨幅: {data['pure_nav_return']:.2f}%")
-            print(f"分红收益率: {data['nav_return']:.2f}%")
-            print(f"再投资收益率: {data['reinvest_return']:.2f}% (考虑申购费率)")
-            print(f"最高净值: {data['max_nav']:.4f} ({data['max_nav_date']:%Y-%m-%d})")
-            print(f"最低净值: {data['min_nav']:.4f} ({data['min_nav_date']:%Y-%m-%d})")
-            
-            # 打印分红记录
-            if data['dividend_records']:
-                print("\n分红记录:")
-                for record in data['dividend_records']:
-                    print(f"{record['date']:%Y-%m-%d}: {record['dividend']:.4f} (净值: {record['nav']:.4f})")
-            
-            print(f"\n记录数: {data['records']}") 
+            logger.info(f"{year}年 记录数: {data['records']}")
+            logger.info(f"期间: {data['start_date']:%Y-%m-%d} 至 {data['end_date']:%Y-%m-%d}")
+            logger.info(f"净值变化: {data['start_nav']:.4f} -> {data['end_nav']:.4f}")
+            logger.info(f"年度分红: {data['total_dividend']:.4f}")
+            logger.info(f"净值涨幅: {data['pure_nav_return']:.2f}%")
+            logger.info(f"分红收益率: {data['nav_return']:.2f}%")
+            logger.info(f"再投资收益率: {data['reinvest_return']:.2f}% (考虑申购费率)")
+            logger.info(f"最高净值: {data['max_nav']:.4f} ({data['max_nav_date']:%Y-%m-%d})")
+            logger.info(f"最低净值: {data['min_nav']:.4f} ({data['min_nav_date']:%Y-%m-%d})")
         
     def _calculate_quarterly_returns(self) -> Dict[str, Dict[str, Any]]:
         """计算季度收益率"""
@@ -386,19 +376,18 @@ class FundNavProcessor:
         
     def _print_quarterly_returns(self, returns: Dict[str, Dict[str, float]]) -> None:
         """打印季度收益率"""
-        print("\n=== 季度收益率统计 ===")
+        logger.info("=== 季度收益率统计 ===")
         
         for period, data in sorted(returns.items()):
-            print(f"\n{period}:")
-            print(f"期间: {data['start_date']:%Y-%m-%d} 至 {data['end_date']:%Y-%m-%d}")
-            print(f"净值变化: {data['start_nav']:.4f} -> {data['end_nav']:.4f}")
-            print(f"季度分红: {data['total_dividend']:.4f}")
-            print(f"净值涨幅: {data['pure_nav_return']:.2f}%")
-            print(f"分红收益率: {data['nav_return']:.2f}%")
-            print(f"再投资收益率: {data['reinvest_return']:.2f}% (考虑申购费率)")
-            print(f"最高净值: {data['max_nav']:.4f} ({data['max_nav_date']:%Y-%m-%d})")
-            print(f"最低净值: {data['min_nav']:.4f} ({data['min_nav_date']:%Y-%m-%d})")
-            print(f"记录数: {data['records']}")
+            logger.info(f"{period} 记录数: {data['records']}")
+            logger.info(f"期间: {data['start_date']:%Y-%m-%d} 至 {data['end_date']:%Y-%m-%d}")
+            logger.info(f"净值变化: {data['start_nav']:.4f} -> {data['end_nav']:.4f}")
+            logger.info(f"季度分红: {data['total_dividend']:.4f}")
+            logger.info(f"净值涨幅: {data['pure_nav_return']:.2f}%")
+            logger.info(f"分红收益率: {data['nav_return']:.2f}%")
+            logger.info(f"再投资收益率: {data['reinvest_return']:.2f}% (考虑申购费率)")
+            logger.info(f"最高净值: {data['max_nav']:.4f} ({data['max_nav_date']:%Y-%m-%d})")
+            logger.info(f"最低净值: {data['min_nav']:.4f} ({data['min_nav_date']:%Y-%m-%d})")
 
     def _calculate_annualized_return(self, 
                                start_date: pd.Timestamp,
@@ -464,7 +453,7 @@ class FundNavProcessor:
             return volatility, sharpe_ratio
             
         except Exception as e:
-            print(f"计算波动率和夏普比率失败: {str(e)}")
+            logger.error(f"计算波动率和夏普比率失败: {str(e)}")
             return 0.0, 0.0
 
     def _calculate_period_returns(self) -> List[Dict[str, Any]]:
@@ -565,18 +554,16 @@ class FundNavProcessor:
                 max_drawdown, peak_date, valley_date = self._calculate_max_drawdown(valid_data)
                 
                 if max_drawdown > 0:
-                    print(f"最大回撤: {max_drawdown * 100:.2f}%")
-                    print(f"峰值日期: {peak_date:%Y-%m-%d}")
-                    print(f"谷值日期: {valley_date:%Y-%m-%d}")  
+                    logger.info(f"最大回撤: {max_drawdown * 100:.2f}%")
+                    logger.info(f"峰值日期: {peak_date:%Y-%m-%d}")
+                    logger.info(f"谷值日期: {valley_date:%Y-%m-%d}")  
 
                 # 计算回撤持续天数
                 # drawdown_duration = (valley_date - peak_date).days if peak_date is not None and valley_date is not None else 0
                 
                 # 找出最高和最低净值的日期和值
                 nav_max_idx = valid_data['nav'].idxmax()
-                print(f"nav_max_idx: {nav_max_idx}")
                 nav_min_idx = valid_data['nav'].idxmin()
-                print(f"nav_min_idx: {nav_min_idx}")
                 
                 # 添加数据到结果列表
                 period_returns.append({
@@ -615,9 +602,9 @@ class FundNavProcessor:
                 })
                 
             except Exception as e:
-                print(f"处理区间 {period_name} 数据时出错: {str(e)}")
+                logger.error(f"处理区间 {period_name} 数据时出错: {str(e)}")
                 import traceback
-                print(traceback.format_exc())
+                logger.error(traceback.format_exc())
                 continue
         
         # 按照时间跨度排序
@@ -651,60 +638,10 @@ class FundNavProcessor:
                 max_drawdown = abs(valid_data.loc[max_drawdown_idx, 'drawdown']) / 100  # 转换为小数
                 peak_date = valid_data.loc[max_drawdown_idx, 'date']
                 valley_date = valid_data.loc[max_drawdown_idx, 'future_min_acc_nav_date']
-                print(f"max_drawdown: {max_drawdown}, peak_date: {peak_date}, valley_date: {valley_date}")
                 return max_drawdown, peak_date, valley_date
             return 0.0, None, None
         except Exception as e:
-            print(f"计算最大回撤失败: {str(e)}")
+            logger.error(f"计算最大回撤失败: {str(e)}")
             import traceback
-            print(traceback.format_exc())
+            logger.error(traceback.format_exc())
             return 0.0, None, None
-
-    def _print_period_returns(self, returns: List[Dict[str, Any]]) -> None:
-        """打印区间收益率"""
-        period_names = {
-            '7d': '近7天',
-            '1m': '近1个月',
-            '3m': '近3个月',
-            '6m': '近6个月',
-            '1y': '近1年',
-            '2y': '近2年',
-            '3y': '近3年',
-            '5y': '近5年',
-            '10y': '近10年',
-            'inception': '成立以来'
-        }
-        
-        print("\n=== 区间收益率统计 ===")
-        # 列表已经排序，直接遍历
-        for data in returns:
-            period_name = period_names.get(data['period'], data['period'])
-            print(f"\n{period_name}:")
-            print(f"期间: {data['start_date']:%Y-%m-%d} 至 {data['end_date']:%Y-%m-%d}")
-            print(f"净值变化: {data['start_nav']:.4f} -> {data['end_nav']:.4f}")
-            print(f"区间分红: {data['total_dividend']:.4f}")
-            print(f"净值涨幅: {data['pure_nav_return']:.2f}%")
-            print(f"分红收益率: {data['nav_return']:.2f}%")
-            print(f"再投资收益率: {data['reinvest_return']:.2f}% (考虑申购费率)")
-            
-            # 打印年化收益率和风险指标
-            if data['valid_days'] > 30:  # 只超过30天的区间显示
-                print(f"年化净涨幅: {data['pure_nav_annualized']:.2f}%")
-                print(f"��化分红收益: {data['nav_annualized']:.2f}%")
-                print(f"年化再投资收益率: {data['reinvest_annualized']:.2f}%")
-                print(f"年化波动率: {data['annualized_volatility']:.2f}%")
-                print(f"夏普比率: {data['sharpe_ratio']:.2f}")
-                print(f"最大回撤: {data['max_drawdown']:.2f}% "
-                      f"({data['max_drawdown_peak_date']:%Y-%m-%d} 至 "
-                      f"{data['max_drawdown_valley_date']:%Y-%m-%d}, "
-                      f"持续{data['max_drawdown_duration']}天)")
-                print(f"日均收益率: {data['daily_returns_mean']:.4f}%")
-                print(f"日收益率标准差: {data['daily_returns_std']:.4f}%")
-                print(f"偏度: {data['skewness']:.2f}")
-                print(f"峰度: {data['kurtosis']:.2f}")
-                print(f"胜率: {data['win_rate']:.2f}%")
-                print(f"上涨/下跌天数: {data['positive_days']}/{data['negative_days']}")
-            
-            print(f"最高净值: {data['max_nav']:.4f} ({data['max_nav_date']:%Y-%m-%d})")
-            print(f"最低净值: {data['min_nav']:.4f} ({data['min_nav_date']:%Y-%m-%d})")
-            print(f"记录数: {data['records']} (有效天数: {data['valid_days']})")

@@ -13,6 +13,7 @@ import io
 import base64
 import re
 import openpyxl
+from loguru import logger
 
 class MorningstarFundCrawler:
     """
@@ -130,7 +131,7 @@ class MorningstarFundCrawler:
         
         # 计算配置的hash值
         self.config_hash = self._calculate_config_hash()
-        print(f"配置Hash: {self.config_hash}")
+        logger.info(f"配置Hash: {self.config_hash}")
         
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -158,43 +159,34 @@ class MorningstarFundCrawler:
         self.session.mount("http://", adapter)
         
     def load_config(self, config_file: Optional[str]) -> Dict[str, Any]:
-        """
-        加载配置文件
-        
-        Args:
-            config_file: 配置文件路径
-            
-        Returns:
-            Dict: 配置字典
-        """
+        """加载配置文件"""
         config = self.DEFAULT_CONFIG.copy()
         
         if config_file:
             try:
                 if not os.path.exists(config_file):
-                    print(f"配置文件不存在: {config_file}")
-                    print("使用默认配置")
+                    logger.warning(f"配置文件不存在: {config_file}")
+                    logger.info("使用默认配置")
                     return config
                     
                 with open(config_file, 'r', encoding='utf-8') as f:
                     try:
                         content = f.read()
-                        
                         user_config = json.loads(content)
                     except json.JSONDecodeError as e:
-                        print(f"配置文件格式错误: {str(e)} config_file: {config_file} content: {content}")
-                        print("使用默认配置")
+                        logger.error(f"配置文件格式错误: {str(e)} config_file: {config_file} content: {content}")
+                        logger.info("使用默认配置")
                         return config
                         
                     # 更新配置，保持默认值
                     self._update_config(config, user_config)
                     
             except Exception as e:
-                print(f"加载配置文件失败: {str(e)}")
-                print("使用默认配置")
+                logger.error(f"加载配置文件失败: {str(e)}")
+                logger.info("使用默认配置")
     
-        print("当前配置:")
-        print(json.dumps(config, indent=4, ensure_ascii=False))
+        logger.debug("当前配置:")
+        logger.debug(json.dumps(config, indent=4, ensure_ascii=False))
         return config
         
     def _update_config(self, base_config: Dict, new_config: Dict) -> None:
@@ -229,9 +221,7 @@ class MorningstarFundCrawler:
             return ''
             
         except Exception as e:
-            print(f"获取 ViewState 失败: {str(e)}")
-            import traceback
-            print(traceback.format_exc())
+            logger.error(f"获取 ViewState 失败: {str(e)}")
             return ''
         
     def _get_eventvalidation(self, html: str) -> str:
@@ -257,22 +247,18 @@ class MorningstarFundCrawler:
             return ''
             
         except Exception as e:
-            print(f"获取 EventValidation 失败: {str(e)}")
-            import traceback
-            print(traceback.format_exc())
+            logger.error(f"获取 EventValidation 失败: {str(e)}")
             return ''
         
     def _update_cookies(self):
         """Fetch and update cookies for the session."""
         try:
-            # Example URL to fetch cookies from
             url = 'https://www.morningstar.cn/fundselect/default.aspx'
             response = self.session.get(url, headers=self.headers)
-            # Update session cookies
             self.session.cookies.update(response.cookies)
-            print("Cookies updated successfully.")
+            logger.info("Cookies updated successfully.")
         except Exception as e:
-            print(f"Failed to update cookies: {str(e)}")
+            logger.error(f"Failed to update cookies: {str(e)}")
 
     def _make_request(self, method: str, url: str, **kwargs) -> requests.Response:
         """Send request and handle timeout retries with cookie updates."""
@@ -316,13 +302,13 @@ class MorningstarFundCrawler:
             except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
                 retry_count += 1
                 wait_time = retry_count * 2
-                print(f"\nRequest timed out, retrying in {wait_time} seconds... (Attempt {retry_count})")
+                logger.info(f"Request timed out, retrying in {wait_time} seconds... (Attempt {retry_count})")
                 time.sleep(wait_time)
                 self._update_cookies()  # Update cookies before retrying
                 if retry_count == max_retries:
                     raise e
             except requests.exceptions.RequestException as e:
-                print(f"Request failed: {str(e)}")
+                logger.error(f"Request failed: {str(e)}")
                 raise e
         
     def _get_fund_type_map(self, html: str) -> Dict[str, str]:
@@ -344,7 +330,7 @@ class MorningstarFundCrawler:
         if fund_types:
             return fund_types
         
-        print("警告: 未能从网页获取基金分类信息，使用默认映射")
+        logger.warning("警告: 未能从网页获取基金分类信息，使用默认映射")
         return self.FUND_TYPE_MAP
         
     def _get_pager_params(self, soup, target_page: int) -> tuple:
@@ -445,12 +431,8 @@ class MorningstarFundCrawler:
                 # 第一页需要点击查询按钮
                 data['ctl00$cphMain$btnGo'] = '查询'
             # 打印请求详情
-            print("\n请求详情:")
-            print(f"URL: {url}")
-            # print("\nHeaders:")
-            # print(json.dumps(self.headers, indent=4, ensure_ascii=False))
-            # print("\nData:")
-            # print(json.dumps(data, indent=4, ensure_ascii=False))
+            logger.info("请求详情:")
+            logger.info(f"URL: {url}")
             # 发送请求
             response = self._make_request(
                 'POST',
@@ -463,9 +445,9 @@ class MorningstarFundCrawler:
             return response
 
         except Exception as e:
-            print(f"请求失败: {str(e)}")
+            logger.error(f"请求失败: {str(e)}")
             import traceback
-            print(traceback.format_exc())
+            logger.info(traceback.format_exc())
             raise
 
     def _get_basic_info(self, soup: BeautifulSoup) -> Dict[str, str]:
@@ -541,7 +523,7 @@ class MorningstarFundCrawler:
                         details['y10_return'] = return_value
         
         except Exception as e:
-            print(f"获取当前回报数据失败: {str(e)}")
+            logger.error(f"获取当前回报数据失败: {str(e)}")
         
         return details
 
@@ -588,9 +570,9 @@ class MorningstarFundCrawler:
             details['worst_6mon_return'] = data.get('Worst6MonReturn', '')
         
         except Exception as e:
-            print(f"获取年度回报数据失败: {str(e)}")
+            logger.error(f"获取年度回报数据失败: {str(e)}")
             import traceback
-            print(traceback.format_exc())
+            logger.info(traceback.format_exc())
         
         return details
 
@@ -619,29 +601,29 @@ class MorningstarFundCrawler:
             return details
             
         except Exception as e:
-            print(f"获取基金详情失败: {str(e)}")
+            logger.error(f"获取基金详情失败: {str(e)}")
             import traceback
-            print(traceback.format_exc())
+            logger.info(traceback.format_exc())
             return {}
         
     def __try_load_cache(self) -> Tuple[int, bool]:
         """尝试从缓存中加载数据"""
-        page_index = 1
+        page_index = 0
         max_records = self.config.get('max_records', 0)
         while True:
-            cache_file = self._find_latest_cache(page_index)
+            cache_file = self._find_latest_cache(page_index+1)
             if cache_file:
                 df = pd.read_excel(cache_file, dtype={'fund_code': str})
                 self.fund_data.extend(df.to_dict('records'))
-                print(f"第{page_index}页缓存找到: {cache_file}, 加载{len(df)}条数据, 共取 {len(self.fund_data)} 条记录")
+                logger.info(f"第{page_index+1}页缓存找到: {cache_file}, 加载{len(df)}条数据, 共取 {len(self.fund_data)} 条记录")
                 page_index += 1
             else:
-                print(f"第{page_index}页缓存未找到")
+                logger.info(f"第{page_index+1}页缓存未找到")
                 break
 
             # 判断是否已经达到最大读取数量限制
             if max_records > 0 and len(self.fund_data) >= self.config['max_records']:
-                print(f"已达到最大读取数量限制: {self.config['max_records']}条数据")
+                logger.info(f"已达到最大读取数量限制: {self.config['max_records']}条数据")
                 return page_index, True
         return page_index, False
 
@@ -671,30 +653,30 @@ class MorningstarFundCrawler:
             
             # 按日期排序，返回最新的
             latest_cache = sorted(cache_files, key=lambda x: x[1], reverse=True)[0][0]
-            print(f"找到第{page_index}页最新缓存: {latest_cache}")
+            logger.info(f"找到第{page_index}页最新缓存: {latest_cache}")
             return latest_cache
             
         except Exception as e:
-            print(f"查找第{page_index}页缓存失败: {str(e)}")
+            logger.error(f"查找第{page_index}页缓存失败: {str(e)}")
             return None
         
     def __request_fund_data(self, read_cache_page_index: int) -> int:
-        """获取满足条件的基金数据"""
+        """请求基金数据"""
         try:
-            print("正在访问晨星网...")
+            logger.info("正在访问晨星网...")
             
             # 获取配置参数
             max_records = self.config.get('max_records', 0)
             delay = float(self.config.get('delay', 2.0))  # 确保是浮点数
             
-            page = read_cache_page_index
+            page = read_cache_page_index + 1
             while True:
-                print(f"\n正在获取第 {page} 页数据...")
+                logger.info(f"正在获取第 {page} 页数据...")
                 
                 try:
                     response = self._make_business_request(page)
                 except Exception as e:
-                    print(f"第{page}页请求失败: {str(e)}")
+                    logger.info(f"第{page}页请求失败: {str(e)}")
                     break
                 
                 # 解析数据
@@ -703,19 +685,19 @@ class MorningstarFundCrawler:
                 # 查找数据表格
                 table = soup.find('table', {'id': 'ctl00_cphMain_gridResult'})
                 if not table:
-                    print(f"第{page}页未找到数据表格")
+                    logger.info(f"第{page}页未找到数据表格")
                     break
                 
                 # 处理当前页数据
                 rows = table.find_all('tr')[1:]  # 跳过表头
                 if not rows:
-                    print(f"第{page}页没有更多数据")
+                    logger.info(f"第{page}页没有更多数据")
                     break
                 
                 # 检查是否达到最大数条数限制
                 remaining = max_records - len(self.fund_data) if max_records > 0 else len(rows)
                 if remaining <= 0:
-                    print(f"\n第{page}页已达到最大数据条数限制: {max_records}")
+                    logger.info(f"第{page}页已达到最大数据条数限制: {max_records}")
                     break
                 
                 page_fund_datas = []
@@ -728,7 +710,7 @@ class MorningstarFundCrawler:
                         fund_link = cells[2].find('a')['href'] if cells[2].find('a') else None
                         
                         if not fund_link:
-                            print(f"第{page}页未找到基金 {fund_code} 的链接")
+                            logger.info(f"第{page}页未找到基金 {fund_code} 的链接")
                             continue
                         
                         # 确保链接是完整的URL
@@ -768,42 +750,39 @@ class MorningstarFundCrawler:
                 if len(page_fund_datas) > 0:
                     self.__export_to_cache(page_fund_datas, page)
                     self.fund_data.extend(page_fund_datas)
-                    print(f"第{page}页读取{len(page_fund_datas)}条数据, 共取 {len(self.fund_data)} 条记录")
+                    logger.info(f"第{page}页读取{len(page_fund_datas)}条数据, 共取 {len(self.fund_data)} 条记录")
 
                 # 检查是否有下一页
                 pager = soup.find('div', {'id': 'ctl00_cphMain_AspNetPager1'})
                 if not pager:
-                    print(f"第{page}页未找到分页控件")
+                    logger.warning(f"第{page}页未找到分页控件")
                     break
                 
                 # 查找下一页链接
                 next_link = pager.find('a', text='>')
                 if not next_link:
-                    print(f"第{page}页已到达最后一页")
+                    logger.info(f"第{page}页已到达最后一页")
                     break
                 
                 # 检查是否已达到最大记录数
                 if max_records > 0 and len(self.fund_data) >= max_records:
-                    print(f"\n第{page}页已达到最大数据条数限制: {max_records}")
+                    logger.info(f"第{page}页已达到最大数据条数限制: {max_records}")
                     break
                 
                 page += 1
                 time.sleep(delay)  # 使用配置中的延迟时间
             
-            print(f"\n共获取 {len(self.fund_data)} 条基金数据")
+            logger.info(f"共获取 {len(self.fund_data)} 条基金数据")
             if max_records > 0:
-                print(f"最大限制: {max_records} 条")
+                logger.info(f"最大限制: {max_records} 条")
             return page
             
         except Exception as e:
-            print(f"第{page}页获取数据失败: {str(e)}")
-            import traceback
-            print(traceback.format_exc())
+            logger.error(f"第{page}页获取数据失败: {str(e)}")
             return page
 
     def fetch_fund_data(self) -> List[Dict[str, Any]]:
         """获取基金数据"""
-        # 如果允许使用缓存，先尝试读取缓存
         read_cache_page_index = 0
         if self.use_cache:
             try:
@@ -811,55 +790,42 @@ class MorningstarFundCrawler:
                 if load_cache_reach_max_records:
                     return self.fund_data
             except Exception as e:
-                print(f"读取缓存失败: {str(e)}")
-                print(f"将重新获取数据，从第{read_cache_page_index}页开始")
+                logger.error(f"读取缓存失败: {str(e)}")
+                logger.info(f"将重新获取数据，从第{read_cache_page_index}页开始")
 
         self.__request_fund_data(read_cache_page_index)
         return self.fund_data
     
     def __export_to_cache(self, fund_data: List[Dict], page_index: int = 0) -> str:
-        """
-        将数据导出到缓存目录
-        
-        Returns:
-            str: 缓存文件路径
-        """
+        """将数据导出到缓存目录"""
         if not fund_data:
-            print(f"没有数据可导出到缓存,第{page_index}页")
+            logger.warning(f"没有数据可导出到缓存,第{page_index}页")
             return ""
         
         try:
-            # 确保缓存目录存在
             os.makedirs(self.cache_dir, exist_ok=True)
-            
-            # 生成文件名
             timestamp = datetime.now().strftime("%Y%m%d")
             filename = f"morningstar_funds_{self.config_hash}_page_{page_index}_{timestamp}.xlsx"
             cache_path = os.path.join(self.cache_dir, filename)
             
-            # 导出数据
             with pd.ExcelWriter(cache_path, engine='openpyxl') as writer:
-                # 转换为DataFrame
                 df = pd.DataFrame(fund_data)
-                # 导出到Excel
                 df.to_excel(writer, sheet_name='基金列表', index=False)
 
-            print(f"\n第{page_index}页数据已缓存到: {cache_path}")
-            print(f"总记录数: {len(df)}")
-            print(f"配置Hash: {self.config_hash}")
+            logger.info(f"第{page_index}页数据已缓存到: {cache_path}")
+            logger.info(f"总记录数: {len(df)}")
+            logger.info(f"配置Hash: {self.config_hash}")
             
             return cache_path
             
         except Exception as e:
-            print(f"第{page_index}页导出缓存失败: {str(e)}")
-            import traceback
-            print(traceback.format_exc())
+            logger.error(f"第{page_index}页导出缓存失败: {str(e)}")
             return ""
     
     def export_to_excel(self, output_dir: str = "output") -> str:
         """导出数据到Excel文件"""
         if not self.fund_data:
-            print("没有数据可导出")
+            logger.warning("没有数据可导出")
             return ""
         
         try:
@@ -889,14 +855,12 @@ class MorningstarFundCrawler:
                     col_letter = openpyxl.utils.get_column_letter(idx)
                     worksheet.column_dimensions[col_letter].width = max_length
             
-            print(f"\n数据已导出到: {filepath}")
-            print(f"总记录数: {len(df)}")
+            logger.info(f"数据已导出到: {filepath}")
+            logger.info(f"总记录数: {len(df)}")
             return filepath
             
         except Exception as e:
-            print(f"导出数据失败: {str(e)}")
-            import traceback
-            print(traceback.format_exc())
+            logger.error(f"导出数据失败: {str(e)}")
             return ""
         
     def _parse_rating(self, img_element) -> str:
@@ -921,7 +885,7 @@ class MorningstarFundCrawler:
             # 下载图片
             response = self.session.get(src, headers=self.headers)
             if response.status_code != 200:
-                print(f"下载图片失败: {response.status_code}")
+                logger.error(f"下载图片失败: {response.status_code}")
                 return ''
             
             img_bytes = response.content
@@ -960,14 +924,14 @@ class MorningstarFundCrawler:
                                 if rating and 0 <= int(rating) <= 5:
                                     self._rating_hash_map[file_hash] = rating
                                 else:
-                                    print(f"跳过无效评级图片: {filename}")
+                                    logger.warning(f"跳过无效评级图片: {filename}")
                                     
                             except Exception as e:
-                                print(f"无法解析文件名 {filename}: {str(e)}")
+                                logger.error(f"无法解析文件名 {filename}: {str(e)}")
                                 continue
                 else:
-                    print(f"评级图片目录不存在: {rating_dir}")
-                    print("请创建目录并添加评级图片，格式如: 3_star.gif 或 rating_3.gif")
+                    logger.warning(f"评级图片目录不存在: {rating_dir}")
+                    logger.info("请创建目录并添加评级图片，格式如: 3_star.gif 或 rating_3.gif")
             
             # 查找配的评级
             rating = self._rating_hash_map.get(img_hash, '')
@@ -979,20 +943,20 @@ class MorningstarFundCrawler:
                 unknown_file = os.path.join(unknown_dir, f'unknown_{img_hash[:8]}.gif')
                 with open(unknown_file, 'wb') as f:
                     f.write(img_bytes)
-                print(f"\n未别的评级图片已保存: {unknown_file}")
-                print(f"URL: {src}")
-                print(f"Hash: {img_hash}")
+                logger.info(f"未别的评级图片已保存: {unknown_file}")
+                logger.info(f"URL: {src}")
+                logger.info(f"Hash: {img_hash}")
                 if self._rating_hash_map:
-                    print("\n已知的评级图片:")
+                    logger.info("已知的评级图片:")
                     for h, r in self._rating_hash_map.items():
-                        print(f"{h}: {r}星")
+                        logger.info(f"{h}: {r}星")
             
             return rating
             
         except Exception as e:
-            print(f"解析评级图片失败: {str(e)}")
+            logger.error(f"解析评级图片失败: {str(e)}")
             import traceback
-            print(traceback.format_exc())
+            logger.info(traceback.format_exc())
             return '' 
 
     def _get_portfolio(self, fcid: str) -> Dict[str, str]:
@@ -1055,9 +1019,9 @@ class MorningstarFundCrawler:
                     details[f'top_bond_{i}_weight'] = str(holding.get('Percent', 0))
         
         except Exception as e:
-            print(f"获取投资组合数据失败: {str(e)}")
+            logger.error(f"获取投资组合数据失败: {str(e)}")
             import traceback
-            print(traceback.format_exc())
+            logger.info(traceback.format_exc())
         
         return details
     
@@ -1138,9 +1102,9 @@ class MorningstarFundCrawler:
                         details[f'manager_{i}_resume'] = manager['resume']
         
         except Exception as e:
-            print(f"获取基金管理信息失败: {str(e)}")
+            logger.error(f"获取基金管理信息失败: {str(e)}")
             import traceback
-            print(traceback.format_exc())
+            logger.info(traceback.format_exc())
         
         return details
     
@@ -1152,6 +1116,6 @@ class MorningstarFundCrawler:
             # 计算MD5
             return hashlib.md5(config_str.encode()).hexdigest()[:8]
         except Exception as e:
-            print(f"计算配置hash失败: {str(e)}")
+            logger.error(f"计算配置hash失败: {str(e)}")
             return "default"
     

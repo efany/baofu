@@ -8,6 +8,7 @@ from openpyxl import Workbook, load_workbook
 from datetime import datetime, timedelta
 import os
 import re
+from loguru import logger
 
 class FundEastmoneyCrawler:
     def __init__(self, fund_code: str, start_date: str = None, end_date: str = None, per_page: int = 20, cache_dir: str = "cache/eastmoney"):
@@ -66,8 +67,8 @@ class FundEastmoneyCrawler:
                     requests.exceptions.ChunkedEncodingError) as e:
                 retry_count += 1
                 wait_time = retry_count * 2
-                print(f"\n请求失败，{wait_time}秒后进行第{retry_count}次重试...")
-                print(f"错误信息: {str(e)}")
+                logger.error(f"请求失败，{wait_time}秒后进行第{retry_count}次重试...")
+                logger.error(f"错误信息: {str(e)}")
                 time.sleep(wait_time)
                 
                 if retry_count == max_retries:
@@ -84,13 +85,13 @@ class FundEastmoneyCrawler:
             reached_start = False  # 是否到达开始日期
             
             while True:
-                print(f"\n正在获取第 {page} 页数据...")
+                logger.info(f"正在获取第 {page} 页数据...")
                 
                 try:
                     # 构建URL（不添加日期参数）
                     url = (f'http://fund.eastmoney.com/f10/F10DataApi.aspx?type=lsjz'
                           f'&code={self.fund_code}&page={page}&per={self.per_page}')
-                    print(f"url: {url}")
+                    logger.info(f"url: {url}")
                     response = self._make_request(url)
                     response.encoding = 'utf-8'
 
@@ -102,7 +103,7 @@ class FundEastmoneyCrawler:
                         if retry_count < max_retries:
                             retry_count += 1
                             wait_time = retry_count * 2
-                            print(f"未找到数据表格，{wait_time}秒后进行第{retry_count}次重试...")
+                            logger.info(f"未找到数据表格，{wait_time}秒后进行第{retry_count}次重试...")
                             time.sleep(wait_time)
                             continue
                         break
@@ -143,31 +144,31 @@ class FundEastmoneyCrawler:
                 
                     # 如果已经到达开始日期或没有更多数据，则停止获取
                     if reached_start or not has_data:
-                        print(f"已经到达开始日期或没有更多数据，停止获取")
+                        logger.info(f"已经到达开始日期或没有更多数据，停止获取")
                         break
                 
                 except Exception as e:
                     if retry_count < max_retries:
                         retry_count += 1
                         wait_time = retry_count * 2
-                        print(f"处理数据失败，{wait_time}秒后进行第{retry_count}次重试...")
-                        print(f"错误信息: {str(e)}")
+                        logger.error(f"处理数据失败，{wait_time}秒后进行第{retry_count}次重试...")
+                        logger.error(f"错误信息: {str(e)}")
                         time.sleep(wait_time)
                         continue
                     else:
-                        print(f"达到最大重试次数，跳过当前页")
+                        logger.info(f"达到最大重试次数，跳过当前页")
                         break
                 
                 page += 1
                 time.sleep(0.5)  # 添加延迟避免请求过快
             
-            print(f"获取到 {len(nav_data)} 条净值数据")
+            logger.info(f"获取到 {len(nav_data)} 条净值数据")
             return nav_data
 
         except Exception as e:
-            print(f"获取净值数据失败: {str(e)}")
+            logger.error(f"获取净值数据失败: {str(e)}")
             import traceback
-            print(traceback.format_exc())
+            logger.error(traceback.format_exc())
             return nav_data
 
     def get_fund_shares(self) -> List[Dict[str, str]]:
@@ -206,21 +207,12 @@ class FundEastmoneyCrawler:
                             }
                             shares_data.append(share_data)
                             
-                            # 打印调试信息
-                            # print("\n=== 份额数据 ===")
-                            # print(f"日期: {share_data['share_date']}")
-                            # print(f"申购: {share_data['purchase']}亿份")
-                            # print(f"赎回: {share_data['redeem']}亿份") 
-                            # print(f"总份额: {share_data['total_share']}亿份")
-                            # print(f"总资产: {share_data['total_asset']}亿元")
-                            # print(f"变动率: {share_data['change_rate']}")
-                            
                     return shares_data
 
         except Exception as e:
-            print(f"获取基金份额数据失败: {str(e)}")
+            logger.error(f"获取基金份额数据失败: {str(e)}")
             import traceback
-            print(traceback.format_exc())
+            logger.error(traceback.format_exc())
             return []
     
     def get_fee_data(self) -> Dict[str, str]:
@@ -335,9 +327,9 @@ class FundEastmoneyCrawler:
             return fee_data
             
         except Exception as e:
-            print(f"获取费率数据失败: {str(e)}")
+            logger.error(f"获取费率数据失败: {str(e)}")
             import traceback
-            print(traceback.format_exc())
+            logger.error(traceback.format_exc())
             return {
                 'purchase_rate': '0',
                 'actual_rate': '0',
@@ -377,7 +369,7 @@ class FundEastmoneyCrawler:
             return ""
             
         except Exception as e:
-            print(f"查找缓存文件失败: {str(e)}")
+            logger.error(f"查找缓存文件失败: {str(e)}")
             return ""
 
     def _load_cached_data(self, cache_dir: str = "output") -> bool:
@@ -403,7 +395,7 @@ class FundEastmoneyCrawler:
             if not cached_file:
                 return False, None
             
-            print(f"找到缓存文件: {cached_file}")
+            logger.info(f"找到缓存文件: {cached_file}")
         
             # 加载缓存文件
             filepath = os.path.join(cache_dir, cached_file)
@@ -453,13 +445,13 @@ class FundEastmoneyCrawler:
             # 如果没有设置结束日期，检查是否需要更新数据
             if not self.end_date and self.nav_data:
                 latest_date = self.nav_data[0]['date']  # 缓存中最新的数据日期
-                print(f"缓存中最新数据日期: {latest_date}")
+                logger.info(f"缓存中最新数据日期: {latest_date}")
                 return True, latest_date
 
             return True, None
             
         except Exception as e:
-            print(f"加载缓存数据失败: {str(e)}")
+            logger.error(f"加载缓存数据失败: {str(e)}")
             return False, None
         
         finally:
@@ -483,11 +475,11 @@ class FundEastmoneyCrawler:
             cache_loaded, latest_date = self._load_cached_data(self.cache_dir)
             
             if cache_loaded:
-                print("使用缓存数据")
+                logger.info("使用缓存数据")
                 
                 # 如果没有设置结束日期，检查是否新数据
                 if not self.end_date and latest_date:
-                    print(f"检查 {latest_date} 之后的新数据...")
+                    logger.info(f"检查 {latest_date} 之后的新数据...")
 
                     # 获取当前日期和时间
                     now = datetime.now()
@@ -511,9 +503,9 @@ class FundEastmoneyCrawler:
                     
                     # 如果缓存的最新日期不是最后一个交易日，说明需要更新数据
                     if latest_date < last_trading_day:
-                        print(f"缓存数据需要更新: 最新数据日期 {latest_date}, 最后交易日 {last_trading_day}")
+                        logger.info(f"缓存数据需要更新: 最新数据日期 {latest_date}, 最后交易日 {last_trading_day}")
                     else:
-                        print(f"缓存数据已是最新: {latest_date}")
+                        logger.info(f"缓存数据已是最新: {latest_date}")
                         return {
                             'nav_data': self.nav_data,
                             'shares_data': self.shares_data,
@@ -531,49 +523,49 @@ class FundEastmoneyCrawler:
                         new_nav_data = [data for data in new_nav_data 
                                       if data['date'] > latest_date]
                         if new_nav_data:
-                            print(f"获取到 {len(new_nav_data)} 条新数据")
+                            logger.info(f"获取到 {len(new_nav_data)} 条新数据")
                             # 将新数据添加到缓存数据前面
                             self.nav_data = new_nav_data + self.nav_data
 
                             # 更新份额数据
                             self.shares_data = self.get_fund_shares()
-                            print(f"\n获取到 {len(self.shares_data)} 条份额数据")
+                            logger.info(f"获取到 {len(self.shares_data)} 条份额数据")
                         else:
-                            print("没有新数据")
+                            logger.info("没有新数据")
                     
                     # 恢复原始开始日期
                     self.start_date = original_start_date
 
                         # 获取份额数据
                     self.shares_data = self.get_fund_shares()
-                    print(f"\n共获取 {len(self.shares_data)} 条份额数据")
+                    logger.info(f"共获取 {len(self.shares_data)} 条份额数据")
                 
                     # 获取费率数据
-                    print("\n获取费率数据...")
+                    logger.info("获取费率数据...")
                     self.fee_data = self.get_fee_data()
                     if self.fee_data:
-                        print("费率数据获取成功")
+                        logger.info("费率数据获取成功")
                     else:
-                        print("费率数据获取失败")
+                        logger.info("费率数据获取失败")
             else:
                 # 如果没有缓存或缓存不满足要求，重新获取数据
-                print("重新获取数据...")
+                logger.info("重新获取数据...")
                 
                 # 获取净值数据
                 self.nav_data = self.get_nav_data()
-                print(f"\n共获取 {len(self.nav_data)} 条净值数据")
+                logger.info(f"共获取 {len(self.nav_data)} 条净值数据")
                 
                 # 获取份额数据
                 self.shares_data = self.get_fund_shares()
-                print(f"\n共获取 {len(self.shares_data)} 条份额数据")
+                logger.info(f"共获取 {len(self.shares_data)} 条份额数据")
             
                 # 获取费率数据
-                print("\n获取费率数据...")
+                logger.info("获取费率数据...")
                 self.fee_data = self.get_fee_data()
                 if self.fee_data:
-                    print("费率数据获取成功")
+                    logger.info("费率数据获取成功")
                 else:
-                    print("费率数据获取失败")
+                    logger.info("费率数据获取失败")
             
             self.export_to_cache()
 
@@ -584,9 +576,9 @@ class FundEastmoneyCrawler:
             }
             
         except Exception as e:
-            print(f"获取数据失败: {str(e)}")
+            logger.error(f"获取数据失败: {str(e)}")
             import traceback
-            print(traceback.format_exc())
+            logger.error(traceback.format_exc())
             return {
                 'nav_data': [],
                 'shares_data': [],
@@ -621,15 +613,15 @@ class FundEastmoneyCrawler:
                 if file.startswith(prefix) and file.endswith('.xlsx'):
                     # 解析文件名中的日期范围
                     file_range = file[len(prefix):-21]  # 去掉前缀和时间戳部分
-                    print(f"缓存文件: {file}, 日期范围: {file_range}")
+                    logger.info(f"缓存文件: {file}, 日期范围: {file_range}")
                     # 如果日期范围相同，删除旧文件
                     if file_range == date_range:
                         old_file = os.path.join(self.cache_dir, file)
                         try:
                             os.remove(old_file)
-                            print(f"删除旧缓存文件: {file}")
+                            logger.info(f"删除旧缓存文件: {file}")
                         except Exception as e:
-                            print(f"删除旧缓存文件失败: {str(e)}")
+                            logger.error(f"删除旧缓存文件失败: {str(e)}")
             
             # 创建工作簿
             wb = Workbook()
@@ -675,19 +667,19 @@ class FundEastmoneyCrawler:
             
             # 保存工作簿
             wb.save(filepath)
-            print(f"\n数据已缓存到: {filepath}")
+            logger.info(f"数据已缓存到: {filepath}")
             return filepath
             
         except Exception as e:
-            print(f"导出缓存失败: {str(e)}")
+            logger.error(f"导出缓存失败: {str(e)}")
             import traceback
-            print(traceback.format_exc())
+            logger.error(traceback.format_exc())
             return ""
 
     def export_to_excel(self, output_dir: str = "output/eastmoney") -> str:
         """导出数据到Excel"""
         if not self.nav_data and not self.shares_data:
-            print("没有数据可导出")
+            logger.warning("没有数据可导出")
             return ""
 
         try:
@@ -808,12 +800,12 @@ class FundEastmoneyCrawler:
 
             # 最后保存新文件
             wb.save(filepath)
-            print(f"\n数据已导出到: {filepath}")
+            logger.info(f"数据已导出到: {filepath}")
             return filepath
 
         except Exception as e:
-            print(f"导出数据失败: {str(e)}")
+            logger.error(f"导出数据失败: {str(e)}")
             import traceback
-            print(traceback.format_exc())
+            logger.error(traceback.format_exc())
             return ""
   

@@ -1,6 +1,7 @@
 from typing import List, Dict, Optional, Any
 import pandas as pd
 from datetime import datetime
+from loguru import logger
 
 class FundSharesProcessor:
     """基金数据处理类"""
@@ -34,15 +35,12 @@ class FundSharesProcessor:
                 
             # 计算年度统计
             yearly_stats = self._calculate_yearly_stats()
-            self._print_yearly_stats(yearly_stats)
             
             # 计算近三年和近五年统计
             recent_stats = self._calculate_recent_stats()
-            self._print_recent_stats(recent_stats)
             
             # 计算总体统计
             total_stats = self._calculate_total_stats()
-            self._print_total_stats(total_stats)
 
             return {
                 'yearly_shares_stats': yearly_stats,
@@ -51,9 +49,9 @@ class FundSharesProcessor:
             }
             
         except Exception as e:
-            print(f"处理份额数据失败: {str(e)}")
+            logger.error(f"处理份额数据失败: {str(e)}")
             import traceback
-            print(traceback.format_exc())
+            logger.error(traceback.format_exc())
             return {
                 'yearly_shares_stats': [],
                 'recent_shares_stats': [],
@@ -177,67 +175,4 @@ class FundSharesProcessor:
                 recent_stats.append(stats)
         
         return recent_stats  # 返回列表而不是字典
-        
-    def _print_yearly_stats(self, stats: List[Dict[str, Any]]) -> None:
-        """打印年度统计数据"""
-        print("\n=== 年度份额统计 ===")
-        for data in sorted(stats, key=lambda x: x['year']):
-            print(f"\n{data['year']}年:")
-            print(f"平均份额: {data['avg_share']:.2f} 亿份")
-            print(f"平均资产: {data['avg_asset']:.2f} 亿元")
-            print(f"总申购: {data['total_purchase']:.2f} 亿份")
-            print(f"总赎回: {data['total_redeem']:.2f} 亿份")
-            print(f"净申购: {data['net_purchase']:.2f} 亿份")
-            print(f"份额变动: {data['share_change']:.2f} 亿份")
-            print(f"资产变动: {data['asset_change']:.2f} 亿元")
-            print(f"份额区间: {data['min_share']:.2f} - {data['max_share']:.2f} 亿份")
-            print(f"资产区间: {data['min_asset']:.2f} - {data['max_asset']:.2f} 亿元")
-            print(f"最小资产: {data['min_asset']:.2f} 亿元 ({data['min_asset_date']:%Y-%m-%d})")
-            print(f"最小资产时份额: {data['min_asset_share']:.2f} 亿份")
-            print(f"期初份额: {data['start_share']:.2f} 亿份")
-            print(f"期末份额: {data['end_share']:.2f} 亿份")
-            print(f"期初资产: {data['start_asset']:.2f} 亿元")
-            print(f"期末资产: {data['end_asset']:.2f} 亿元")
-            print(f"记录数: {data['records']}")
-            
-    def _print_total_stats(self, stats: Dict[str, float]) -> None:
-        """打印总体统计数据"""
-        print("\n=== 总体统计 ===")
-        print(f"统计期间: {stats['date_range']}")
-        print(f"总记录数: {stats['total_records']}")
-        print(f"平均份额: {stats['avg_share']:.2f} 亿份")
-        print(f"平均资产: {stats['avg_asset']:.2f} 亿元")
-        print(f"总申购: {stats['total_purchase']:.2f} 亿份")
-        print(f"总赎回: {stats['total_redeem']:.2f} 亿份")
-        print(f"净申购: {stats['net_purchase']:.2f} 亿份")
-        print(f"份额变动: {stats['share_change']:.2f} 亿份")
-        print(f"资产变动: {stats['asset_change']:.2f} 亿元")
-        print(f"份额区间: {stats['min_share']:.2f} - {stats['max_share']:.2f} 亿份")
-        print(f"资产区间: {stats['min_asset']:.2f} - {stats['max_asset']:.2f} 亿元")
-        print(f"最小资产: {stats['min_asset']:.2f} 亿元 ({stats['min_asset_date']:%Y-%m-%d})")
-        print(f"最小资产时份额: {stats['min_asset_share']:.2f} 亿份")
-        print(f"期初份额: {stats['start_share']:.2f} 亿份")
-        print(f"期末份额: {stats['end_share']:.2f} 亿份")
-        print(f"期初资产: {stats['start_asset']:.2f} 亿元")
-        print(f"期末资产: {stats['end_asset']:.2f} 亿元")
-        print(f"份额波动率: {stats['share_volatility']:.2f}")
-        print(f"资产波动率: {stats['asset_volatility']:.2f}")
-        
-    def _print_recent_stats(self, stats: List[Dict[str, Any]]) -> None:
-        """打印近三年和近五年统计数据"""
-        for data in stats:
-            print(f"\n=== {data['period']}统计 ===")
-            print(f"平均份额: {data['avg_share']:.2f} 亿份")
-            print(f"平均资产: {data['avg_asset']:.2f} 亿元")
-            print(f"总申购: {data['total_purchase']:.2f} 亿份")
-            print(f"总赎回: {data['total_redeem']:.2f} 亿份")
-            print(f"净申购: {data['net_purchase']:.2f} 亿份")
-            print(f"份额变动: {data['share_change']:.2f} 亿份")
-            print(f"资产变动: {data['asset_change']:.2f} 亿元")
-            print(f"份额区间: {data['min_share']:.2f} - {data['max_share']:.2f} 亿份")
-            print(f"资产区间: {data['min_asset']:.2f} - {data['max_asset']:.2f} 亿元")
-            print(f"最小资产: {data['min_asset']:.2f} 亿元 ({data['min_asset_date']:%Y-%m-%d})")
-            print(f"最小资产时份额: {data['min_asset_share']:.2f} 亿份")
-            print(f"份额波动率: {data['share_volatility']:.2f}")
-            print(f"资产波动率: {data['asset_volatility']:.2f}")
-            print(f"记录数: {data['records']}")
+    
