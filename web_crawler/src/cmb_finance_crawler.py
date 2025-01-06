@@ -166,23 +166,26 @@ class CMBFinanceCrawler:
         Crawl a specific URL and extract information.
         Returns False if should stop crawling (reached date limit or no more data).
         """
-        try:
-            logger.info(f"Crawling: {url}")
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-                'Referer': 'https://www.cmbchina.com/'
-            }
-            response = requests.get(url, headers=headers, timeout=10)
-            response.encoding = response.apparent_encoding
-            response.raise_for_status()
-            return self._process_page(response.text, start_date, end_date, parse_info)
+        while True:
+            try:
+                logger.info(f"Crawling: {url}")
+                headers = {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                    'Referer': 'https://www.cmbchina.com/'
+                }
+                response = requests.get(url, headers=headers, timeout=10)
+                response.encoding = response.apparent_encoding
+                response.raise_for_status()
+                return self._process_page(response.text, start_date, end_date, parse_info)
 
-        except requests.RequestException as e:
-            logger.error(f"Error crawling {url}: {str(e)}")
-            return False
-        except UnicodeEncodeError as e:
-            logger.error(f"Encoding error for {url}: {str(e)}")
-            return False
+            except requests.RequestException as e:
+                logger.error(f"will retry, Error crawling {url}: {str(e)}")
+                time.sleep(self.delay)
+                continue
+            except UnicodeEncodeError as e:
+                logger.error(f"Encoding error for {url}: {str(e)}")
+                break
+        return False
 
     def _process_page(self, html: str, start_date: date = None, end_date: date = None, parse_info: bool = False) -> dict:
         """
@@ -538,36 +541,39 @@ class CMBFinanceCrawler:
         """
         获取在售和即将发售的产品列表
         """
-        try:
-            url = (f"{base_url}"
-                   f"&t={time.time()}"
-                   f"&pageindex={page_index}")
+        while True:
+            try:
+                url = (f"{base_url}"
+                       f"&t={time.time()}"
+                       f"&pageindex={page_index}")
             
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Referer': 'https://www.cmbchina.com/',
-                'Accept': 'application/json'
-            }
-            
-            response = requests.get(url, headers=headers, timeout=10)
-            response.raise_for_status()
-            
-            # 处理响应文本
-            text = response.text.strip('()')
-            
-            products = self.parse_products_result(text)
-    
-            logger.info(f"获取第{page_index}页产品列表成功，共{len(products)}条记录")
-            return products
-            
-        except requests.RequestException as e:
-            logger.error(f"获取产品列表失败: {str(e)}, url: {url}")
-            return []
-        except Exception as e:
-            logger.error(f"处理产品列表数据失败: {str(e)}, url: {url}, text: {text}")
-            import traceback
-            logger.error(traceback.format_exc())
-            return []
+                headers = {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                    'Referer': 'https://www.cmbchina.com/',
+                    'Accept': 'application/json'
+                }
+                
+                response = requests.get(url, headers=headers, timeout=10)
+                response.raise_for_status()
+                
+                # 处理响应文本
+                text = response.text.strip('()')
+                
+                products = self.parse_products_result(text)
+        
+                logger.info(f"获取第{page_index}页产品列表成功，共{len(products)}条记录")
+                return products
+                
+            except requests.RequestException as e:
+                logger.error(f"重试，获取产品列表失败: {str(e)}, url: {url}")
+                time.sleep(self.delay)
+                continue
+            except Exception as e:
+                logger.error(f"处理产品列表数据失败: {str(e)}, url: {url}, text: {text}")
+                import traceback
+                logger.error(traceback.format_exc())
+                return []
+        return []
 
     def __get_all_products(self, base_url: str) -> List[Dict]:
         all_products = []
@@ -676,64 +682,66 @@ class CMBFinanceCrawler:
                 - series_name: 系列名称
                 - series_code: 系列代码
         """
-        try:
-            url = "https://www.cmbchina.com/cfweb/Personal/"
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
-            }
-            
-            response = requests.get(url, headers=headers, timeout=10)
-            response.raise_for_status()
-            
-            # 使用BeautifulSoup解析HTML
-            soup = BeautifulSoup(response.text, 'html.parser')
-            series_list = []
-            
-            # 查找所有item*和open_item* div
-            item_divs = soup.find_all('div', id=lambda x: x and (x.startswith('item') or x.startswith('open_item')))
-            
-            current_manager = None
-            for div in item_divs:
-                div_id = div.get('id', '')
+        while True:
+            try:
+                url = "https://www.cmbchina.com/cfweb/Personal/"
+                headers = {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
+                }
                 
-                if div_id.startswith('item'):
-                    # 这是管理方div
-                    current_manager = div.get_text(strip=True)
-                    continue
+                response = requests.get(url, headers=headers, timeout=10)
+                response.raise_for_status()
+                
+                # 使用BeautifulSoup解析HTML
+                soup = BeautifulSoup(response.text, 'html.parser')
+                series_list = []
+                
+                # 查找所有item*和open_item* div
+                item_divs = soup.find_all('div', id=lambda x: x and (x.startswith('item') or x.startswith('open_item')))
+                
+                current_manager = None
+                for div in item_divs:
+                    div_id = div.get('id', '')
                     
-                # 这是系列div
-                links = div.find_all('a')
-                for link in links:
-                    href = link.get('href', '')
-                    series_name = link.get_text(strip=True)
-                    
-                    # 从href中提取series_code
-                    import re
-                    series_code_match = re.search(r'code=(\d+)', href)
-                    series_code = series_code_match.group(1) if series_code_match else None
-                    
-                    if series_code:
-                        series_info = {
-                            'manager': current_manager,
-                            'series_name': series_name,
-                            'series_code': series_code
-                        }
-                        series_list.append(series_info)
-                        logger.debug(f"Found series: {series_info}")
-            
-            logger.info(f"获取到{len(series_list)}个产品系列")
-            self.product_series = series_list
-            return series_list
-            
-        except requests.RequestException as e:
-            logger.error(f"获取产品系列列表失败: {str(e)}")
-            return []
-        except Exception as e:
-            logger.error(f"解析产品系列数据失败: {str(e)}")
-            import traceback
-            logger.error(traceback.format_exc())
-            return []
+                    if div_id.startswith('item'):
+                        # 这是管理方div
+                        current_manager = div.get_text(strip=True)
+                        continue
+                        
+                    # 这是系列div
+                    links = div.find_all('a')
+                    for link in links:
+                        href = link.get('href', '')
+                        series_name = link.get_text(strip=True)
+                        
+                        # 从href中提取series_code
+                        import re
+                        series_code_match = re.search(r'code=(\d+)', href)
+                        series_code = series_code_match.group(1) if series_code_match else None
+                        
+                        if series_code:
+                            series_info = {
+                                'manager': current_manager,
+                                'series_name': series_name,
+                                'series_code': series_code
+                            }
+                            series_list.append(series_info)
+                            logger.debug(f"Found series: {series_info}")
+
+                logger.info(f"获取到{len(series_list)}个产品系列")
+                self.product_series = series_list
+                return series_list
+                
+            except requests.RequestException as e:
+                logger.error(f"重试获取产品系列列表失败: {str(e)}")
+                continue
+            except Exception as e:
+                logger.error(f"解析产品系列数据失败: {str(e)}")
+                import traceback
+                logger.error(traceback.format_exc())
+                return []
+        return []
         
     def get_serie_products(self, serie_code: str) -> List[Dict]:
         return self.__get_all_products(f"https://www.cmbchina.com/cfweb/svrajax/product.ashx?op=condition&salestatus=&pagesize=20&terms=&risk=&area=&keyword=&orderby="
