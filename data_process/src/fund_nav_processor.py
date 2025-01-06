@@ -48,7 +48,10 @@ class FundNavProcessor:
             self.df['acc_nav'] = pd.to_numeric(self.df['acc_nav'])
             
             # 处理分红数据
-            self.df['dividend'] = self.df['dividend'].apply(self._parse_dividend)
+            if 'dividend' in self.df.columns:
+                self.df['dividend'] = self.df['dividend'].apply(self._parse_dividend)
+            else:
+                self.df['dividend'] = 0
 
             # 计算回撤标记
             # 计算每个时点之后的最小累计净值

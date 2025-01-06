@@ -3,7 +3,6 @@ from bs4 import BeautifulSoup
 from typing import Set, List, Dict
 import pandas as pd
 import time
-from utils import is_valid_url, get_robots_parser
 from openpyxl import Workbook, load_workbook
 from datetime import datetime, timedelta
 import os
