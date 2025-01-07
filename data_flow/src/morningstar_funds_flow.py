@@ -180,7 +180,7 @@ def compute_filter_params(morningstar_fund_datas: list, fund_datas: dict) -> lis
                         drawdowns.append(current_year_data.get('max_drawdown', 0))  # 新增
                 
                 start_years = 2 if is_merge_return else 1
-                for i, year in enumerate(sorted_years[start_years:5]):
+                for i, year in enumerate(sorted_years[start_years:start_years+4]):
                     year_data = next(item for item in yearly_returns if item['year'] == year)
                     records = year_data.get('records', 0)
                     reinvest_return = year_data.get('reinvest_return')
