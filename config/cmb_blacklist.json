@@ -1,0 +1,36 @@
+{
+    "special_focus": {
+        "enabled": true,
+        "rules": [
+            {
+                "field": "PrdCode",
+                "values": []
+            },
+            {
+                "field": "Style",
+                "values": []
+            },
+            {
+                "field": "Risk",
+                "values": []
+            }
+        ]
+    },
+    "product_blacklist": {
+        "enabled": true,
+        "rules": [
+            {
+                "field": "PrdCode",
+                "values": []
+            },
+            {
+                "field": "Style",
+                "values": []
+            },
+            {
+                "field": "Risk",
+                "values": []
+            }
+        ]
+    }
+} 

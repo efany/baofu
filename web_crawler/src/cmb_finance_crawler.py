@@ -150,9 +150,6 @@ class CMBFinanceCrawler:
             finance_data.extend(nav_data)
             if len(nav_data) != 10:
                 break
-                
-            if page_index >= 2:               
-                break
             page_index += 1
             time.sleep(self.delay)
         self._export_to_cache(product, start_date, end_date, finance_data, product_info)
