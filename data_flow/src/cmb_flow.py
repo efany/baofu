@@ -3,6 +3,8 @@ import os
 import time
 import json
 from typing import List, Dict
+from datetime import datetime
+from openpyxl import Workbook
 
 from loguru import logger
 
@@ -11,6 +13,8 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'web_crawler
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'data_process', 'src'))
 
 from cmb_finance_crawler import CMBFinanceCrawler
+from fund_nav_processor import FundNavProcessor
+from process_utils import export_analysis_to_excel
 
 class CMBDataFlow:
     def __init__(self, 
@@ -107,14 +111,18 @@ class CMBDataFlow:
         
         for rule in rules:
             field = rule.get('field')
-            values = rule.get('values', [])
-            
-            if not field or not values:
+            if not field:
                 continue
-                
-            if field in product and product[field] in values:
-                logger.debug(f"产品 {product.get('PrdCode')} 命中黑名单规则: {field}={product[field]}")
-                return True
+            if field == "LastNavDays":
+                if int(product["last_nav_days"]) > int(rule.get('value', 30)):
+                    logger.debug(f"产品 {product.get('PrdCode')} 命中黑名单规则: {field}={product.get('last_nav_days')}")
+                    return True
+                continue
+            elif field == "PrdCode" or field == "Style" or field == "Risk":
+                values = rule.get('values', [])
+                if field in product and product[field] in values:
+                    logger.debug(f"产品 {product.get('PrdCode')} 命中黑名单规则: {field}={product[field]}")
+                    return True
                 
         return False
         
@@ -152,6 +160,7 @@ class CMBDataFlow:
                     
             all_products.extend(products)
             time.sleep(1.0)
+            break
 
         # 输出过滤统计
         logger.info(f"总产品数: {len(all_products)}")
@@ -167,11 +176,93 @@ class CMBDataFlow:
             self.crawler.export_product_list(special_focus_products, self.output_dir, "special_focus_products")
 
         for product in filtered_products:
-            self.crawler.crawl_product_nav(product)
+            product_info = self.crawler.crawl_product_nav(product)
+            product["nav_data"] = product_info['nav_data']
+            product["info_data"] = product_info['info_data']
+
+            # 处理净值数据
+            nav_processor = FundNavProcessor(product_info['nav_data'])
+            nav_analysis = nav_processor.process_nav_data()
+            product["yearly_returns"] = nav_analysis['yearly_returns']
+            product["quarterly_returns"] = nav_analysis['quarterly_returns']
+            product["period_returns"] = nav_analysis['period_returns']
+
+            # 导出分析结果
+            export_analysis_to_excel(product["PrdCode"], product, self.output_dir)
         
         return filtered_products
+    
+    def get_period_return(self, fund_data, period_name):
+        for period in fund_data['period_returns']:
+            if period['period'] == period_name:
+                return float(period['reinvest_annualized'])
+        logger.warning(f"基金 {fund_data['TypeCode']} 没有{period_name}年再投资收益率")
+        return -100.0
+    
+    
+    def get_period_max_drawdown(self, fund_data, period_name):
+        for period in fund_data['period_returns']:
+            if period['period'] == period_name:
+                return float(period['max_drawdown'])
+        logger.warning(f"基金 {fund_data['TypeCode']} 没有{period_name}年最大回撤")
+        return -100.0
+
+    def export_filtered_results(self, products:List[Dict]) -> None:
+        """将产品列表导出到Excel"""
+        # try:
+        # 确保缓存目录存在
+        os.makedirs(self.output_dir, exist_ok=True)
+        
+        # 生成文件名，使用原始日期配置
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            
+        filename = f"cmb_products_{timestamp}.xlsx"
+        filepath = os.path.join(self.output_dir, filename)
+                
+        # 将数据导出到Excel
+        # 创建工作簿
+        wb = Workbook()
+
+        data_sheet = wb.active
+        data_sheet.title = "products"
+
+        # 写入表头
+        headers = ["TypeCode", "TypeName", "PrdCode", "PrdName", "LastNavDate", "LastNavDays", "Risk", "Style", "Currency", "Term", 
+                    "1y再投资收益率", "3y再投资收益率", "5y再投资收益率", "1y最大回撤", "3y最大回撤", "5y最大回撤"]
+        data_sheet.append(headers)
+
+        # 写入数据
+        for product in products:
+
+            data_sheet.append([
+                product['TypeCode'],
+                product['TypeName'],
+                product['PrdCode'],
+                product['PrdName'],
+                product['last_nav_date'],
+                product['last_nav_days'],
+                product['Risk'],
+                product['Style'],
+                product['Currency'],
+                product['Term'],
+                self.get_period_return(product, '1y'),
+                self.get_period_return(product, '3y'),
+                self.get_period_return(product, '5y'),
+                self.get_period_max_drawdown(product, '1y'),
+                self.get_period_max_drawdown(product, '3y'),
+                self.get_period_max_drawdown(product, '5y'),
+            ])
+
+        # 保存工作簿
+        wb.save(filepath)
+        logger.info(f"Data exported to: {filepath}")
+        return filepath
+        # except Exception as e:
+        #     logger.error(f"导出数据失败: {str(e)}")
+        #     return ""
 
 def __init_logger(log_dir):
+
     logger.add(os.path.join(log_dir, "app.log"), rotation="100 KB")
     logger.info(f"日志目录设置为: {log_dir}")
 
@@ -208,6 +299,9 @@ def main():
     
     # 处理产品数据
     filtered_products = flow.process_products()
+
+    # 导出过滤后的结果
+    flow.export_filtered_results(filtered_products)
 
     logger.info(f"处理完成，过滤后共 {len(filtered_products)} 个产品")
 

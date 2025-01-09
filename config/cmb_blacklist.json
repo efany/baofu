@@ -30,6 +30,10 @@
             {
                 "field": "Risk",
                 "values": []
+            },
+            {
+                "field": "LastNavDays",
+                "value": 60
             }
         ]
     }

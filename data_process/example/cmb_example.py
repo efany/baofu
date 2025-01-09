@@ -12,9 +12,7 @@ from process_utils import export_analysis_to_excel
 
 def main():
     crawler = CMBFinanceCrawler(
-        product_code="JY020262",      # 产品代码
-        start_date="",      # 起始日期
-        end_date="",        # 结束日期
+        product_code="8112",      # 产品代码
         delay=1.0,
         cache_dir="cache/cmb"
     )

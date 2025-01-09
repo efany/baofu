@@ -3,7 +3,7 @@ from bs4 import BeautifulSoup
 from typing import Set, List, Dict
 import time
 from openpyxl import Workbook, load_workbook
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import os
 import re
 import json
@@ -132,10 +132,12 @@ class CMBFinanceCrawler:
         finance_data = cache['nav_data']
         product_info = cache['info_data']
 
+        crawl_start_date = start_date
+
         if len(finance_data) > 0:
             loaded_end_date = datetime.strptime(finance_data[0]['date'], '%Y-%m-%d').date() if finance_data[0]['date'] else None
             print(f"loaded_end_date: {loaded_end_date}")
-            start_date = loaded_end_date
+            crawl_start_date = loaded_end_date + timedelta(days=1)
 
         page_index = 1
 
@@ -143,7 +145,7 @@ class CMBFinanceCrawler:
             logger.info(f"正在获取第{product['PrdName']}的第{page_index}页数据...")
             url = self._build_url(product, page_index)
             parse_info = page_index == 1
-            result = self._crawl_url(url, start_date, end_date, parse_info)
+            result = self._crawl_url(url, crawl_start_date, end_date, parse_info)
             if parse_info:
                 product_info = result['info_data']
             nav_data = result['nav_data']
@@ -152,6 +154,7 @@ class CMBFinanceCrawler:
                 break
             page_index += 1
             time.sleep(self.delay)
+        finance_data = sorted(finance_data, key=lambda x: x['date'], reverse=True)
         self._export_to_cache(product, start_date, end_date, finance_data, product_info)
         return {
             'nav_data': finance_data,
@@ -576,6 +579,9 @@ class CMBFinanceCrawler:
         all_products = []
         page_index = 1
         
+        if len(self.product_series) == 0:
+            self.get_product_series()
+        
         while True:
             products = self.get_product_list(base_url, page_index)
             if not products:
@@ -588,6 +594,17 @@ class CMBFinanceCrawler:
                 if len(nav_data) > 0:
                     last_nav_date = nav_data[0]['date']
                     product['last_nav_date'] = last_nav_date
+                    product['last_nav_days'] = (datetime.now().date() - datetime.strptime(last_nav_date, '%Y-%m-%d').date()).days
+                else:
+                    product['last_nav_date'] = ""
+                    product['last_nav_days'] = "9999"
+                
+                for series in self.product_series:
+                    if series['series_code'] == product['TypeCode']:
+                        product["TypeName"] = series['manager'] + "-" + series['series_name']
+                        break
+                    else:
+                        product["TypeName"] = ""
 
             all_products.extend(products)
             logger.info(f"已获取{len(all_products)}条产品记录")
@@ -614,10 +631,6 @@ class CMBFinanceCrawler:
                 
             filename = f"cmb_products_{prefix}_{timestamp}.xlsx"
             filepath = os.path.join(output_dir, filename)
-            
-            if len(self.product_series) == 0:
-                self.get_product_series()
-
                     
             # 将数据导出到Excel
             # 创建工作簿
@@ -632,20 +645,15 @@ class CMBFinanceCrawler:
 
             # 写入数据
             for product in products:
-                TypeName = ""
-                for series in self.product_series:
-                    if series['series_code'] == product['TypeCode']:
-                        TypeName = series['manager'] + "-" + series['series_name']
-                        break
 
                 data_sheet.append([
                     product['TypeCode'],
-                    TypeName,
+                    product['TypeName'],
                     product['PrdCode'],
                     product['PrdName'],
                     product['PrdBrief'],
-                    product['last_nav_date'] if 'last_nav_date' in product else "",
-                    (datetime.now().date() - datetime.strptime(product['last_nav_date'], '%Y-%m-%d').date()).days if 'last_nav_date' in product and product['last_nav_date'] else "",
+                    product['last_nav_date'],
+                    product['last_nav_days'],
                     product['BeginDate'],
                     product['EndDate'],
                     product['ExpireDate'],
