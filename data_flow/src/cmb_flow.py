@@ -160,7 +160,6 @@ class CMBDataFlow:
                     
             all_products.extend(products)
             time.sleep(1.0)
-            break
 
         # 输出过滤统计
         logger.info(f"总产品数: {len(all_products)}")
