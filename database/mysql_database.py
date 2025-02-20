@@ -51,7 +51,19 @@ class MySQLDatabase:
                 self.connection.commit()
                 print("数据插入成功")
             except mysql.connector.Error as err:
-                print(f"插入数据时出错: {err}")
+                print(f"插入数据时出错: sql: {sql}, err: {err}")
+    
+    def update_data(self, table_name, data, conditions):
+        if self.cursor:
+            set_clause = ", ".join([f"{k}=%s" for k in data.keys()])
+            where_clause = " AND ".join([f"{k}=%s" for k in conditions.keys()])
+            sql = f"UPDATE {table_name} SET {set_clause} WHERE {where_clause}"
+            try:
+                self.cursor.execute(sql, list(data.values()) + list(conditions.values()))
+                self.connection.commit()
+                print("数据更新成功")
+            except mysql.connector.Error as err:
+                print(f"更新数据时出错: sql: {sql}, err: {err}")
 
     def fetch_data(self, table_name, conditions=None):
         if self.cursor:

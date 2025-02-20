@@ -75,6 +75,18 @@ class UpdateFundsInfoTask(BaseTask):
         for key, value in fund_info.items():
             logger.debug(f"{key}: {value}")
 
+        sql_fund_info = mysql_db.fetch_data('funds', {'ts_code': fund_code})
+        if sql_fund_info:
+            logger.debug(f"基金{fund_code}已存在")
+            mysql_db.update_data('funds', {'name': fund_info['fund_name'], 
+                                           'management': fund_info['fund_company']}, 
+                                           {'ts_code': fund_code})
+        else:
+            logger.debug(f"基金{fund_code}不存在")
+            mysql_db.insert_data('funds', {'ts_code': fund_info['fund_code'], 
+                                           'name': fund_info['fund_name'], 
+                                           'management': fund_info['fund_company']})
+
     def run(self) -> None:
         """执行更新基金信息的任务"""
         mysql_db = MySQLDatabase(
