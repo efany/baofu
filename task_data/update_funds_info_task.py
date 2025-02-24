@@ -1,5 +1,6 @@
 import sys
 import os
+import time
 from typing import Dict, Any, List
 from loguru import logger
 
@@ -8,29 +9,30 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from database.mysql_database import MySQLDatabase
 from task.base_task import BaseTask
 from task.exceptions import TaskConfigError, TaskExecutionError
-from task_crawlers.eastmoney_task import EastmoneyTask
+from task_crawlers.eastmoney_fund_info_task import EastmoneyTask
 
 class UpdateFundsInfoTask(BaseTask):
     """更新基金信息的任务"""
     
-    def __init__(self, task_config=None):
-        if task_config is None:
-            task_config = {
-                "name": "update_funds_info",
-                "description": "更新基金基础信息"
-            }
+    def __init__(self, task_config: Dict[str, Any]):
+        """
+        初始化任务
+        
+        Args:
+            task_config: 包含以下字段：
+                - name: 任务名称
+                - description: 任务描述
+                - fund_codes: 基金代码列表
+        """
         super().__init__(task_config)
-
-    def get_fund_codes(self) -> List[str]:
-        """
-        获取需要更新的基金代码列表
         
-        Returns:
-            List[str]: 基金代码列表
-        """
-        # 从数据库获取所有基金代码
-        
-        return ['003376']
+        # 验证task_config
+        if 'fund_codes' not in self.task_config:
+            raise TaskConfigError("task_config必须包含fund_codes字段")
+        if not isinstance(self.task_config['fund_codes'], list):
+            raise TaskConfigError("fund_codes必须是列表类型")
+        if not self.task_config['fund_codes']:
+            raise TaskConfigError("fund_codes不能为空")
 
     def update_fund_info(self, fund_code: str) -> Dict[str, Any]:
         """
@@ -89,6 +91,7 @@ class UpdateFundsInfoTask(BaseTask):
 
     def run(self) -> None:
         """执行更新基金信息的任务"""
+        
         mysql_db = MySQLDatabase(
             host='127.0.0.1',
             user='baofu',
@@ -96,8 +99,7 @@ class UpdateFundsInfoTask(BaseTask):
             database='baofu'
         )
         try:
-            # 获取需要更新的基金代码列表
-            fund_codes = self.get_fund_codes()
+            fund_codes = self.task_config['fund_codes']
             logger.info(f"开始更新{len(fund_codes)}个基金的信息")
             
             # 遍历更新每个基金的信息
@@ -109,14 +111,30 @@ class UpdateFundsInfoTask(BaseTask):
                 except Exception as e:
                     logger.error(f"更新基金{fund_code}信息失败: {str(e)}")
                     continue
+            
+                # 每次请求后暂停一下，避免请求过快
+                time.sleep(0.5)
                     
             logger.success("基金信息更新任务完成")
             
         except Exception as e:
             raise TaskExecutionError(f"更新基金信息任务失败: {str(e)}")
+        finally:
+            # 确保在任务完成或出错时都能关闭数据库连接
+            mysql_db.close_connection()
+            logger.debug("数据库连接已关闭")
+
 
 if __name__ == "__main__":
-    task = UpdateFundsInfoTask()
+    task_config = {
+        "name": "update_funds_info",
+        "description": "更新基金基础信息",
+        "fund_codes": ["007540","003376","011062","400030","011983","007744","010353","006635","003156","162715","003547","003157","007745","485119","010232","000914","007828","006645","006484","006485","009560","008583"]  # 示例基金代码列表
+    }
+    task = UpdateFundsInfoTask(task_config)
     task.execute()
     if not task.is_success:
         logger.error(task.error) 
+
+
+

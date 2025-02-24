@@ -1,5 +1,6 @@
 import mysql.connector
 from mysql.connector import errorcode
+from typing import Dict, Optional
 
 class MySQLDatabase:
     def __init__(self, host, user, password, database):
@@ -49,7 +50,6 @@ class MySQLDatabase:
             try:
                 self.cursor.execute(sql, list(data.values()))
                 self.connection.commit()
-                print("数据插入成功")
             except mysql.connector.Error as err:
                 print(f"插入数据时出错: sql: {sql}, err: {err}")
     
@@ -61,7 +61,6 @@ class MySQLDatabase:
             try:
                 self.cursor.execute(sql, list(data.values()) + list(conditions.values()))
                 self.connection.commit()
-                print("数据更新成功")
             except mysql.connector.Error as err:
                 print(f"更新数据时出错: sql: {sql}, err: {err}")
 
@@ -75,6 +74,29 @@ class MySQLDatabase:
                 return self.cursor.fetchall()
             except mysql.connector.Error as err:
                 print(f"查询数据时出错: {err}")
+                return None
+
+    def run_sql(self, sql: str, params: Dict = None) -> Optional[Dict]:
+        """
+        执行SQL查询语句
+        
+        Args:
+            sql: SQL查询语句
+            params: 查询参数字典
+            
+        Returns:
+            Optional[Dict]: 查询结果，如果是SELECT语句则返回结果字典，其他语句返回None
+        """
+        if self.cursor:
+            try:
+                self.cursor.execute(sql, params)
+                if sql.strip().upper().startswith('SELECT'):
+                    return self.cursor.fetchone()
+                else:
+                    self.connection.commit()
+                return None
+            except mysql.connector.Error as err:
+                print(f"执行SQL出错: {err}")
                 return None
 
     def close_connection(self):
