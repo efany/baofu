@@ -76,7 +76,7 @@ class MySQLDatabase:
                 print(f"查询数据时出错: {err}")
                 return None
 
-    def run_sql(self, sql: str, params: Dict = None) -> Optional[Dict]:
+    def run_sql(self, sql: str, params: Dict = None):
         """
         执行SQL查询语句
         
@@ -91,7 +91,7 @@ class MySQLDatabase:
             try:
                 self.cursor.execute(sql, params)
                 if sql.strip().upper().startswith('SELECT'):
-                    return self.cursor.fetchone()
+                    return self.cursor.fetchall()
                 else:
                     self.connection.commit()
                 return None
