@@ -55,8 +55,8 @@ class UpdateFundsNavTask(BaseTask):
             """
             result = mysql_db.run_sql(sql, {'ts_code': fund_code})
             
-            if result:
-                latest_date = result['nav_date']
+            if len(result) > 0:
+                latest_date = result[0]['nav_date']
                 logger.debug(f"基金{fund_code}的最新净值日期为: {latest_date}")
                 return latest_date
             else:
@@ -190,7 +190,7 @@ if __name__ == "__main__":
     task_config = {
         "name": "update_funds_nav",
         "description": "更新基金净值数据",
-        "fund_codes": ["003376"]
+        "fund_codes": ["008163","007540","003376","011062","400030","011983","007744","010353","006635","003156","162715","003547","003157","007745","485119","010232","000914","007828","006645","006484","006485","009560","008583"]  # 示例基金代码列表
     }
     task = UpdateFundsNavTask(task_config)
     task.execute()

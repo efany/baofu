@@ -111,8 +111,7 @@ class UpdateFundsTask(BaseTask):
 if __name__ == "__main__":
     task_config = {
         "name": "update_funds",
-        "description": "更新基金信息和净值数据",
-        "start_date": "2024-01-01"  # 可选，指定净值数据的开始日期
+        "description": "更新基金信息和净值数据"
     }
     task = UpdateFundsTask(task_config)
     task.execute()

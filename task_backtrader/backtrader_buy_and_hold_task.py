@@ -11,12 +11,13 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from task.exceptions import TaskConfigError
 from task_backtrader.backtrader_base_task import BacktraderBaseTask
 from task_backtrader.strategy.buy_and_hold_strategy import BuyAndHoldStrategy
+from task_backtrader.strategy.dividend_strategy import DividendStrategy
 
 class BacktraderBuyAndHoldTask(BacktraderBaseTask):
     """
     使用Backtrader实现买入持有策略的回测任务
     """
-    
+
     def __init__(self, task_config: Dict[str, Any]):
         """
         初始化任务
@@ -44,65 +45,35 @@ class BacktraderBuyAndHoldTask(BacktraderBaseTask):
         super().__init__(task_config)
         
         self.initial_cash = self.task_config.get('initial_cash', 1_000_000.0)
-        
-        self.strategys = []
-        # 解析data_params
-        strategy_params = json.loads(self.task_config['strategys'])
 
+        # 准备数据
+        self.data_feeds = self.make_data()
+        
+        # 解析data_params
+        self.strategys = []
+        strategy_params = json.loads(self.task_config['strategys'])
         for index, strategy_params in enumerate(strategy_params):
             logger.info(f"策略 ## {index}: {strategy_params}")
             self.strategys.append(self.make_strategy(strategy_params))
-
-    def prepare_data(self) -> Dict[str, bt.feeds.DataBase]:
-        """
-        准备回测数据
-        
-        Returns:
-            Dict[str, bt.feeds.DataBase]: 数据源字典
-        """
-        data_feeds = {}
-        
-        for fund_code in self.funds_code:
-            # 获取基金净值数据
-            df = self.funds_nav[fund_code]
-            if df is None or df.empty:
-                raise TaskConfigError(f"无法获取基金{fund_code}的净值数据")
-
-            df['nav_date'] = pd.to_datetime(df['nav_date'])
-            
-            data = bt.feeds.PandasData(dataname=df,
-                                       datetime='nav_date',
-                                       open='unit_nav',
-                                       high='unit_nav',
-                                       low='unit_nav',
-                                       close='unit_nav',
-                                       volume=-1)
-            data_feeds[fund_code] = data
-
-        return data_feeds
 
     def run(self) -> None:
         """执行回测任务"""
         try:
             # 创建cerebro引擎
             cerebro = bt.Cerebro()
-            
             # 设置初始资金
             cerebro.broker.setcash(self.initial_cash)
-            
             # 设置手续费
             cerebro.broker.setcommission(commission=0.0)  # 设置0.0%的手续费
             
-            # 添加数据
-            data_feeds = self.prepare_data()
-            for name, data in data_feeds.items():
-                logger.info(f"添加数据: {name}, 条数: {len(data)}")
+            for name, data in self.data_feeds.items():
                 cerebro.adddata(data, name=name)
             
             # 添加策略
+            cerebro.addstrategy(DividendStrategy)
+
             for strategy_class, strategy_params in self.strategys:
-                strategy_params_json = json.dumps(strategy_params)
-                cerebro.addstrategy(strategy_class, params_json=strategy_params_json)
+                cerebro.addstrategy(strategy_class, params=strategy_params)
             
             # 添加分析器
             cerebro.addanalyzer(bt.analyzers.Returns, _name='returns')
@@ -111,9 +82,7 @@ class BacktraderBuyAndHoldTask(BacktraderBaseTask):
             cerebro.addanalyzer(bt.analyzers.SharpeRatio, _name='sharpe')
             
             # 运行回测
-            logger.info(f'初始资金: {cerebro.broker.getvalue():.2f}')
             results = cerebro.run()
-            logger.info(f'最终资金: {cerebro.broker.getvalue():.2f}')
             
             # 获取回测结果
             strat = results[0]
@@ -147,8 +116,6 @@ class BacktraderBuyAndHoldTask(BacktraderBaseTask):
                 'sharpe': strat.analyzers.sharpe.get_analysis()
             }
             
-            logger.info(f"回测结果: {self.task_result}")
-            
         except Exception as e:
             logger.error(f"回测执行失败: {str(e)}")
             raise TaskConfigError(f"回测执行失败: {str(e)}")
@@ -167,7 +134,7 @@ if __name__ == "__main__":
         },
         "data_params": json.dumps({
             "start_date": "2024-01-01",
-            "fund_codes": ["003376","007540"]
+            "fund_codes": ["003376","008163"]
         }),
         "initial_cash": 1000000,
         "strategys": """
@@ -175,7 +142,7 @@ if __name__ == "__main__":
                 {
                     "name": "BuyAndHold",
                     "open_date": "2024-01-01",
-                    "products": ["003376","007540"],
+                    "products": ["003376","008163"],
                     "weights": [0.5,0.5]
                 }
             ]
@@ -193,5 +160,10 @@ if __name__ == "__main__":
         logger.info(f"最终资金: {result['final_value']:.2f}")
         logger.info(f"收益率: {result['return_rate']:.2f}%")
         logger.info(f"持仓详情: {result['positions']}")
+
+        logger.info(f"收益: {result['returns']}")
+        logger.info(f"最大回撤: {result['drawdown']}")
+        logger.info(f"夏普比率: {result['sharpe']}")
+        logger.info(f"交易记录: {result['trades']}")
     else:
         logger.error(f"回测失败: {task.error}")

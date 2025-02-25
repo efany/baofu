@@ -211,7 +211,7 @@ class EastMoneyFundNavTask(BaseTask):
                         'growth_rate': cells[3].get_text(strip=True).replace('%', ''),
                         'buy_status': cells[4].get_text(strip=True),
                         'sell_status': cells[5].get_text(strip=True),
-                        'dividend': cells[6].get_text(strip=True)
+                        'dividend': cells[6].get_text(strip=True).split('每份派现金')[-1].strip('元')
                     })
             
             return {
@@ -303,7 +303,7 @@ if __name__ == "__main__":
     task_config = {
         "name": "eastmoney_fund_nav",
         "description": "获取基金净值数据",
-        "fund_code": "003376",
+        "fund_code": "008163",
         "start_date": "2024-01-01",  # 只获取2024年1月1日之后的数据
     }
     task = EastMoneyFundNavTask(task_config)

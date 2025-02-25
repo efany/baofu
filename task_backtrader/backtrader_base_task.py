@@ -15,6 +15,7 @@ from database.db_funds import DBFunds
 from database.db_funds_nav import DBFundsNav
 from database.mysql_database import MySQLDatabase
 from task_backtrader.strategy.buy_and_hold_strategy import BuyAndHoldStrategy
+from task_backtrader.feeds.pandas_data_extends import PandasDataExtends
 
 class BacktraderBaseTask(BaseTask):
     """Backtrader任务基类，负责连接数据库获取基金数据"""
@@ -51,7 +52,7 @@ class BacktraderBaseTask(BaseTask):
         for param in required_db_params:
             if param not in db_config:
                 raise TaskConfigError(f"db_config缺少{param}")
-                
+
         # 验证数据参数
         data_params_str = self.task_config['data_params']
         try:
@@ -86,6 +87,36 @@ class BacktraderBaseTask(BaseTask):
                 'start_date' in data_params and data_params['start_date'] or None, 
                 'end_date' in data_params and data_params['end_date'] or None)
             logger.debug(f"基金 {fund_code} 的净值数据共计: {len(self.funds_nav[fund_code])} 条")
+    
+    def make_data(self) -> Dict[str, bt.feeds.DataBase]:
+        """
+        准备回测数据
+        
+        Returns:
+            Dict[str, bt.feeds.DataBase]: 数据源字典
+        """
+        data_feeds = {}
+        
+        for fund_code in self.funds_code:
+            # 获取基金净值数据
+            df = self.funds_nav[fund_code]
+            if df is None or df.empty:
+                raise TaskConfigError(f"无法获取基金{fund_code}的净值数据")
+
+            df['nav_date'] = pd.to_datetime(df['nav_date'])
+            df['dividend'] = df['dividend'].fillna(0)
+            
+            data = PandasDataExtends(dataname=df,
+                                        datetime='nav_date',
+                                        open='unit_nav',
+                                        high='unit_nav',
+                                        low='unit_nav',
+                                        close='unit_nav',
+                                        volume=-1,
+                                        dividend='dividend')
+            data_feeds[fund_code] = data
+
+        return data_feeds
 
     def make_strategy(self, strategy_params: Dict[str, Any]) -> tuple[bt.Strategy, Dict[str, Any]]:
         """

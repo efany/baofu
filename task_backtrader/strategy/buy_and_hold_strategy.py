@@ -2,17 +2,19 @@ from datetime import datetime
 import backtrader as bt
 import json
 from loguru import logger
+from typing import Dict, Any
+import math  # 添加此行以导入math模块
 
 class BuyAndHoldStrategy(bt.Strategy):
     """买入持有策略"""
 
-    # params: 策略参数，JSON格式
+    # params: 策略参数
     # params = {
     #     "open_date": None,
     #     "products": [],
     #     "weights": []
     # }
-    def __init__(self, params_json: str):
+    def __init__(self, params: Dict[str, Any]):
         """初始化策略"""
 
         self.order_dict = {}  # 记录每个数据的订单
@@ -20,7 +22,7 @@ class BuyAndHoldStrategy(bt.Strategy):
         
         # 解析JSON参数
         try:
-            self.params = json.loads(params_json)
+            self.params = params
             
             # 解析开仓日期
             open_date = self.params.get('open_date')
@@ -46,6 +48,7 @@ class BuyAndHoldStrategy(bt.Strategy):
         """
         策略核心逻辑：在指定日期按照配置比例买入并持有
         """
+
         # 如果已经开仓，不再进行操作
         if self.position_opened:
             return
@@ -55,6 +58,8 @@ class BuyAndHoldStrategy(bt.Strategy):
         if isinstance(current_date, int):
             current_date = bt.num2date(current_date).date()
 
+        # 如果当前日期小于开仓日期，则不进行操作
+        # 在开仓前一天提交购买
         if self.open_date and current_date < self.open_date:
             return
         
@@ -77,8 +82,9 @@ class BuyAndHoldStrategy(bt.Strategy):
 
             # 计算目标金额和数量
             target_value = available_cash * weight
-            price = data.close[0]
-            size = target_value / price
+            # 使用后一日的收盘价
+            price = data.close[1]
+            size = math.floor(target_value / price)  # 使用math.floor向下取整
             
             logger.info(f"产品{product}: 权重={weight}, 目标金额={target_value:.2f}, "
                        f"价格={price:.4f}, 数量={size:.4f}")
@@ -87,4 +93,23 @@ class BuyAndHoldStrategy(bt.Strategy):
             self.order_dict[product] = self.buy(data=data, size=size)
                 
         self.position_opened = True
+
+    def notify_order(self, order):
+        """
+        监听订单状态变化
+        """
+        if order.status in [order.Submitted, order.Accepted]:
+            # 订单已提交或被接受
+            logger.info(f"订单 {order.ref} 被提交或接受")
+            return
+
+        # 订单已完成
+        if order.status in [order.Completed]:
+            if order.isbuy():
+                logger.info(f"买入成功: {order.executed.price}, 数量: {order.executed.size}")
+            elif order.issell():
+                logger.info(f"卖出成功: {order.executed.price}, 数量: {order.executed.size}")
+            # 打印当前持仓
+        elif order.status in [order.Canceled, order.Margin, order.Rejected]:
+            logger.error(f"订单 {order.ref} 价格: {order.executed.price}, 数量: {order.executed.size}失败: {order.getstatusname()}")
 
