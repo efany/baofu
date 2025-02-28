@@ -17,15 +17,17 @@ class UpdateFundsTask(BaseTask):
     def __init__(self, task_config: Dict[str, Any]):
         """
         初始化任务
-        
+
         Args:
             task_config: 包含以下字段：
                 - name: 任务名称
                 - description: 任务描述
+                - fund_codes: 可选，待更新的基金代码列表
+                - update_all: 可选，是否更新所有已有基金，默认为False
                 - start_date: 可选，净值数据的开始日期，格式：'YYYY-MM-DD'
         """
         super().__init__(task_config)
-        
+
     def get_fund_codes(self) -> List[str]:
         """
         从数据库获取需要更新的基金代码列表
@@ -61,12 +63,17 @@ class UpdateFundsTask(BaseTask):
     def run(self) -> None:
         """执行更新基金数据的任务"""
         try:
-            # 获取基金代码列表
-            fund_codes = self.get_fund_codes()
-            if not fund_codes:
-                logger.warning("没有需要更新的基金")
+            # 获取待更新的基金代码列表
+            fund_codes = self.task_config.get('fund_codes', [])
+            update_all = self.task_config.get('update_all', False)
+
+            if update_all:
+                logger.info("更新所有已有基金")
+                fund_codes = self.get_fund_codes()
+            elif not fund_codes:
+                logger.warning("没有待更新的基金代码")
                 return
-                
+            
             # 1. 更新基金基本信息
             info_task_config = {
                 "name": "update_funds_info",
@@ -111,7 +118,9 @@ class UpdateFundsTask(BaseTask):
 if __name__ == "__main__":
     task_config = {
         "name": "update_funds",
-        "description": "更新基金信息和净值数据"
+        "description": "更新基金信息和净值数据",
+        "update_all": False,  # 设置为True以更新所有基金
+        "fund_codes": ["003376", "007540"],  # 可选，指定待更新的基金代码
     }
     task = UpdateFundsTask(task_config)
     task.execute()

@@ -11,8 +11,8 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from task.exceptions import TaskConfigError
 from task_backtrader.backtrader_base_task import BacktraderBaseTask
 from task_backtrader.strategy.buy_and_hold_strategy import BuyAndHoldStrategy
-from task_backtrader.strategy.dividend_strategy import DividendStrategy
-
+from task_backtrader.analyzer.trade_list_analyzer import TradeListAnalyzer
+from task_backtrader.analyzer.daily_asset_analyzer import DailyAssetAnalyzer
 class BacktraderBuyAndHoldTask(BacktraderBaseTask):
     """
     使用Backtrader实现买入持有策略的回测任务
@@ -63,6 +63,7 @@ class BacktraderBuyAndHoldTask(BacktraderBaseTask):
             cerebro = bt.Cerebro()
             # 设置初始资金
             cerebro.broker.setcash(self.initial_cash)
+
             # 设置手续费
             cerebro.broker.setcommission(commission=0.0)  # 设置0.0%的手续费
             
@@ -70,16 +71,17 @@ class BacktraderBuyAndHoldTask(BacktraderBaseTask):
                 cerebro.adddata(data, name=name)
             
             # 添加策略
-            cerebro.addstrategy(DividendStrategy)
 
             for strategy_class, strategy_params in self.strategys:
                 cerebro.addstrategy(strategy_class, params=strategy_params)
+                
             
             # 添加分析器
             cerebro.addanalyzer(bt.analyzers.Returns, _name='returns')
             cerebro.addanalyzer(bt.analyzers.DrawDown, _name='drawdown')
-            cerebro.addanalyzer(bt.analyzers.TradeAnalyzer, _name='trades')
             cerebro.addanalyzer(bt.analyzers.SharpeRatio, _name='sharpe')
+            cerebro.addanalyzer(TradeListAnalyzer, _name='trade_list')  # 添加交易记录分析器
+            cerebro.addanalyzer(DailyAssetAnalyzer, _name='daily_asset')  # 添加每日资产分析器
             
             # 运行回测
             results = cerebro.run()
@@ -87,6 +89,10 @@ class BacktraderBuyAndHoldTask(BacktraderBaseTask):
             # 获取回测结果
             strat = results[0]
             portfolio_value = cerebro.broker.getvalue()
+            
+            # 获取交易记录
+            trade_list = strat.analyzers.trade_list.get_analysis()
+            logger.info(f"交易记录: {trade_list}")
             
             # 收集持仓详情
             positions = []
@@ -112,7 +118,6 @@ class BacktraderBuyAndHoldTask(BacktraderBaseTask):
                 'positions': positions,  # 持仓详情
                 'returns': strat.analyzers.returns.get_analysis(),
                 'drawdown': strat.analyzers.drawdown.get_analysis(),
-                'trades': strat.analyzers.trades.get_analysis(),
                 'sharpe': strat.analyzers.sharpe.get_analysis()
             }
             
@@ -133,22 +138,23 @@ if __name__ == "__main__":
             "database": "baofu"
         },
         "data_params": json.dumps({
-            "start_date": "2024-01-01",
-            "fund_codes": ["003376","008163"]
+            "start_date": "2024-12-30",
+            "fund_codes": ["007540","003376"]
         }),
         "initial_cash": 1000000,
         "strategys": """
             [
                 {
                     "name": "BuyAndHold",
-                    "open_date": "2024-01-01",
-                    "products": ["003376","008163"],
+                    "open_date": "2024-12-31",
+                    "dividend_method": "reinvest",
+                    "products": ["007540","003376"],
                     "weights": [0.5,0.5]
                 }
             ]
         """
     }
-    
+
     # 执行回测
     task = BacktraderBuyAndHoldTask(task_config)
     task.execute()
@@ -164,6 +170,5 @@ if __name__ == "__main__":
         logger.info(f"收益: {result['returns']}")
         logger.info(f"最大回撤: {result['drawdown']}")
         logger.info(f"夏普比率: {result['sharpe']}")
-        logger.info(f"交易记录: {result['trades']}")
     else:
         logger.error(f"回测失败: {task.error}")

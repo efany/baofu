@@ -1,11 +1,13 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import backtrader as bt
 import json
 from loguru import logger
 from typing import Dict, Any
 import math  # 添加此行以导入math模块
 
-class BuyAndHoldStrategy(bt.Strategy):
+from task_backtrader.strategy.base_strategy import BaseStrategy
+
+class BuyAndHoldStrategy(BaseStrategy):
     """买入持有策略"""
 
     # params: 策略参数
@@ -16,14 +18,13 @@ class BuyAndHoldStrategy(bt.Strategy):
     # }
     def __init__(self, params: Dict[str, Any]):
         """初始化策略"""
+        super().__init__(params)  # Call the parent class initializer
 
         self.order_dict = {}  # 记录每个数据的订单
         self.position_opened = False  # 是否已开仓标记
         
         # 解析JSON参数
         try:
-            self.params = params
-            
             # 解析开仓日期
             open_date = self.params.get('open_date')
             self.open_date = datetime.strptime(open_date, '%Y-%m-%d').date()
@@ -45,6 +46,8 @@ class BuyAndHoldStrategy(bt.Strategy):
             raise ValueError(f"策略参数验证失败: {str(e)}")
 
     def next(self):
+
+        super().next()
         """
         策略核心逻辑：在指定日期按照配置比例买入并持有
         """
@@ -57,10 +60,11 @@ class BuyAndHoldStrategy(bt.Strategy):
         current_date = self.data0.datetime.date(0)
         if isinstance(current_date, int):
             current_date = bt.num2date(current_date).date()
+        next_date = self.data0.datetime.date(1)
 
         # 如果当前日期小于开仓日期，则不进行操作
         # 在开仓前一天提交购买
-        if self.open_date and current_date < self.open_date:
+        if next_date < self.open_date:
             return
         
         logger.info(f"当前日期: {current_date}, 开仓日期: {self.open_date}")
@@ -90,11 +94,12 @@ class BuyAndHoldStrategy(bt.Strategy):
                        f"价格={price:.4f}, 数量={size:.4f}")
             
             # 创建买入订单
-            self.order_dict[product] = self.buy(data=data, size=size)
+            self.order_dict[product] = self.buy(data=data, size=size, price=data.close[1])
                 
         self.position_opened = True
 
     def notify_order(self, order):
+        super().notify_order(order)
         """
         监听订单状态变化
         """
