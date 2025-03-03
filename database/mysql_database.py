@@ -1,27 +1,78 @@
 import mysql.connector
 from mysql.connector import errorcode
+from mysql.connector import pooling
 from typing import Dict, Optional
 
 class MySQLDatabase:
-    def __init__(self, host, user, password, database):
+    def __init__(self, host, user, password, database, pool_size=5):
+        """
+        初始化数据库连接池
+        
+        Args:
+            host: 数据库主机地址
+            user: 数据库用户名
+            password: 数据库密码
+            database: 数据库名称
+            pool_size: 连接池大小
+        """
+        self.pool = pooling.MySQLConnectionPool(
+            pool_name="mypool",
+            pool_size=pool_size,
+            host=host,
+            user=user,
+            password=password,
+            database=database
+        )
+        print("数据库连接池初始化成功")
+
+    def get_connection(self):
+        """
+        从连接池中获取一个数据库连接
+        """
         try:
-            self.connection = mysql.connector.connect(
-                host=host,
-                user=user,
-                password=password,
-                database=database
-            )
-            self.cursor = self.connection.cursor(dictionary=True)
-            print("数据库连接成功")
+            connection = self.pool.get_connection()
+            return connection
         except mysql.connector.Error as err:
-            if err.errno == errorcode.ER_ACCESS_DENIED_ERROR:
-                print("用户名或密码错误")
-            elif err.errno == errorcode.ER_BAD_DB_ERROR:
-                print("数据库不存在")
+            print(f"获取数据库连接失败: {err}")
+            return None
+
+    def execute_query(self, sql, params=None):
+        """
+        执行SQL查询语句
+        
+        Args:
+            sql: SQL查询语句
+            params: 查询参数
+            
+        Returns:
+            Optional[Dict]: 查询结果，如果是SELECT语句则返回结果字典，其他语句返回None
+        """
+        connection = self.get_connection()
+        if not connection:
+            return None
+
+        try:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute(sql, params or ())
+            if sql.strip().upper().startswith('SELECT'):
+                result = cursor.fetchall()
             else:
-                print(err)
-            self.connection = None
-            self.cursor = None
+                connection.commit()
+                result = None
+            cursor.close()
+            return result
+        except mysql.connector.Error as err:
+            print(f"执行SQL出错: {err}")
+            return None
+        finally:
+            if connection:
+                connection.close()
+
+    def close_pool(self):
+        """
+        关闭连接池
+        """
+        print("数据库连接池已关闭")
 
     def create_table(self, table_name, table_schema):
         if self.cursor:
@@ -42,66 +93,5 @@ class MySQLDatabase:
             return result is not None
         return False
 
-    def insert_data(self, table_name, data):
-        if self.cursor:
-            placeholders = ", ".join(["%s"] * len(data))
-            columns = ", ".join(data.keys())
-            sql = f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders})"
-            try:
-                self.cursor.execute(sql, list(data.values()))
-                self.connection.commit()
-            except mysql.connector.Error as err:
-                print(f"插入数据时出错: sql: {sql}, err: {err}")
-    
-    def update_data(self, table_name, data, conditions):
-        if self.cursor:
-            set_clause = ", ".join([f"{k}=%s" for k in data.keys()])
-            where_clause = " AND ".join([f"{k}=%s" for k in conditions.keys()])
-            sql = f"UPDATE {table_name} SET {set_clause} WHERE {where_clause}"
-            try:
-                self.cursor.execute(sql, list(data.values()) + list(conditions.values()))
-                self.connection.commit()
-            except mysql.connector.Error as err:
-                print(f"更新数据时出错: sql: {sql}, err: {err}")
-
-    def fetch_data(self, table_name, conditions=None):
-        if self.cursor:
-            sql = f"SELECT * FROM {table_name}"
-            if conditions:
-                sql += " WHERE " + " AND ".join([f"{k}=%s" for k in conditions.keys()])
-            try:
-                self.cursor.execute(sql, tuple(conditions.values()) if conditions else None)
-                return self.cursor.fetchall()
-            except mysql.connector.Error as err:
-                print(f"查询数据时出错: {err}")
-                return None
-
-    def run_sql(self, sql: str, params: Dict = None):
-        """
-        执行SQL查询语句
-        
-        Args:
-            sql: SQL查询语句
-            params: 查询参数字典
-            
-        Returns:
-            Optional[Dict]: 查询结果，如果是SELECT语句则返回结果字典，其他语句返回None
-        """
-        if self.cursor:
-            try:
-                self.cursor.execute(sql, params)
-                if sql.strip().upper().startswith('SELECT'):
-                    return self.cursor.fetchall()
-                else:
-                    self.connection.commit()
-                return None
-            except mysql.connector.Error as err:
-                print(f"执行SQL出错: {err}")
-                return None
-
     def close_connection(self):
-        if self.cursor:
-            self.cursor.close()
-        if self.connection:
-            self.connection.close()
-            print("数据库连接已关闭") 
+        print("数据库连接池已关闭")

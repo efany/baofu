@@ -10,11 +10,11 @@ from database.mysql_database import MySQLDatabase
 from task.base_task import BaseTask
 from task.exceptions import TaskConfigError, TaskExecutionError
 from task_crawlers.eastmoney_fund_nav_task import EastMoneyFundNavTask
-
+from database.db_funds_nav import DBFundsNav
 class UpdateFundsNavTask(BaseTask):
     """更新基金净值数据的任务"""
     
-    def __init__(self, task_config: Dict[str, Any]):
+    def __init__(self, mysql_db: MySQLDatabase, task_config: Dict[str, Any]):
         """
         初始化任务
         
@@ -25,6 +25,8 @@ class UpdateFundsNavTask(BaseTask):
                 - fund_codes: 基金代码列表
         """
         super().__init__(task_config)
+        self.mysql_db = mysql_db
+        self.db_funds_nav = DBFundsNav(self.mysql_db)
         
         # 验证task_config
         if 'fund_codes' not in self.task_config:
@@ -34,12 +36,11 @@ class UpdateFundsNavTask(BaseTask):
         if not self.task_config['fund_codes']:
             raise TaskConfigError("fund_codes不能为空")
 
-    def fetch_latest_nav_date(self, mysql_db: MySQLDatabase, fund_code: str) -> Optional[datetime.date]:
+    def fetch_latest_nav_date(self, fund_code: str) -> Optional[datetime.date]:
         """
         获取数据库中基金的最新净值日期
         
         Args:
-            mysql_db: 数据库连接
             fund_code: 基金代码
             
         Returns:
@@ -53,7 +54,7 @@ class UpdateFundsNavTask(BaseTask):
                 ORDER BY nav_date DESC 
                 LIMIT 1
             """
-            result = mysql_db.run_sql(sql, {'ts_code': fund_code})
+            result = self.mysql_db.execute_query(sql, {'ts_code': fund_code})
             
             if len(result) > 0:
                 latest_date = result[0]['nav_date']
@@ -67,7 +68,7 @@ class UpdateFundsNavTask(BaseTask):
             logger.error(f"获取基金{fund_code}最新净值日期失败: {str(e)}")
             return None
 
-    def update_fund_nav(self, fund_code: str, start_date: Optional[datetime.date] = None) -> Dict[str, Any]:
+    def crawle_fund_nav(self, fund_code: str, start_date: Optional[datetime.date] = None) -> Dict[str, Any]:
         """
         更新单个基金的净值数据
         
@@ -100,7 +101,7 @@ class UpdateFundsNavTask(BaseTask):
 
         return crawler.result
 
-    def update_nav_database(self, mysql_db: MySQLDatabase, fund_code: str, nav_data: List[Dict[str, Any]]) -> None:
+    def update_nav_database(self, fund_code: str, nav_data: List[Dict[str, Any]]) -> None:
         """
         更新数据库中的基金净值数据
         
@@ -123,29 +124,17 @@ class UpdateFundsNavTask(BaseTask):
             }
             
             # 检查是否已存在该日期的数据
-            existing = mysql_db.fetch_data('funds_nav', {
-                'ts_code': fund_code,
-                'nav_date': nav_date
-            })
+            db_funds_nav = self.db_funds_nav.get_fund_nav_by_date(fund_code, nav_date)
             
-            if existing:
+            if not db_funds_nav.empty:
                 # 更新现有数据
-                mysql_db.update_data('funds_nav', data, {
-                    'ts_code': fund_code,
-                    'nav_date': nav_date
-                })
+                self.db_funds_nav.update_fund_nav(fund_code, nav_date, data)
             else:
                 # 插入新数据
-                mysql_db.insert_data('funds_nav', data)
+                self.db_funds_nav.insert_fund_nav(data)
 
     def run(self) -> None:
         """执行更新基金净值数据的任务"""
-        mysql_db = MySQLDatabase(
-            host='127.0.0.1',
-            user='baofu',
-            password='TYeKmJPfw2b7kxGK',
-            database='baofu'
-        )
         try:
             fund_codes = self.task_config['fund_codes']
             logger.info(f"开始更新{len(fund_codes)}个基金的净值数据")
@@ -156,7 +145,7 @@ class UpdateFundsNavTask(BaseTask):
                     logger.debug(f"开始更新基金{fund_code}净值数据")
                     
                     # 获取最新净值日期
-                    latest_date = self.fetch_latest_nav_date(mysql_db, fund_code)
+                    latest_date = self.fetch_latest_nav_date(fund_code)
                     if latest_date:
                         # 如果有历史数据，从最新日期的下一天开始获取
                         start_date = latest_date + timedelta(days=1)
@@ -165,9 +154,9 @@ class UpdateFundsNavTask(BaseTask):
                         start_date = None
                         logger.info(f"基金{fund_code}没有历史净值数据，将获取全部数据")
                     
-                    nav_result = self.update_fund_nav(fund_code, start_date)
+                    nav_result = self.crawle_fund_nav(fund_code, start_date)
                     if nav_result['nav_data']:
-                        self.update_nav_database(mysql_db, fund_code, nav_result['nav_data'])
+                        self.update_nav_database(fund_code, nav_result['nav_data'])
                         logger.info(f"基金{fund_code}更新了{len(nav_result['nav_data'])}条净值数据")
                     else:
                         logger.info(f"基金{fund_code}没有新的净值数据需要更新")
@@ -180,19 +169,22 @@ class UpdateFundsNavTask(BaseTask):
             
         except Exception as e:
             raise TaskExecutionError(f"更新基金净值数据任务失败: {str(e)}")
-        finally:
-            # 确保在任务完成或出错时都能关闭数据库连接
-            mysql_db.close_connection()
-            logger.debug("数据库连接已关闭")
 
 
 if __name__ == "__main__":
+    mysql_db = MySQLDatabase(
+        host='127.0.0.1',
+        user='baofu',
+        password='TYeKmJPfw2b7kxGK',
+        database='baofu'
+    )
+    
     task_config = {
         "name": "update_funds_nav",
         "description": "更新基金净值数据",
-        "fund_codes": ["008163","007540","003376","011062","400030","011983","007744","010353","006635","003156","162715","003547","003157","007745","485119","010232","000914","007828","006645","006484","006485","009560","008583"]  # 示例基金代码列表
+        "fund_codes": ["006484"]  # 示例基金代码列表
     }
-    task = UpdateFundsNavTask(task_config)
+    task = UpdateFundsNavTask(mysql_db, task_config)
     task.execute()
     if not task.is_success:
         logger.error(task.error)

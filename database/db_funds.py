@@ -1,7 +1,13 @@
 from typing import Dict, List, Optional
 import pandas as pd
-from database.mysql_database import MySQLDatabase  # 导入 MySQLDatabase 类
+import sys
+import os
+from typing import Dict, Any, List
 from loguru import logger
+
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+
+from database.mysql_database import MySQLDatabase  # 导入 MySQLDatabase 类
 
 class DBFunds:
     """提供对funds表的便捷操作"""
@@ -30,11 +36,13 @@ class DBFunds:
             FROM funds
             WHERE ts_code = %s
         """
-        result = self.mysql_db.run_sql(sql, (fund_code,))
+        result = self.mysql_db.execute_query(sql, (fund_code,))
         if not result:
             logger.warning(f"未找到基金{fund_code}的基本信息")
             return None
-        return pd.DataFrame([result])
+        
+        # 使用列名创建DataFrame
+        return pd.DataFrame([result[0]])
 
     def get_funds_info(self, fund_codes: List[str]) -> pd.DataFrame:
         """
@@ -55,57 +63,37 @@ class DBFunds:
             WHERE ts_code IN (%s)
         """ % ','.join(['%s'] * len(fund_codes))
 
-        results = self.mysql_db.run_sql(sql, tuple(fund_codes))
+        results = self.mysql_db.execute_query(sql, tuple(fund_codes))
         if not results:
             logger.warning(f"未找到基金{fund_codes}的基本信息")
             return pd.DataFrame()
         return pd.DataFrame(results)
 
-    # def insert_fund_info(self, fund_info: Dict[str, Any]) -> bool:
-    #     """
-    #     插入基金信息
-        
-    #     Args:
-    #         fund_info: 基金信息字典，包含ts_code, name, management字段
-            
-    #     Returns:
-    #         bool: 是否插入成功
-    #     """
-    #     required_fields = ['ts_code', 'name', 'management']
-    #     for field in required_fields:
-    #         if field not in fund_info:
-    #             raise ValueError(f"fund_info缺少{field}字段")
-                
-    #     return self.mysql_db.insert_data('funds', fund_info)
+    def insert_fund_info(self, fund_info: Dict[str, Any]) -> bool:
+        placeholders = ", ".join(["%s"] * len(fund_info))
+        columns = ", ".join(fund_info.keys())
+        sql = f"INSERT INTO funds ({columns}) VALUES ({placeholders})"
+        return self.mysql_db.execute_query(sql, list(fund_info.values())) is not None
 
-    # def update_fund_info(self, fund_code: str, fund_info: Dict[str, Any]) -> bool:
-    #     """
-    #     更新基金信息
+    def update_fund_info(self, fund_code: str, fund_info: Dict[str, Any]) -> bool:
+        """
+        更新基金信息
         
-    #     Args:
-    #         fund_code: 基金代码
-    #         fund_info: 要更新的字段字典
+        Args:
+            fund_code: 基金代码
+            fund_info: 要更新的字段字典
             
-    #     Returns:
-    #         bool: 是否更新成功
-    #     """
-    #     if not fund_info:
-    #         raise ValueError("fund_info不能为空")
-            
-    #     return self.mysql_db.update_data('funds', fund_info, {'ts_code': fund_code})
-
-    # def delete_fund_info(self, fund_code: str) -> bool:
-    #     """
-    #     删除基金信息
-        
-    #     Args:
-    #         fund_code: 基金代码
-            
-    #     Returns:
-    #         bool: 是否删除成功
-    #     """
-    #     sql = "DELETE FROM funds WHERE ts_code = %s"
-    #     return self.mysql_db.run_sql(sql, (fund_code,)) is not None
+        Returns:
+            bool: 是否更新成功
+        """
+        if not fund_info:
+            raise ValueError("fund_info不能为空")
+    
+        set_clause = ", ".join([f"{k}=%s" for k in fund_info.keys()])
+        where_clause = "WHERE ts_code=%s"
+        sql = f"UPDATE funds SET {set_clause} {where_clause}"
+        print(sql)
+        return self.mysql_db.execute_query(sql, list(fund_info.values()) + [fund_code]) is not None
 
     def get_all_funds(self) -> pd.DataFrame:
         """
@@ -115,7 +103,7 @@ class DBFunds:
             pd.DataFrame: 基金信息DataFrame
         """
         sql = "SELECT ts_code, name, management FROM funds"
-        results = self.mysql_db.run_sql(sql)
+        results = self.mysql_db.execute_query(sql)
         if not results:
             logger.warning("未找到任何基金信息")
             return pd.DataFrame()
@@ -142,5 +130,9 @@ if __name__ == "__main__":
     # 获取所有基金信息
     all_funds = db_funds.get_all_funds()
     print(all_funds)
+
+    # 更新基金信息
+    db_funds.update_fund_info('003376', {'name': 'test'})
+    print(db_funds.get_fund_info('003376'))
 
     mysql_db.close_connection()

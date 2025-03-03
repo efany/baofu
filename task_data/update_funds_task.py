@@ -10,6 +10,8 @@ from task.base_task import BaseTask
 from task.exceptions import TaskConfigError, TaskExecutionError
 from task_data.update_funds_info_task import UpdateFundsInfoTask
 from task_data.update_funds_nav_task import UpdateFundsNavTask
+from database.db_funds import DBFunds
+
 
 class UpdateFundsTask(BaseTask):
     """更新基金信息和净值数据的任务"""
@@ -26,6 +28,13 @@ class UpdateFundsTask(BaseTask):
                 - update_all: 可选，是否更新所有已有基金，默认为False
                 - start_date: 可选，净值数据的开始日期，格式：'YYYY-MM-DD'
         """
+        self.mysql_db = MySQLDatabase(
+            host='127.0.0.1',
+            user='baofu',
+            password='TYeKmJPfw2b7kxGK',
+            database='baofu'
+        )
+        self.db_funds = DBFunds(self.mysql_db)
         super().__init__(task_config)
 
     def get_fund_codes(self) -> List[str]:
@@ -35,30 +44,14 @@ class UpdateFundsTask(BaseTask):
         Returns:
             List[str]: 基金代码列表
         """
-        mysql_db = MySQLDatabase(
-            host='127.0.0.1',
-            user='baofu',
-            password='TYeKmJPfw2b7kxGK',
-            database='baofu'
-        )
         try:
-            # 查询所有基金代码
-            sql = "SELECT ts_code FROM funds"
-            result = mysql_db.fetch_data('funds')
-            
-            if not result:
-                logger.warning("数据库中没有基金数据")
-                return []
-                
-            fund_codes = [row['ts_code'] for row in result]
-            logger.info(f"从数据库获取到{len(fund_codes)}个基金代码")
+            funds = self.db_funds.get_all_funds()
+            fund_codes = [row['ts_code'] for row in funds]
             return fund_codes
             
         except Exception as e:
             logger.error(f"获取基金代码列表失败: {str(e)}")
             raise TaskExecutionError(f"获取基金代码列表失败: {str(e)}")
-        finally:
-            mysql_db.close_connection()
 
     def run(self) -> None:
         """执行更新基金数据的任务"""
@@ -82,7 +75,7 @@ class UpdateFundsTask(BaseTask):
             }
             
             logger.info("开始更新基金基本信息")
-            info_task = UpdateFundsInfoTask(info_task_config)
+            info_task = UpdateFundsInfoTask(self.mysql_db, info_task_config)
             info_task.execute()
             
             if not info_task.is_success:
@@ -101,7 +94,7 @@ class UpdateFundsTask(BaseTask):
                 nav_task_config['start_date'] = self.task_config['start_date']
             
             logger.info("开始更新基金净值数据")
-            nav_task = UpdateFundsNavTask(nav_task_config)
+            nav_task = UpdateFundsNavTask(self.mysql_db, nav_task_config)
             nav_task.execute()
             
             if not nav_task.is_success:
@@ -120,7 +113,7 @@ if __name__ == "__main__":
         "name": "update_funds",
         "description": "更新基金信息和净值数据",
         "update_all": False,  # 设置为True以更新所有基金
-        "fund_codes": ["003376", "007540"],  # 可选，指定待更新的基金代码
+        "fund_codes": ["003376", "007540","006484", "009560", "008583", "006645", "010232", "011983"],  # 可选，指定待更新的基金代码 , 
     }
     task = UpdateFundsTask(task_config)
     task.execute()
