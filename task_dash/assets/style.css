@@ -1,0 +1,7 @@
+.date-picker-container .DateInput,
+.date-picker-container .DateInput_input {
+    font-size: 14px !important;
+    height: 38px !important;
+    line-height: 38px !important;
+    font-family: Arial, sans-serif !important;
+}
