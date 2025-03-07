@@ -8,9 +8,14 @@ from dash.dependencies import Input, Output
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from database.mysql_database import MySQLDatabase
-from pages.page1 import create_fund_value_graph  # Import the function
-from callback.fund_callbacks import register_fund_callbacks  # Import the callback registration
+from pages.single_fund import create_single_fund_value_graph  # Import the function
+from callback.single_fund_callbacks import register_single_fund_callbacks  # Import the callback registration
 
+from pages.page2 import create_strategy_graph
+from callback.strategy_callback import register_strategy_callbacks
+
+from pages.page3 import create_strategy_management
+from callback.strategy_manage_callback import register_strategy_manage_callbacks
 # 初始化Dash应用
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP], suppress_callback_exceptions=True)
 
@@ -38,19 +43,23 @@ def display_page(pathname):
     if pathname == '/':
         from pages.home import layout
         return layout
-    elif pathname == '/page1':
-        return create_fund_value_graph(mysql_db)  # Call the function to get the layout
+    elif pathname == '/single_fund':
+        return create_single_fund_value_graph(mysql_db)  # Call the function to get the layout
     elif pathname == '/page2':
-        from pages.page2 import layout
-        return layout
+        return create_strategy_graph(mysql_db)
     elif pathname == '/page3':
-        from pages.page3 import layout
-        return layout
+        return create_strategy_management(mysql_db)
     else:
         return html.H1("404: Not Found")
 
 # 注册基金相关的回调
-register_fund_callbacks(app, mysql_db)
+register_single_fund_callbacks(app, mysql_db)
+
+# 注册策略相关的回调
+register_strategy_callbacks(app, mysql_db)
+
+# 注册策略管理相关的回调
+register_strategy_manage_callbacks(app, mysql_db)
 
 if __name__ == '__main__':
     try:

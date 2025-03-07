@@ -15,6 +15,7 @@ class BaseStrategy(bt.Strategy):
         """初始化策略"""
         self.params = params
         self.dividend_method = self.params.get('dividend_method', 'cash')
+        self.order_message = {}
 
     def next(self):
         """
@@ -42,25 +43,6 @@ class BaseStrategy(bt.Strategy):
                 # 将分红再投资
                 size = math.floor(dividend_amount / data.close[1])  # 计算可购买的份额
                 if size > 0:
-                    self.buy(data=data, size=size, price=data.close[1])
-                    logger.info(f"将分红再投资: {size} 份 {data._name}，当前价格: {data.close[1]:.4f}")
-
-    def notify_order(self, order):
-        """
-        监听订单状态变化
-        """
-        if order.status == order.Submitted:
-            logger.info(f"订单 {order.ref} 被提交")
-            return
-        elif order.status == order.Accepted:
-            logger.info(f"订单 {order.ref} 被接受")
-
-        # 订单已完成
-        if order.status in [order.Completed]:
-            if order.isbuy():
-                logger.info(f"买入成功: {order.executed.price}, 数量: {order.executed.size}")
-            elif order.issell():
-                logger.info(f"卖出成功: {order.executed.price}, 数量: {order.executed.size}")
-
-        elif order.status in [order.Canceled, order.Margin, order.Rejected]:
-            logger.error(f"订单 {order.ref} 失败: {order}") 
+                    order = self.buy(data=data, size=size, price=data.close[1])
+                    self.order_message[order.ref] = "分红再投资"
+                    logger.info(f"将分红再投资: {size} 份 {data._name}，当前价格: {data.close[1]:.4f}, ref: {order.ref}")

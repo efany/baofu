@@ -52,13 +52,15 @@ class MySQLDatabase:
             return None
 
         try:
-            cursor = connection.cursor(dictionary=True)
+            cursor = connection.cursor(dictionary=True, buffered=True)
             cursor.execute(sql, params or ())
-            if sql.strip().upper().startswith('SELECT'):
+            
+            if sql.strip().upper().startswith('SELECT') or sql.strip().upper().startswith('SHOW'):
                 result = cursor.fetchall()
             else:
                 connection.commit()
                 result = None
+            
             cursor.close()
             return result
         except mysql.connector.Error as err:
@@ -68,30 +70,36 @@ class MySQLDatabase:
             if connection:
                 connection.close()
 
+    def create_table(self, table_name, table_schema):
+        """
+        创建表
+        
+        Args:
+            table_name: 表名
+            table_schema: 表结构
+        """
+        sql = f"CREATE TABLE IF NOT EXISTS {table_name} ({table_schema})"
+        self.execute_query(sql)
+
+    def check_table_exists(self, table_name):
+        """
+        检查表是否存在
+        
+        Args:
+            table_name: 要检查的表名
+            
+        Returns:
+            bool: 表是否存在
+        """
+        sql = f"SHOW TABLES LIKE '{table_name}'"
+        result = self.execute_query(sql)
+        return bool(result)
+
+    def close_connection(self):
+        print("数据库连接池已关闭")
+
     def close_pool(self):
         """
         关闭连接池
         """
-        print("数据库连接池已关闭")
-
-    def create_table(self, table_name, table_schema):
-        if self.cursor:
-            try:
-                self.cursor.execute(f"CREATE TABLE IF NOT EXISTS {table_name} ({table_schema})")
-                self.connection.commit()
-                print(f"表 '{table_name}' 创建成功或已存在")
-            except mysql.connector.Error as err:
-                print(f"创建表时出错: {err}")
-
-    def check_table_exists(self, table_name):
-        if self.cursor:
-            self.cursor.execute(
-                "SHOW TABLES LIKE %s",
-                (table_name,)
-            )
-            result = self.cursor.fetchone()
-            return result is not None
-        return False
-
-    def close_connection(self):
         print("数据库连接池已关闭")

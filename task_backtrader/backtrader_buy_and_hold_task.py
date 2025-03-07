@@ -13,12 +13,14 @@ from task_backtrader.backtrader_base_task import BacktraderBaseTask
 from task_backtrader.strategy.buy_and_hold_strategy import BuyAndHoldStrategy
 from task_backtrader.analyzer.trade_list_analyzer import TradeListAnalyzer
 from task_backtrader.analyzer.daily_asset_analyzer import DailyAssetAnalyzer
+from database.mysql_database import MySQLDatabase
+
 class BacktraderBuyAndHoldTask(BacktraderBaseTask):
     """
     使用Backtrader实现买入持有策略的回测任务
     """
 
-    def __init__(self, task_config: Dict[str, Any]):
+    def __init__(self, mysql_db: MySQLDatabase, task_config: Dict[str, Any]):
         """
         初始化任务
         
@@ -28,21 +30,18 @@ class BacktraderBuyAndHoldTask(BacktraderBaseTask):
                 - description: 任务描述
                 - db_config: 数据库配置
                 - data_params: 数据参数JSON字符串
-                    - start_date: 回测开始日期
-                    - end_date: 回测结束日期
                     - fund_codes: 基金代码列表
-                - strategys: 策略列表
-                    [
-                        {
-                            "name": "BuyAndHold",
-                            "open_date": "2023-01-01",
-                            "products": ["003376"],
-                            "weights": [1.0]
-                        }
-                    ]
+                - strategy: 策略
+                    {
+                        "name": "BuyAndHold",
+                        "open_date": "2024-01-01",
+                        "close_date": "2024-12-30",
+                        "products": ["003376"],
+                        "weights": [1.0]
+                    }
                 - initial_cash: 初始资金，默认1_000_000.0
         """
-        super().__init__(task_config)
+        super().__init__(mysql_db, task_config)
         
         self.initial_cash = self.task_config.get('initial_cash', 1_000_000.0)
 
@@ -50,11 +49,8 @@ class BacktraderBuyAndHoldTask(BacktraderBaseTask):
         self.data_feeds = self.make_data()
         
         # 解析data_params
-        self.strategys = []
-        strategy_params = json.loads(self.task_config['strategys'])
-        for index, strategy_params in enumerate(strategy_params):
-            logger.info(f"策略 ## {index}: {strategy_params}")
-            self.strategys.append(self.make_strategy(strategy_params))
+        self.strategy_param = json.loads(self.task_config['strategy'])
+        self.strategy_class = self.make_strategy(self.strategy_param)
 
     def run(self) -> None:
         """执行回测任务"""
@@ -71,9 +67,7 @@ class BacktraderBuyAndHoldTask(BacktraderBaseTask):
                 cerebro.adddata(data, name=name)
             
             # 添加策略
-
-            for strategy_class, strategy_params in self.strategys:
-                cerebro.addstrategy(strategy_class, params=strategy_params)
+            cerebro.addstrategy(self.strategy_class, params=self.strategy_param)
                 
             
             # 添加分析器
@@ -89,10 +83,6 @@ class BacktraderBuyAndHoldTask(BacktraderBaseTask):
             # 获取回测结果
             strat = results[0]
             portfolio_value = cerebro.broker.getvalue()
-            
-            # 获取交易记录
-            trade_list = strat.analyzers.trade_list.get_analysis()
-            logger.info(f"交易记录: {trade_list}")
             
             # 收集持仓详情
             positions = []
@@ -118,7 +108,9 @@ class BacktraderBuyAndHoldTask(BacktraderBaseTask):
                 'positions': positions,  # 持仓详情
                 'returns': strat.analyzers.returns.get_analysis(),
                 'drawdown': strat.analyzers.drawdown.get_analysis(),
-                'sharpe': strat.analyzers.sharpe.get_analysis()
+                'sharpe': strat.analyzers.sharpe.get_analysis(),
+                'daily_asset': strat.analyzers.daily_asset.get_analysis(),
+                'trades': strat.analyzers.trade_list.get_analysis()
             }
             
         except Exception as e:
@@ -127,38 +119,40 @@ class BacktraderBuyAndHoldTask(BacktraderBaseTask):
 
 
 if __name__ == "__main__":
+    mysql_db = MySQLDatabase(
+        host='127.0.0.1',
+        user='baofu',
+        password='TYeKmJPfw2b7kxGK',
+        database='baofu',
+        pool_size=5
+    )
+
     # 测试配置
     task_config = {
         "name": "buy_and_hold_backtest",
         "description": "买入持有策略回测",
-        "db_config": {
-            "host": "127.0.0.1",
-            "user": "baofu",
-            "password": "TYeKmJPfw2b7kxGK",
-            "database": "baofu"
-        },
-        "data_params": json.dumps({
-            "start_date": "2024-12-30",
-            "fund_codes": ["007540","003376"]
-        }),
+        "data_params": """
+            {
+                "fund_codes": ["007540","003376"]
+            }
+        """,
         "initial_cash": 1000000,
-        "strategys": """
-            [
-                {
-                    "name": "BuyAndHold",
-                    "open_date": "2024-12-31",
-                    "dividend_method": "reinvest",
-                    "products": ["007540","003376"],
-                    "weights": [0.5,0.5]
-                }
-            ]
+        "strategy": """
+            {
+                "name": "BuyAndHold",
+                "open_date": "",
+                "close_date": "",
+                "dividend_method": "reinvest",
+                "products": ["007540","003376"],
+                "weights": [0.5,0.5]
+            }
         """
     }
 
     # 执行回测
-    task = BacktraderBuyAndHoldTask(task_config)
+    task = BacktraderBuyAndHoldTask(mysql_db, task_config)
     task.execute()
-    
+
     if task.is_success:
         logger.info("回测完成")
         result = task.result
@@ -170,5 +164,6 @@ if __name__ == "__main__":
         logger.info(f"收益: {result['returns']}")
         logger.info(f"最大回撤: {result['drawdown']}")
         logger.info(f"夏普比率: {result['sharpe']}")
+        logger.info(f"每日资产: {result['daily_asset']}")
     else:
         logger.error(f"回测失败: {task.error}")

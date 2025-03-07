@@ -113,7 +113,7 @@ if __name__ == "__main__":
         "name": "update_funds",
         "description": "更新基金信息和净值数据",
         "update_all": False,  # 设置为True以更新所有基金
-        "fund_codes": ["003376", "007540","006484", "009560", "008583", "006645", "010232", "011983"],  # 可选，指定待更新的基金代码 , 
+        "fund_codes": ["010232","162715","006635"],  # 可选，指定待更新的基金代码 , 
     }
     task = UpdateFundsTask(task_config)
     task.execute()

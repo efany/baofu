@@ -15,15 +15,15 @@ from task_utils.funds_utils import get_fund_data_by_name, calculate_return_rate,
 from database.db_funds_nav import DBFundsNav
 from database.db_funds import DBFunds
 
-def get_date_range(time_range, data_dates):
+def get_date_range(time_range):
     """
     根据选择的时间范围和数据的日期范围，计算图表显示的日期范围
     """
-    if time_range == 'ALL' or data_dates.empty:
+    if time_range == 'ALL':
         return None, None
 
     # 获取数据的最新日期作为结束日期
-    end_date = data_dates.max()
+    end_date = datetime.now().date()
     
     # 根据选择的时间范围计算开始日期
     if time_range == '1M':
@@ -46,41 +46,10 @@ def get_date_range(time_range, data_dates):
         start_date = end_date.replace(month=1, day=1)
     else:
         return None, None
-    
-    # 确保开始日期不早于数据的最早日期
-    earliest_date = data_dates.min()
-    if start_date < earliest_date:
-        start_date = earliest_date
-    
+
     return start_date, end_date
 
-def get_y_axis_range(df, start_date, end_date, columns):
-    """
-    计算指定时间范围内的y轴范围
-    """
-    if start_date and end_date:
-        mask = (df['nav_date'] >= start_date) & (df['nav_date'] <= end_date)
-        df_filtered = df[mask]
-    else:
-        df_filtered = df
-
-    # 获取所有需要考虑的列的最大最小值
-    values = []
-    for col in columns:
-        if col in df_filtered.columns:
-            values.extend(df_filtered[col].dropna().tolist())
-    
-    if not values:
-        return None, None
-
-    min_val = min(values)
-    max_val = max(values)
-    
-    # 增加一定的边距，使图表不会太贴近边界
-    padding = (max_val - min_val) * 0.05
-    return min_val - padding, max_val + padding
-
-def register_fund_callbacks(app, mysql_db):
+def register_single_fund_callbacks(app, mysql_db):
     @app.callback(
         Output('fund-value-graph', 'figure'),
         [Input('fund-dropdown', 'value'),
@@ -97,12 +66,12 @@ def register_fund_callbacks(app, mysql_db):
 
 
         main_loc_name = 'adjusted_nav'
-    
+
         # 转换日期列为datetime类型
         fund_nav['nav_date'] = pd.to_datetime(fund_nav['nav_date'])
-        
+
         # 获取图表显示的日期范围
-        start_date, end_date = get_date_range(time_range, fund_nav['nav_date'])
+        start_date, end_date = get_date_range(time_range)
 
         calculate_adjusted_nav(fund_nav, start_date, end_date)
 
@@ -152,7 +121,7 @@ def register_fund_callbacks(app, mysql_db):
                 })
             elif line_option == 'drawdown':
                 # 计算回撤
-                drawdown_list = calculate_max_drawdown(fund_nav, start_date, end_date, main_loc_name)
+                drawdown_list = calculate_max_drawdown(fund_nav['nav_date'], fund_nav[main_loc_name], start_date, end_date)
                 
                 # 绘制回撤区域
                 for i in range(len(drawdown_list)):
@@ -205,9 +174,9 @@ def register_fund_callbacks(app, mysql_db):
         # 计算区间内的最大最小值
         filtered_nav = fund_nav
         if start_date:
-            filtered_nav = filtered_nav[filtered_nav['nav_date'] >= start_date]
+            filtered_nav = filtered_nav[filtered_nav['nav_date'].dt.date >= start_date]
         if end_date:
-            filtered_nav = filtered_nav[filtered_nav['nav_date'] <= end_date]
+            filtered_nav = filtered_nav[filtered_nav['nav_date'].dt.date <= end_date]
         
         # 计算y轴范围
         y_min = None
@@ -250,36 +219,17 @@ def register_fund_callbacks(app, mysql_db):
         fund_info = db_funds.get_fund_info(selected_fund)
 
         if fund_info is None or fund_info.empty:
-            return [html.Tr([html.Td("未找到基金信息", colSpan=8)])]
+            return html.Div("未找到基金信息", style={'color': 'red'})
 
         # 获取基金净值数据
         db_funds_nav = DBFundsNav(mysql_db)
         fund_nav = db_funds_nav.get_fund_nav(selected_fund)
 
         # 获取图表显示的日期范围
-        start_date, end_date = get_date_range(time_range, fund_nav['nav_date'])
+        start_date, end_date = get_date_range(time_range)
 
         # 计算区间收益率
         first_nav, last_nav, return_rate = calculate_return_rate(fund_nav, start_date, end_date)
-
-        # 设置单元格样式
-        td_style = {
-            'padding': '8px',  # 减小内边距使布局更紧凑
-            'borderBottom': '1px solid #ddd',
-            'width': '12.5%'  # 每组标签+值占25%，所以单个td占12.5%
-        }
-        label_style = {
-            **td_style,
-            'color': '#666',
-            'fontWeight': 'bold',
-            'backgroundColor': '#f9f9f9',  # 给标签添加浅灰色背景
-            'borderRight': '1px solid #eee'  # 添加右边框分隔标签和值
-        }
-        value_style = {
-            **td_style,
-            'color': '#333',
-            'borderRight': '2px solid #ddd'  # 添加右边框分隔不同的标签-值对
-        }
 
         # 构建表格数据
         table_data = [
@@ -289,13 +239,39 @@ def register_fund_callbacks(app, mysql_db):
             ('区间收益率', f'{return_rate:.3f}% ({first_nav:.4f} -> {last_nav:.4f})'),
         ]
 
-        # 生成单行布局，每个标签紧跟其值
-        cells = []
+        # 生成紧凑的布局
+        children = []
         for label, value in table_data:
-            cells.extend([
-                html.Td(label, style=label_style),
-                html.Td(value, style=value_style if value != table_data[-1][1] else {**value_style, 'borderRight': 'none'})
-            ])
+            children.append(
+                html.Div([
+                    html.Span(label, style={
+                        'color': '#666',
+                        'fontWeight': 'bold',
+                        'marginRight': '5px',
+                        'padding': '3px',
+                        'backgroundColor': '#e0e0e0',  # 添加背景色
+                        'borderRadius': '3px',  # 添加圆角
+                    }),
+                    html.Span(value, style={
+                        'color': '#333',
+                        'fontWeight': '500',  # 加粗显示
+                        'padding': '3px',
+                        'backgroundColor': '#f0f0f0',  # 添加背景色
+                        'borderRadius': '3px',  # 添加圆角
+                    })
+                ], style={
+                    'display': 'inline-block',
+                    'marginRight': '10px',
+                    'padding': '5px',
+                    'border': '1px solid #ddd',  # 添加边框
+                    'borderRadius': '3px',  # 添加圆角
+                    'backgroundColor': '#f5f5f5',  # 添加背景色
+                })
+            )
 
-        row = html.Tr(cells)
-        return [row] 
+        return html.Div(children, style={
+            'padding': '2px',
+            'border': '1px solid #ddd',
+            'borderRadius': '5px',
+            'backgroundColor': '#f9f9f9',
+        }) 

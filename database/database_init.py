@@ -92,4 +92,31 @@ if __name__ == "__main__":
         else:
             print("数据表 'funds_nav' 创建失败。")
     
+    if db.check_table_exists('strategys'):
+        print("数据表 'strategys' 已存在")      
+    else:
+        # strategy_id	int	Y	策略ID
+        # name	str	Y	名称   
+        # description	str	Y	描述
+        # data_params	str	Y	数据参数
+        # initial_cash	str	Y	初始资金
+        # strategy	str	Y	策略
+        # create_time	timestamp	Y	创建时间
+        # update_time	timestamp	Y	更新时间
+        table_schema = """
+        strategy_id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(100),
+        description VARCHAR(500),
+        data_params VARCHAR(500),
+        initial_cash FLOAT,
+        strategy VARCHAR(500),
+        create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        """
+        db.create_table('strategys', table_schema)
+
+        if db.check_table_exists('strategys'):
+            print("数据表 'strategys' 校验。")
+        else:
+            print("数据表 'strategys' 创建失败。")
     db.close_connection() 

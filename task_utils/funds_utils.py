@@ -61,6 +61,7 @@ def calculate_adjusted_nav(fund_nav, start_date=None, end_date=None):
     fund_nav.at[fund_nav.index[0], 'adjusted_nav'] = fund_nav.iloc[0]['unit_nav']
     for i in range(1, len(fund_nav)):
         current_date = fund_nav.iloc[i]['nav_date']
+        current_date = pd.to_datetime(current_date).date()
         if start_date and current_date < start_date:
             continue
         if end_date and current_date > end_date:
@@ -79,71 +80,77 @@ def calculate_adjusted_nav(fund_nav, start_date=None, end_date=None):
         # 计算修正净值
         fund_nav.at[fund_nav.index[i], 'adjusted_nav'] = current_nav * adjustment_factor
 
-def calculate_max_drawdown(fund_nav, start_date=None, end_date=None, loc_name='accum_nav'):
+def calculate_max_drawdown(date_series:pd.Series, value_series:pd.Series, start_date=None, end_date=None):
     """
     计算前三大回撤
-    :param fund_nav: DataFrame，包含基金净值数据
+    :param date_series: pd.Series，日期数据
+    :param value_series: pd.Series，净值数据
     :param start_date: str，开始日期（可选）
     :param end_date: str，结束日期（可选）
     :return: list of tuples，每个tuple包含回撤值、回撤开始日期和结束日期
     """
     if start_date and end_date:
-        mask = (fund_nav['nav_date'] >= start_date) & (fund_nav['nav_date'] <= end_date)
-        fund_nav_filtered = fund_nav[mask]
+        mask = (date_series.dt.date >= start_date) & (date_series.dt.date  <= end_date)
+        date_series_filtered = date_series[mask]
+        value_series_filtered = value_series[mask]
     else:
-        fund_nav_filtered = fund_nav
+        date_series_filtered = date_series
+        value_series_filtered = value_series
 
     # 如果数据为空，返回默认值
-    if len(fund_nav_filtered) == 0:
+    if len(date_series_filtered) == 0 or len(value_series_filtered) == 0 or len(date_series_filtered) != len(value_series_filtered):
         return [(0, None, None), (0, None, None), (0, None, None)]
 
+    print(date_series_filtered)
+    print(value_series_filtered)
     # 找到所有回撤
     drawdowns = []
-    peak_nav = fund_nav_filtered.iloc[-1][loc_name]
-    peak_date = fund_nav_filtered.iloc[-1]['nav_date']
-    highest_nav = peak_nav
-    highest_nav_date = peak_date
+    peak_value = value_series_filtered.iloc[-1]
+    peak_date = date_series_filtered.iloc[-1]
+    highest_value = peak_value
+    highest_date = peak_date
     
     # 从最后一个元素开始向前遍历
-    for i in range(len(fund_nav_filtered) - 1, -1, -1):
-        current_nav = fund_nav_filtered.iloc[i][loc_name]
-        current_date = fund_nav_filtered.iloc[i]['nav_date']
-        if current_nav > highest_nav:
-            highest_nav = current_nav
-            highest_nav_date = current_date
-        elif current_nav <= peak_nav:
-            if highest_nav > peak_nav:
-                drawdown = (highest_nav - peak_nav) / highest_nav
+    for i in range(len(date_series_filtered) - 1, -1, -1):
+        current_value = value_series_filtered.iloc[i]
+        current_date = date_series_filtered.iloc[i]
+        if current_value > highest_value:
+            highest_value = current_value
+            highest_date = current_date
+        elif current_value <= peak_value:
+            if highest_value > peak_value:
+                print(f"highest_date: {highest_date}, peak_date: {peak_date}, highest_value: {highest_value}, peak_value: {peak_value}")
+                drawdown = (highest_value - peak_value) / highest_value
                 # 查找peak_date之后的日期中最近一个净值超过highest_nav的日期
                 recovery_date = None
-                recovery_mask = (fund_nav_filtered['nav_date'] > peak_date) & (fund_nav_filtered[loc_name] > highest_nav)
-                recovery_dates = fund_nav_filtered.loc[recovery_mask, 'nav_date']
+                recovery_mask = (date_series_filtered > peak_date) & (value_series_filtered > highest_value)
+                recovery_dates = date_series_filtered.loc[recovery_mask]
                 if not recovery_dates.empty:
                     recovery_date = recovery_dates.iloc[0]  # 取第一个符合条件的日期
 
                 drawdowns.append({
                     'value': abs(drawdown),
-                    'start_date': highest_nav_date,
+                    'start_date': highest_date,
                     'end_date': peak_date,
                     'recovery_date': recovery_date
                 })
-            peak_nav = current_nav
+            peak_value = current_value
             peak_date = current_date
-            highest_nav = current_nav
-            highest_nav_date = current_date
+            highest_value = current_value
+            highest_date = current_date
 
     # 处理最后一个回撤
-    if highest_nav > peak_nav:
-        drawdown = (highest_nav - peak_nav) / highest_nav
-         # 查找peak_date之后的日期中最近一个净值超过highest_nav的日期
+    if highest_value > peak_value:
+        drawdown = (highest_value - peak_value) / highest_value
+         # 查找peak_date之后的日期中最近一个净值超过highest_value的日期
         recovery_date = None
-        recovery_mask = (fund_nav_filtered['nav_date'] > peak_date) & (fund_nav_filtered[loc_name] > highest_nav)
-        recovery_dates = fund_nav_filtered.loc[recovery_mask, 'nav_date']
+        recovery_mask = (date_series_filtered > peak_date) & (value_series_filtered > highest_value)
+        recovery_dates = date_series_filtered.loc[recovery_mask]
         if not recovery_dates.empty:
             recovery_date = recovery_dates.iloc[0]  # 取第一个符合条件的日期
         drawdowns.append({
             'value': abs(drawdown),
-            'start_date': highest_nav_date,
+            'start_date': highest_date,
             'end_date': peak_date,
             'recovery_date': recovery_date
         })

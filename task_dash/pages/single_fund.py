@@ -13,7 +13,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from database.db_funds_nav import DBFundsNav
 from database.db_funds import DBFunds
 
-def create_fund_value_graph(mysql_db):
+def create_single_fund_value_graph(mysql_db):
 
     # 获取基金净值数据
     # db_funds_nav = DBFundsNav(mysql_db)
