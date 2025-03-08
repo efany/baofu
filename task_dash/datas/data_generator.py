@@ -1,0 +1,54 @@
+from abc import ABC, abstractmethod
+from typing import Dict, List, Optional, Any, Tuple, Literal, TypedDict
+from datetime import date
+import pandas as pd
+
+# 定义支持的数据类型
+ChartDataType = Literal['MA5', 'MA20', 'MA60', 'MA120', 'drawdown']
+
+class TableData(TypedDict):
+    """表格数据类型定义"""
+    name: str  # 表格名称
+    headers: List[str]  # 表头
+    data: List[List[Any]]  # 表格数据
+
+class DataGenerator(ABC):
+    """数据生成器基类，负责生成各类型数据用于页面展示"""
+
+    def __init__(self, start_date: Optional[date] = None, end_date: Optional[date] = None):
+        self.start_date = start_date
+        self.end_date = end_date
+
+    @abstractmethod
+    def get_summary_data(self) -> List[Tuple[str, Any]]:
+        """获取摘要数据，用于展示基本信息"""
+        pass
+
+    @abstractmethod
+    def get_chart_data(self) -> List[Dict[str, Any]]:
+        """获取图表数据，用于绘制图形"""
+        pass
+
+    @abstractmethod
+    def get_extra_datas(self) -> List[TableData]:
+        """
+        获取额外的表格数据，用于展示各类指标
+        
+        Returns:
+            List[TableData]: 表格数据列表，每个元素包含一个表格的完整信息
+        """
+        pass
+
+    @abstractmethod
+    def get_extra_chart_data(self, data_type: ChartDataType, **params) -> List[Dict[str, Any]]:
+        """
+        获取额外的图表数据
+        
+        Args:
+            data_type: 数据类型，如 'MA5', 'MA20', 'drawdown' 等
+            **params: 数据计算的参数
+                
+        Returns:
+            List[Dict[str, Any]]: 图表数据列表，每个元素为一个数据系列
+        """
+        pass

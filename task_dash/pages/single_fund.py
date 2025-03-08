@@ -12,34 +12,42 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from database.db_funds_nav import DBFundsNav
 from database.db_funds import DBFunds
+from task_dash.utils import get_data_briefs
 
-def create_single_fund_value_graph(mysql_db):
-
-    # 获取基金净值数据
-    # db_funds_nav = DBFundsNav(mysql_db)
-    db_funds = DBFunds(mysql_db)
-    funds = db_funds.get_all_funds()  # 假设这个方法返回所有基金的列表
-
-    # 检查 funds 是否为空
-    if funds.empty:
-        return html.H1("未找到基金数据")  # 返回一个提示信息
-
-    # 默认选择的基金
-    default_fund = funds.iloc[0]['ts_code']  # 使用 iloc 获取第一行的 ts_code
+def create_single_fund_value_graph(mysql_db, data_type):
 
     layout = html.Div([
-        html.Div([ # 基金选择
+        html.Div([ # 数据选择区域
+            # 添加类型选择下拉框
+            dcc.Dropdown(
+                id='type-dropdown',
+                options=[
+                    {'label': '基金', 'value': 'fund'},
+                    {'label': '策略', 'value': 'strategy'},
+                    {'label': '股票', 'value': 'stock'}
+                ],
+                value=data_type,  # 默认选择传入的类型
+                clearable=False,
+                style={
+                    'width': '120px',  # 设置宽度
+                    'height': '38px',  # 设置高度
+                    'font-size': '14px',  # 设置字体大小
+                }
+            ),
+            # 数据选择下拉框
             dcc.Dropdown(
                 id='fund-dropdown',
-                options=[{'label': f"{fund['name']} ({fund['ts_code']})", 'value': fund['ts_code']} for index, fund in funds.iterrows()],
-                value=default_fund,  # 默认选择的基金
+                options=[],
+                value='',
                 clearable=False,
                 style={
                     'width': '350px',  # 设置宽度
                     'height': '38px',  # 设置高度
                     'font-size': '14px',  # 设置字体大小
+                    'margin-left': '10px'  # 左边距
                 }
             ),
+            # 时间范围选择
             dcc.Dropdown(
                 id='time-range-dropdown',
                 options=[
@@ -110,16 +118,42 @@ def create_single_fund_value_graph(mysql_db):
         html.Div([ # 图表
             dcc.Graph(
                 id='fund-value-graph',
-                config={'displayModeBar': True},  # 显示工具栏
-                style={'height': '80vh', 'width': '100%'}  # 设置图表高度为 80% 的视口高度
+                config={'displayModeBar': True},
+                style={'height': '80vh', 'width': '100%'}
             ),
         ], style={
-            'margin-bottom': '2px', 
+            'margin-bottom': '10px', 
             'display': 'flex', 
             'align-items': 'center',
-            'width': '100%',  # 设置宽度占满
-            'gap': '10px'  # 添加组件之间的间距
+            'width': '100%',
+            'gap': '10px'
         }),
-    ], style={'height': '100%', 'display': 'flex', 'flexDirection': 'column'})  # 使用 flexbox 布局
+        
+        # 添加两列表格展示区域
+        html.Div([
+            # 左列
+            html.Div(
+                id='fund-tables-left-column',
+                style={
+                    'flex': '1',
+                    'margin-right': '10px'
+                }
+            ),
+            # 右列
+            html.Div(
+                id='fund-tables-right-column',
+                style={
+                    'flex': '1',
+                    'margin-left': '10px'
+                }
+            )
+        ], style={
+            'display': 'flex',
+            'justifyContent': 'space-between',
+            'marginTop': '20px',
+            'width': '100%'
+        })
+        
+    ], style={'height': '100%', 'display': 'flex', 'flexDirection': 'column'})
 
     return layout 

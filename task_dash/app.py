@@ -1,6 +1,7 @@
 import sys
 import os
 import dash
+from loguru import logger
 from dash import dcc, html
 import dash_bootstrap_components as dbc
 from dash.dependencies import Input, Output
@@ -8,6 +9,9 @@ from dash.dependencies import Input, Output
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from database.mysql_database import MySQLDatabase
+from database.db_funds import DBFunds
+from database.db_strategys import DBStrategys
+
 from pages.single_fund import create_single_fund_value_graph  # Import the function
 from callback.single_fund_callbacks import register_single_fund_callbacks  # Import the callback registration
 
@@ -44,7 +48,9 @@ def display_page(pathname):
         from pages.home import layout
         return layout
     elif pathname == '/single_fund':
-        return create_single_fund_value_graph(mysql_db)  # Call the function to get the layout
+        return create_single_fund_value_graph(mysql_db, "fund")  # Call the function to get the layout
+    elif pathname == '/single_strategy':
+        return create_single_fund_value_graph(mysql_db, "strategy")  # Call the function to get the layout
     elif pathname == '/page2':
         return create_strategy_graph(mysql_db)
     elif pathname == '/page3':

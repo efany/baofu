@@ -32,15 +32,9 @@ def calculate_moving_average(data, window, loc_name='accum_nav'):
     data[ma_column_name] = data[loc_name].rolling(window=window).mean()  # 计算移动平均并添加到 DataFrame
     return data[ma_column_name]  # 返回移动平均值
 
-def calculate_return_rate(fund_nav, start_date=None, end_date=None, loc_name='accum_nav'):
-    if start_date and end_date:
-        mask = (fund_nav['nav_date'] >= start_date) & (fund_nav['nav_date'] <= end_date)
-        fund_nav_filtered = fund_nav[mask]
-    else:
-        fund_nav_filtered = fund_nav
-
-    first_nav = fund_nav_filtered.iloc[0][loc_name]
-    last_nav = fund_nav_filtered.iloc[-1][loc_name]
+def calculate_return_rate(fund_nav, loc_name='accum_nav'):
+    first_nav = fund_nav.iloc[0][loc_name]
+    last_nav = fund_nav.iloc[-1][loc_name]
     return_rate = (last_nav - first_nav) / first_nav * 100
     return (first_nav, last_nav, return_rate)
 
@@ -101,8 +95,6 @@ def calculate_max_drawdown(date_series:pd.Series, value_series:pd.Series, start_
     if len(date_series_filtered) == 0 or len(value_series_filtered) == 0 or len(date_series_filtered) != len(value_series_filtered):
         return [(0, None, None), (0, None, None), (0, None, None)]
 
-    print(date_series_filtered)
-    print(value_series_filtered)
     # 找到所有回撤
     drawdowns = []
     peak_value = value_series_filtered.iloc[-1]
@@ -119,7 +111,6 @@ def calculate_max_drawdown(date_series:pd.Series, value_series:pd.Series, start_
             highest_date = current_date
         elif current_value <= peak_value:
             if highest_value > peak_value:
-                print(f"highest_date: {highest_date}, peak_date: {peak_date}, highest_value: {highest_value}, peak_value: {peak_value}")
                 drawdown = (highest_value - peak_value) / highest_value
                 # 查找peak_date之后的日期中最近一个净值超过highest_nav的日期
                 recovery_date = None
@@ -131,7 +122,9 @@ def calculate_max_drawdown(date_series:pd.Series, value_series:pd.Series, start_
                 drawdowns.append({
                     'value': abs(drawdown),
                     'start_date': highest_date,
+                    'start_value': highest_value,
                     'end_date': peak_date,
+                    'end_value': peak_value,
                     'recovery_date': recovery_date
                 })
             peak_value = current_value
@@ -151,7 +144,9 @@ def calculate_max_drawdown(date_series:pd.Series, value_series:pd.Series, start_
         drawdowns.append({
             'value': abs(drawdown),
             'start_date': highest_date,
+            'start_value': highest_value,
             'end_date': peak_date,
+            'end_value': peak_value,
             'recovery_date': recovery_date
         })
     
