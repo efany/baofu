@@ -5,7 +5,7 @@ from loguru import logger
 from .data_generator import DataGenerator, TableData
 from database.mysql_database import MySQLDatabase
 from database.db_strategys import DBStrategys
-from task_utils.funds_utils import calculate_max_drawdown
+from task_utils.data_utils import calculate_max_drawdown
 from task_backtrader.backtrader_buy_and_hold_task import BacktraderBuyAndHoldTask
 
 class StrategyDataGenerator(DataGenerator):

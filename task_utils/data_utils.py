@@ -2,39 +2,10 @@ import pandas as pd
 import sys
 import os
 from datetime import datetime
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
-from database.mysql_database import MySQLDatabase
-from database.db_funds_nav import DBFundsNav
-def get_fund_data_by_name(fund_nav, data_type:str, loc_name='accum_nav'):
-    if data_type == 'MA5':
-        return calculate_moving_average(fund_nav, 5, loc_name)
-    elif data_type == 'MA20':
-        return calculate_moving_average(fund_nav, 20, loc_name)
-    elif data_type == 'MA60':
-        return calculate_moving_average(fund_nav, 60, loc_name)
-    elif data_type == 'MA120':
-        return calculate_moving_average(fund_nav, 120, loc_name)
-    else:
-        return []
-
-def calculate_moving_average(data, window, loc_name='accum_nav'):
-    """
-    计算移动平均线并将其添加到 DataFrame
-    :param data: DataFrame，包含需要计算移动平均的数据
-    :param window: int，移动平均的窗口大小
-    :return: Series，移动平均值
-    """
-    if loc_name not in data.columns:
-        raise ValueError(f"DataFrame must contain '{loc_name}' column.")
-    
-    ma_column_name = f'MA{window}'
-    data[ma_column_name] = data[loc_name].rolling(window=window).mean()  # 计算移动平均并添加到 DataFrame
-    return data[ma_column_name]  # 返回移动平均值
-
-def calculate_return_rate(fund_nav, loc_name='accum_nav'):
-    first_nav = fund_nav.iloc[0][loc_name]
-    last_nav = fund_nav.iloc[-1][loc_name]
+def calculate_return_rate(data, loc_name='accum_nav'):
+    first_nav = data.iloc[0][loc_name]
+    last_nav = data.iloc[-1][loc_name]
     return_rate = (last_nav - first_nav) / first_nav * 100
     return (first_nav, last_nav, return_rate)
 
@@ -157,6 +128,10 @@ def calculate_max_drawdown(date_series:pd.Series, value_series:pd.Series, start_
     return sorted_drawdowns
 
 if __name__ == '__main__':
+    sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+    from database.mysql_database import MySQLDatabase
+    from database.db_funds_nav import DBFundsNav
+
     mysql_db = MySQLDatabase(
         host='127.0.0.1',
         user='baofu',

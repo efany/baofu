@@ -5,7 +5,7 @@ from .data_generator import DataGenerator, TableData
 from database.db_funds import DBFunds
 from database.db_funds_nav import DBFundsNav
 from database.mysql_database import MySQLDatabase
-from task_utils.funds_utils import calculate_adjusted_nav, calculate_return_rate, calculate_max_drawdown
+from task_utils.data_utils import calculate_adjusted_nav, calculate_return_rate, calculate_max_drawdown
 from loguru import logger
 
 class FundDataGenerator(DataGenerator):

@@ -6,7 +6,6 @@ class DailyAssetAnalyzer(bt.Analyzer):
     def __init__(self):
         self.initial_cash = self.strategy.broker.startingcash
         self.open_date = self.strategy.open_date
-        logger.info(f"初始资金: {self.initial_cash}, 开仓日期: {self.open_date}")
         self.daily_assets = []
 
     def start(self):
@@ -42,7 +41,6 @@ class DailyAssetAnalyzer(bt.Analyzer):
         }
         
         self.daily_assets.append(daily_data)
-        logger.info(f"每日资产: {daily_data}")
 
     def stop(self):
         pass

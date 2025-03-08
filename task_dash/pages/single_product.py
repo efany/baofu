@@ -10,29 +10,44 @@ from mysql.connector import Error
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
-from database.db_strategys import DBStrategys
-def create_strategy_graph(mysql_db):
-    # 默认选择的基金
-    db_strategys = DBStrategys(mysql_db)
-    strategies = db_strategys.get_all_strategies()
-    default_strategy = strategies.iloc[0]['strategy_id']
+from task_dash.utils import get_data_briefs
+
+def create_single_product_value_graph(mysql_db, data_type):
 
     layout = html.Div([
-        html.Div([ # 基金选择
+        html.Div([ # 数据选择区域
+            # 添加类型选择下拉框
             dcc.Dropdown(
-                id='strategy-dropdown',
-                options=[{'label': f"{strategy['name']} (id:{int(strategy['strategy_id'])})", 
-                           'value': int(strategy['strategy_id'])} for index, strategy in strategies.iterrows()],
-                value=default_strategy,
+                id='type-dropdown',
+                options=[
+                    {'label': '基金', 'value': 'fund'},
+                    {'label': '策略', 'value': 'strategy'},
+                    {'label': '股票', 'value': 'stock'}
+                ],
+                value=data_type,  # 默认选择传入的类型
+                clearable=False,
+                style={
+                    'width': '120px',  # 设置宽度
+                    'height': '38px',  # 设置高度
+                    'font-size': '14px',  # 设置字体大小
+                }
+            ),
+            # 数据选择下拉框
+            dcc.Dropdown(
+                id='product-dropdown',
+                options=[],
+                value='',
                 clearable=False,
                 style={
                     'width': '350px',  # 设置宽度
                     'height': '38px',  # 设置高度
                     'font-size': '14px',  # 设置字体大小
+                    'margin-left': '10px'  # 左边距
                 }
             ),
+            # 时间范围选择
             dcc.Dropdown(
-                id='strategy-time-range-dropdown',
+                id='time-range-dropdown',
                 options=[
                     {'label': '近一个月', 'value': '1M'},
                     {'label': '近三个月', 'value': '3M'},
@@ -61,7 +76,7 @@ def create_strategy_graph(mysql_db):
         }),
         html.Div([ # 辅助线选择
             dcc.Checklist(
-                id='strategy-line-options',
+                id='line-options',
                 options=[
                 {'label': 'MA5', 'value': 'MA5'},
                 {'label': 'MA20', 'value': 'MA20'},
@@ -82,7 +97,7 @@ def create_strategy_graph(mysql_db):
         }),
         html.Div([ # 基金数据汇总表格展示
             html.Table([
-                html.Tbody(id='strategy-summary-table')
+                html.Tbody(id='product-summary-table')
             ], style={
                 'width': '100%',
                 'borderCollapse': 'collapse',
@@ -98,9 +113,9 @@ def create_strategy_graph(mysql_db):
             'backgroundColor': '#f5f5f5',
             'borderRadius': '5px'
         }),
-        html.Div([ # 策略净值图表
+        html.Div([ # 图表
             dcc.Graph(
-                id='strategy-value-graph',
+                id='product-value-graph',
                 config={'displayModeBar': True},
                 style={'height': '80vh', 'width': '100%'}
             ),
@@ -112,52 +127,28 @@ def create_strategy_graph(mysql_db):
             'gap': '10px'
         }),
         
-        html.Div([ # 交易记录和策略表现的容器
-            html.Div([ # 交易记录表格
-                html.H3('交易记录', style={
-                    'margin': '10px 0',
-                    'color': '#333',
-                    'textAlign': 'center'
-                }),
-                html.Div(id='strategy-trades-table')
-            ], style={
-                'margin': '10px',
-                'padding': '10px',
-                'backgroundColor': 'white',
-                'borderRadius': '5px',
-                'boxShadow': '0 1px 3px rgba(0,0,0,0.1)',
-                'width': '50%'  # 调整宽度以适应两个表格
-            }),
-            
-            html.Div([ # 策略表现表格
-                html.H3('策略表现', style={
-                    'margin': '10px 0',
-                    'color': '#333',
-                    'textAlign': 'center'
-                }),
-                html.Table([
-                    html.Thead(
-                        html.Tr([
-                            html.Th('指标', style={'width': '30%', 'textAlign': 'left', 'padding': '8px'}),
-                            html.Th('数值', style={'width': '70%', 'textAlign': 'left', 'padding': '8px'})
-                        ])
-                    ),
-                    html.Tbody(id='strategy-performance-table')
-                ], style={
-                    'width': '100%',
-                    'borderCollapse': 'collapse',
-                })
-            ], style={
-                'margin': '10px',
-                'padding': '10px',
-                'backgroundColor': 'white',
-                'borderRadius': '5px',
-                'boxShadow': '0 1px 3px rgba(0,0,0,0.1)',
-                'width': '50%'  # 调整宽度以适应两个表格
-            })
+        # 添加两列表格展示区域
+        html.Div([
+            # 左列
+            html.Div(
+                id='product-tables-left-column',
+                style={
+                    'flex': '1',
+                    'margin-right': '10px'
+                }
+            ),
+            # 右列
+            html.Div(
+                id='product-tables-right-column',
+                style={
+                    'flex': '1',
+                    'margin-left': '10px'
+                }
+            )
         ], style={
             'display': 'flex',
             'justifyContent': 'space-between',
+            'marginTop': '20px',
             'width': '100%'
         })
         

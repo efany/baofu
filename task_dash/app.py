@@ -12,13 +12,10 @@ from database.mysql_database import MySQLDatabase
 from database.db_funds import DBFunds
 from database.db_strategys import DBStrategys
 
-from pages.single_fund import create_single_fund_value_graph  # Import the function
-from callback.single_fund_callbacks import register_single_fund_callbacks  # Import the callback registration
+from pages.single_product import create_single_product_value_graph  # Import the function
+from callback.single_product_callbacks import register_single_product_callbacks  # Import the callback registration
 
-from pages.page2 import create_strategy_graph
-from callback.strategy_callback import register_strategy_callbacks
-
-from pages.page3 import create_strategy_management
+from pages.strategy_manage import create_strategy_management
 from callback.strategy_manage_callback import register_strategy_manage_callbacks
 # 初始化Dash应用
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP], suppress_callback_exceptions=True)
@@ -48,21 +45,16 @@ def display_page(pathname):
         from pages.home import layout
         return layout
     elif pathname == '/single_fund':
-        return create_single_fund_value_graph(mysql_db, "fund")  # Call the function to get the layout
+        return create_single_product_value_graph(mysql_db, "fund")  # Call the function to get the layout
     elif pathname == '/single_strategy':
-        return create_single_fund_value_graph(mysql_db, "strategy")  # Call the function to get the layout
-    elif pathname == '/page2':
-        return create_strategy_graph(mysql_db)
-    elif pathname == '/page3':
+        return create_single_product_value_graph(mysql_db, "strategy")  # Call the function to get the layout
+    elif pathname == '/strategy_manage':
         return create_strategy_management(mysql_db)
     else:
         return html.H1("404: Not Found")
 
 # 注册基金相关的回调
-register_single_fund_callbacks(app, mysql_db)
-
-# 注册策略相关的回调
-register_strategy_callbacks(app, mysql_db)
+register_single_product_callbacks(app, mysql_db)
 
 # 注册策略管理相关的回调
 register_strategy_manage_callbacks(app, mysql_db)

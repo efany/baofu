@@ -9,8 +9,7 @@ from loguru import logger
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
-from task_utils.funds_utils import get_fund_data_by_name, calculate_max_drawdown, calculate_adjusted_nav
-from database.db_funds_nav import DBFundsNav
+from task_utils.data_utils import calculate_return_rate
 from database.db_funds import DBFunds
 from database.db_strategys import DBStrategys
 from task_dash.utils import get_date_range, get_data_briefs
@@ -107,11 +106,11 @@ def create_table(table_data: TableData) -> html.Div:
         'border': '1px solid #ddd'
     })
 
-def register_single_fund_callbacks(app, mysql_db):
+def register_single_product_callbacks(app, mysql_db):
     # 添加类型切换的回调
     @app.callback(
-        [Output('fund-dropdown', 'options'),
-         Output('fund-dropdown', 'value')],  # 添加value作为输出
+        [Output('product-dropdown', 'options'),
+         Output('product-dropdown', 'value')],  # 添加value作为输出
         [Input('type-dropdown', 'value')]
     )
     def update_data_options(selected_type):
@@ -138,16 +137,16 @@ def register_single_fund_callbacks(app, mysql_db):
             return [], ''
 
     @app.callback(
-        [Output('fund-value-graph', 'figure'),
-         Output('fund-summary-table', 'children'),
-         Output('fund-tables-left-column', 'children'),
-         Output('fund-tables-right-column', 'children')],
+        [Output('product-value-graph', 'figure'),
+         Output('product-summary-table', 'children'),
+         Output('product-tables-left-column', 'children'),
+         Output('product-tables-right-column', 'children')],
         [Input('type-dropdown', 'value'),
-         Input('fund-dropdown', 'value'),
+         Input('product-dropdown', 'value'),
          Input('line-options', 'value'),
          Input('time-range-dropdown', 'value')]
     )
-    def update_fund_display(data_type, selected_data, line_options, time_range):
+    def update_product_display(data_type, selected_data, line_options, time_range):
         """更新数据展示"""
         try:
             # 获取日期范围
@@ -206,5 +205,5 @@ def register_single_fund_callbacks(app, mysql_db):
             return figure, summary_table, left_tables, right_tables
             
         except Exception as e:
-            print(f"Error in update_fund_display: {str(e)}")
+            print(f"Error in update_product_display: {str(e)}")
             return go.Figure(), html.Div(f"发生错误: {str(e)}", style={'color': 'red'}), [], [] 
