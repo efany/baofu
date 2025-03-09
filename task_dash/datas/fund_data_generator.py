@@ -1,7 +1,7 @@
 from typing import Dict, List, Optional, Any, Tuple, Literal, TypedDict
 from datetime import date
 import pandas as pd
-from .data_generator import DataGenerator, TableData
+from .data_generator import DataGenerator, TableData, ChartDataType
 from database.db_funds import DBFunds
 from database.db_funds_nav import DBFundsNav
 from database.mysql_database import MySQLDatabase
@@ -55,31 +55,40 @@ class FundDataGenerator(DataGenerator):
             ('区间收益率', f"{return_rate:+.2f}% ({first_nav:.4f} -> {last_nav:.4f})")
         ]
 
-    def get_chart_data(self) -> List[Dict[str, Any]]:
+    def get_chart_data(self, normalize: bool = False) -> List[Dict[str, Any]]:
         """获取基金图表数据"""
         if self.fund_nav is None or self.fund_nav.empty:
             return []
         
         dates = self.fund_nav['nav_date'].tolist()
         
+        # 准备数据
+        adjusted_nav = self.fund_nav['adjusted_nav']
+        accum_nav = self.fund_nav['accum_nav']
+        unit_nav = self.fund_nav['unit_nav']
+        
+        # 如果需要归一化处理
+        if normalize:
+            adjusted_nav = self.normalize_series(adjusted_nav)
+        
         return [
             {
                 'x': dates,
-                'y': self.fund_nav['adjusted_nav'].tolist(),
+                'y': adjusted_nav.tolist(),
                 'type': 'line',
                 'name': '再投资净值',
                 'visible': True,
             },
             {
                 'x': dates,
-                'y': self.fund_nav['accum_nav'].tolist(),
+                'y': accum_nav.tolist(),
                 'type': 'line',
                 'name': '累计净值',
                 'visible': 'legendonly',
             },
             {
                 'x': dates,
-                'y': self.fund_nav['unit_nav'].tolist(),
+                'y': unit_nav.tolist(),
                 'type': 'line',
                 'name': '单位净值',
                 'visible': 'legendonly',
@@ -273,31 +282,29 @@ class FundDataGenerator(DataGenerator):
         
         return 'N/A'
     
-    def get_extra_chart_data(self, data_type: Literal['MA5', 'MA20', 'MA60', 'MA120', 'drawdown'], **params) -> List[Dict[str, Any]]:
+    def get_extra_chart_data(self, data_type: ChartDataType, normalize: bool = False, **params) -> List[Dict[str, Any]]:
         """获取额外的图表数据"""
         if self.fund_nav is None or self.fund_nav.empty:
             return []
-        
-        if data_type == 'MA5':
-            return self._get_ma_data(5, 'adjusted_nav')
-        elif data_type == 'MA20':
-            return self._get_ma_data(20, 'adjusted_nav')
-        elif data_type == 'MA60':
-            return self._get_ma_data(60, 'adjusted_nav')
-        elif data_type == 'MA120':
-            return self._get_ma_data(120, 'adjusted_nav')
+            
+        if data_type in ['MA5', 'MA20', 'MA60', 'MA120']:
+            period = int(data_type.replace('MA', ''))
+            return self._get_ma_data(period, 'adjusted_nav', normalize)
         elif data_type == 'drawdown':
-            return self._get_drawdown_data(3, 'adjusted_nav')
-        
+            return self._get_drawdown_data('adjusted_nav', normalize)
         else:
             raise ValueError(f"Unknown data type: {data_type}")
 
-    def _get_ma_data(self, period: int, value_column: str) -> List[Dict[str, Any]]:
+    def _get_ma_data(self, period: int, value_column: str, normalize: bool = False) -> List[Dict[str, Any]]:
         """获取移动平均线数据"""
         dates = self.fund_nav['nav_date'].tolist()
         ma_data = []
         
-        ma = self.fund_nav[value_column].rolling(window=period).mean()
+        values = self.fund_nav[value_column]
+        if normalize:
+            values = self.normalize_series(values)
+            
+        ma = values.rolling(window=period).mean()
         ma_data.append({
             'x': dates,
             'y': ma.tolist(),
@@ -309,56 +316,55 @@ class FundDataGenerator(DataGenerator):
         
         return ma_data
 
-    def _get_drawdown_data(self, top_n: int, value_column: str) -> List[Dict[str, Any]]:
+    def _get_drawdown_data(self, value_column: str, normalize: bool = False) -> List[Dict[str, Any]]:
         """获取回撤数据"""
+        values = self.fund_nav[value_column]
+        if normalize:
+            values = self.normalize_series(values)
+            
         drawdown_list = calculate_max_drawdown(
             self.fund_nav['nav_date'],
-            self.fund_nav[value_column]
+            values
         )
         
         data = []
         # 绘制回撤区域
         for i in range(len(drawdown_list)):
             if pd.notna(drawdown_list[i]):
-                drawdown_value = drawdown_list[i]['value']
-                drawdown_start_date = drawdown_list[i]['start_date']
-                drawdown_start_value = drawdown_list[i]['start_value']
-                drawdown_end_date = drawdown_list[i]['end_date']
-                drawdown_end_value = drawdown_list[i]['end_value']
-                recovery_date = drawdown_list[i]['recovery_date']
-
-                drawdown_days = (drawdown_end_date - drawdown_start_date).days
-                recovery_days = (recovery_date - drawdown_end_date).days if recovery_date else None
+                dd = drawdown_list[i]
+                drawdown_days = (dd['end_date'] - dd['start_date']).days
+                recovery_days = (dd['recovery_date'] - dd['end_date']).days if dd.get('recovery_date') else None
                 
-                text = f'回撤: {drawdown_value*100:.4f}%({drawdown_days} days)' 
+                text = f'回撤: {dd["value"]*100:.4f}%({drawdown_days} days)' 
                 if recovery_days:
                     text = f'{text}，修复：{recovery_days} days'
-                # 添加矩形区域
+                    
                 data.append({
                     'type': 'scatter',
-                    'x': [drawdown_start_date, drawdown_end_date, drawdown_end_date, drawdown_start_date, drawdown_start_date],
-                    'y': [drawdown_start_value, drawdown_start_value, drawdown_end_value, drawdown_end_value, drawdown_start_value],
+                    'x': [dd['start_date'], dd['end_date'], dd['end_date'], dd['start_date'], dd['start_date']],
+                    'y': [dd['start_value'], dd['start_value'], dd['end_value'], dd['end_value'], dd['start_value']],
                     'fill': 'toself',
                     'fillcolor': 'rgba(255, 0, 0, 0.2)',
                     'line': {'width': 0},
-                    'mode': 'lines+text',  # 添加文本模式
-                    'text': [text],  # 显示回撤值
-                    'textposition': 'top right',  # 文本位置
-                    'textfont': {'size': 12, 'color': 'red'},  # 文本样式
+                    'mode': 'lines+text',
+                    'text': [text],
+                    'textposition': 'top right',
+                    'textfont': {'size': 12, 'color': 'red'},
                     'name': f'TOP{i+1} 回撤',
                     'showlegend': True
                 })
+                
                 if recovery_days:
                     data.append({
                         'type': 'scatter',
-                        'x': [drawdown_end_date, recovery_date, recovery_date, drawdown_end_date, drawdown_end_date],
-                        'y': [drawdown_end_value, drawdown_end_value, drawdown_start_value, drawdown_start_value, drawdown_end_value],
+                        'x': [dd['end_date'], dd['recovery_date'], dd['recovery_date'], dd['end_date'], dd['end_date']],
+                        'y': [dd['end_value'], dd['end_value'], dd['start_value'], dd['start_value'], dd['end_value']],
                         'fill': 'toself',
                         'fillcolor': 'rgba(0, 255, 0, 0.2)',
                         'line': {'width': 0},
-                        'mode': 'lines+text',  # 添加文本模式
-                        'textfont': {'size': 12, 'color': 'red'},  # 文本样式
+                        'mode': 'lines+text',
+                        'textfont': {'size': 12, 'color': 'red'},
                         'name': f'TOP{i+1} 回撤修复',
                         'showlegend': True
-                    }) 
+                    })
         return data

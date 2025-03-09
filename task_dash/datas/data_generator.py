@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Dict, List, Optional, Any, Tuple, Literal, TypedDict
 from datetime import date
 import pandas as pd
+import numpy as np
 
 # 定义支持的数据类型
 ChartDataType = Literal['MA5', 'MA20', 'MA60', 'MA120', 'drawdown']
@@ -25,8 +26,13 @@ class DataGenerator(ABC):
         pass
 
     @abstractmethod
-    def get_chart_data(self) -> List[Dict[str, Any]]:
-        """获取图表数据，用于绘制图形"""
+    def get_chart_data(self, normalize: bool = False) -> List[Dict[str, Any]]:
+        """
+        获取图表数据，用于绘制图形
+        
+        Args:
+            normalize: 是否对数据进行归一化处理，默认为False
+        """
         pass
 
     @abstractmethod
@@ -40,15 +46,22 @@ class DataGenerator(ABC):
         pass
 
     @abstractmethod
-    def get_extra_chart_data(self, data_type: ChartDataType, **params) -> List[Dict[str, Any]]:
+    def get_extra_chart_data(self, data_type: ChartDataType, normalize: bool = False, **params) -> List[Dict[str, Any]]:
         """
         获取额外的图表数据
         
         Args:
             data_type: 数据类型，如 'MA5', 'MA20', 'drawdown' 等
+            normalize: 是否对数据进行归一化处理，默认为False
             **params: 数据计算的参数
                 
         Returns:
             List[Dict[str, Any]]: 图表数据列表，每个元素为一个数据系列
         """
         pass
+
+    def normalize_series(self, series: pd.Series) -> pd.Series:
+        """归一化数据序列"""
+        if series.empty:
+            return series
+        return series / series.iloc[0]

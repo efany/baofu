@@ -17,6 +17,9 @@ from callback.single_product_callbacks import register_single_product_callbacks 
 
 from pages.strategy_manage import create_strategy_management
 from callback.strategy_manage_callback import register_strategy_manage_callbacks
+
+from pages.products_compare import create_products_compare_page
+from callback.products_compare_callbacks import register_products_compare_callbacks
 # 初始化Dash应用
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP], suppress_callback_exceptions=True)
 
@@ -50,6 +53,8 @@ def display_page(pathname):
         return create_single_product_value_graph(mysql_db, "strategy")  # Call the function to get the layout
     elif pathname == '/strategy_manage':
         return create_strategy_management(mysql_db)
+    elif pathname == '/products_compare':
+        return create_products_compare_page(mysql_db)
     else:
         return html.H1("404: Not Found")
 
@@ -58,6 +63,10 @@ register_single_product_callbacks(app, mysql_db)
 
 # 注册策略管理相关的回调
 register_strategy_manage_callbacks(app, mysql_db)
+
+# 注册产品对比相关的回调
+register_products_compare_callbacks(app, mysql_db)
+
 
 if __name__ == '__main__':
     try:

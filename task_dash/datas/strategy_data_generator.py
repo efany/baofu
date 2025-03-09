@@ -2,7 +2,7 @@ from typing import Dict, List, Optional, Any, Tuple, Literal, TypedDict
 from datetime import date
 import pandas as pd
 from loguru import logger
-from .data_generator import DataGenerator, TableData
+from .data_generator import DataGenerator, TableData, ChartDataType
 from database.mysql_database import MySQLDatabase
 from database.db_strategys import DBStrategys
 from task_utils.data_utils import calculate_max_drawdown
@@ -69,7 +69,7 @@ class StrategyDataGenerator(DataGenerator):
             ('区间收益率', f"{return_rate:+.2f}% (¥{initial_value:,.2f} -> ¥{final_value:,.2f})")
         ]
     
-    def get_chart_data(self) -> List[Dict[str, Any]]:
+    def get_chart_data(self, normalize: bool = False) -> List[Dict[str, Any]]:
         """获取策略图表数据"""
         if not self.backtest_result:
             return []
@@ -77,16 +77,24 @@ class StrategyDataGenerator(DataGenerator):
         daily_asset = pd.DataFrame(self.backtest_result['daily_asset'])
         dates = daily_asset['date'].tolist()
         
+        # 准备数据
+        total = daily_asset['total']
+        cash = daily_asset['cash']
+        
+        # 如果需要归一化处理
+        if normalize:
+            total = self.normalize_series(total)
+        
         # 基础数据
         chart_data = [{
             'x': dates,
-            'y': daily_asset['total'].tolist(),
+            'y': total.tolist(),
             'type': 'line',
             'name': '总资产',
             'visible': True
         }, {
             'x': dates,
-            'y': daily_asset['cash'].tolist(),
+            'y': cash.tolist(),
             'type': 'line',
             'name': '现金',
             'visible': 'legendonly'
@@ -96,13 +104,17 @@ class StrategyDataGenerator(DataGenerator):
         if 'products' in daily_asset.iloc[0]:
             product_codes = list(daily_asset.iloc[0]['products'].keys())
             for product_code in product_codes:
-                product_data = [
+                product_data = pd.Series([
                     row['products'].get(product_code, 0) 
                     for _, row in daily_asset.iterrows()
-                ]
+                ])
+                
+                if normalize:
+                    product_data = self.normalize_series(product_data)
+                    
                 chart_data.append({
                     'x': dates,
-                    'y': product_data,
+                    'y': product_data.tolist(),
                     'type': 'line',
                     'name': f'产品{product_code}',
                     'visible': 'legendonly'
@@ -280,33 +292,32 @@ class StrategyDataGenerator(DataGenerator):
         
         return 'N/A'
     
-    def get_extra_chart_data(self, data_type: Literal['MA5', 'MA20', 'MA60', 'MA120', 'drawdown'], **params) -> List[Dict[str, Any]]:
+    def get_extra_chart_data(self, data_type: ChartDataType, normalize: bool = False, **params) -> List[Dict[str, Any]]:
         """获取额外的图表数据"""
         if not self.backtest_result:
             return []
-        
+            
         daily_asset = pd.DataFrame(self.backtest_result['daily_asset'])
         
-        if data_type == 'MA5':
-            return self._get_ma_data(5)
-        elif data_type == 'MA20':
-            return self._get_ma_data(20)
-        elif data_type == 'MA60':
-            return self._get_ma_data(60)
-        elif data_type == 'MA120':
-            return self._get_ma_data(120)
+        if data_type in ['MA5', 'MA20', 'MA60', 'MA120']:
+            period = int(data_type.replace('MA', ''))
+            return self._get_ma_data(period, daily_asset, normalize)
         elif data_type == 'drawdown':
-            return self._get_drawdown_data()
+            return self._get_drawdown_data(daily_asset, normalize)
         else:
             raise ValueError(f"Unknown data type: {data_type}")
-    
-    def _get_ma_data(self, period: int) -> List[Dict[str, Any]]:
+
+    def _get_ma_data(self, period: int, daily_asset: pd.DataFrame, normalize: bool = False) -> List[Dict[str, Any]]:
         """获取移动平均线数据"""
-        daily_asset = pd.DataFrame(self.backtest_result['daily_asset'])
         dates = daily_asset['date'].tolist()
         ma_data = []
         
-        ma = daily_asset['total'].rolling(window=period).mean()
+        # 计算总资产的移动平均线
+        values = daily_asset['total']
+        if normalize:
+            values = self.normalize_series(values)
+            
+        ma = values.rolling(window=period).mean()
         ma_data.append({
             'x': dates,
             'y': ma.tolist(),
@@ -318,59 +329,57 @@ class StrategyDataGenerator(DataGenerator):
         
         return ma_data
 
-    def _get_drawdown_data(self) -> List[Dict[str, Any]]:
+    def _get_drawdown_data(self, daily_asset: pd.DataFrame, normalize: bool = False) -> List[Dict[str, Any]]:
         """获取回撤数据"""
-        daily_asset = pd.DataFrame(self.backtest_result['daily_asset'])
+        values = daily_asset['total']
+        if normalize:
+            values = self.normalize_series(values)
+            
         drawdown_list = calculate_max_drawdown(
             daily_asset['date'],
-            daily_asset['total']
+            values
         )
         
         data = []
         # 绘制回撤区域
         for i in range(len(drawdown_list)):
             if pd.notna(drawdown_list[i]):
-                drawdown_value = drawdown_list[i]['value']
-                drawdown_start_date = drawdown_list[i]['start_date']
-                drawdown_start_value = drawdown_list[i]['start_value']
-                drawdown_end_date = drawdown_list[i]['end_date']
-                drawdown_end_value = drawdown_list[i]['end_value']
-                recovery_date = drawdown_list[i]['recovery_date']
-
-                drawdown_days = (drawdown_end_date - drawdown_start_date).days
-                recovery_days = (recovery_date - drawdown_end_date).days if recovery_date else None
+                dd = drawdown_list[i]
+                drawdown_days = (dd['end_date'] - dd['start_date']).days
+                recovery_days = (dd['recovery_date'] - dd['end_date']).days if dd.get('recovery_date') else None
                 
-                text = f'回撤: {drawdown_value*100:.4f}%({drawdown_days} days)' 
+                text = f'回撤: {dd["value"]*100:.4f}%({drawdown_days} days)' 
                 if recovery_days:
                     text = f'{text}，修复：{recovery_days} days'
-                # 添加矩形区域
+                    
                 data.append({
                     'type': 'scatter',
-                    'x': [drawdown_start_date, drawdown_end_date, drawdown_end_date, drawdown_start_date, drawdown_start_date],
-                    'y': [drawdown_start_value, drawdown_start_value, drawdown_end_value, drawdown_end_value, drawdown_start_value],
+                    'x': [dd['start_date'], dd['end_date'], dd['end_date'], dd['start_date'], dd['start_date']],
+                    'y': [dd['start_value'], dd['start_value'], dd['end_value'], dd['end_value'], dd['start_value']],
                     'fill': 'toself',
                     'fillcolor': 'rgba(255, 0, 0, 0.2)',
                     'line': {'width': 0},
-                    'mode': 'lines+text',  # 添加文本模式
-                    'text': [text],  # 显示回撤值
-                    'textposition': 'top right',  # 文本位置
-                    'textfont': {'size': 12, 'color': 'red'},  # 文本样式
+                    'mode': 'lines+text',
+                    'text': [text],
+                    'textposition': 'top right',
+                    'textfont': {'size': 12, 'color': 'red'},
                     'name': f'TOP{i+1} 回撤',
                     'showlegend': True
                 })
+                
                 if recovery_days:
                     data.append({
                         'type': 'scatter',
-                        'x': [drawdown_end_date, recovery_date, recovery_date, drawdown_end_date, drawdown_end_date],
-                        'y': [drawdown_end_value, drawdown_end_value, drawdown_start_value, drawdown_start_value, drawdown_end_value],
+                        'x': [dd['end_date'], dd['recovery_date'], dd['recovery_date'], dd['end_date'], dd['end_date']],
+                        'y': [dd['end_value'], dd['end_value'], dd['start_value'], dd['start_value'], dd['end_value']],
                         'fill': 'toself',
                         'fillcolor': 'rgba(0, 255, 0, 0.2)',
                         'line': {'width': 0},
-                        'mode': 'lines+text',  # 添加文本模式
-                        'textfont': {'size': 12, 'color': 'red'},  # 文本样式
+                        'mode': 'lines+text',
+                        'textfont': {'size': 12, 'color': 'red'},
                         'name': f'TOP{i+1} 回撤修复',
                         'showlegend': True
-                    }) 
+                    })
         return data
     
     def _get_trade_table(self):
