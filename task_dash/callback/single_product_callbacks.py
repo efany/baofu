@@ -12,6 +12,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from task_utils.data_utils import calculate_return_rate
 from database.db_funds import DBFunds
 from database.db_strategys import DBStrategys
+from database.db_stocks import DBStocks
 from task_dash.utils import get_date_range, get_data_briefs
 from task_dash.datas.data import create_data_generator
 from task_dash.datas.data_generator import TableData
@@ -121,8 +122,7 @@ def register_single_product_callbacks(app, mysql_db):
             elif selected_type == 'strategy':
                 data = DBStrategys(mysql_db).get_all_strategies()
             elif selected_type == 'stock':
-                # TODO: 添加股票数据获取逻辑
-                data = pd.DataFrame()
+                data = DBStocks(mysql_db).get_all_stocks()
             else:
                 data = pd.DataFrame()
             
@@ -166,11 +166,11 @@ def register_single_product_callbacks(app, mysql_db):
 
             # 获取数据
             summary_data = generator.get_summary_data()
-            logger.info(f"get summary_data")
+            logger.info(f"get summary_data: {summary_data}")
             chart_data = generator.get_chart_data()
-            logger.info(f"get chart_data")
+            logger.info(f"get chart_data: {chart_data}")
             extra_datas = generator.get_extra_datas()
-            logger.info(f"get extra_datas")
+            logger.info(f"get extra_datas: {extra_datas}")
 
             if not chart_data:
                 return go.Figure(), html.Div("未找到数据", style={'color': 'red'}), [], []
@@ -181,12 +181,31 @@ def register_single_product_callbacks(app, mysql_db):
                 chart_data.extend(extra_chart_data)
             
             # 创建图表
+            title = '基金净值和分红数据' if data_type == 'fund' else '策略净值数据' if data_type == 'strategy' else '股票K线数据'
+            
+            # 根据数据类型设置不同的x轴配置
+            xaxis_config = {
+                'title': '日期',
+                'rangeslider': {'visible': False}
+            }
+            
+            if data_type == 'stock':
+                xaxis_config.update({
+                    'tickmode': 'auto',
+                    'nticks': 20,  # 控制显示的刻度数量
+                    'tickangle': -45,  # 标签旋转45度
+                    'showgrid': True,
+                    'gridcolor': '#f0f0f0'
+                })
+            
             figure = {
                 'data': chart_data,
                 'layout': {
-                    'title': f'基金 {selected_data} 的净值和分红数据',
-                    'xaxis': {'title': '日期'},
-                    'yaxis': {'title': '净值'}
+                    'title': f'{title} - {selected_data}',
+                    'xaxis': xaxis_config,
+                    'yaxis': {'title': '价格' if data_type == 'stock' else '净值'},
+                    'plot_bgcolor': 'white',
+                    'hovermode': 'x unified'
                 }
             }
             

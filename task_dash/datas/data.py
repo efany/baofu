@@ -3,13 +3,15 @@ from datetime import date
 from .data_generator import DataGenerator
 from .fund_data_generator import FundDataGenerator
 from .strategy_data_generator import StrategyDataGenerator
+from .stock_data_generator import StockDataGenerator
 from database.db_funds import DBFunds
 from database.db_funds_nav import DBFundsNav
 from database.db_strategys import DBStrategys
+from database.db_stocks import DBStocks
 from database.mysql_database import MySQLDatabase
 from loguru import logger
 
-DataType = Literal['fund', 'strategy']
+DataType = Literal['fund', 'strategy', 'stock']
 
 def create_data_generator(
     data_type: DataType,
@@ -52,6 +54,18 @@ def create_data_generator(
             strategy_id = int(data_id)
             return StrategyDataGenerator(
                 strategy_id=strategy_id,
+                mysql_db=mysql_db,
+                start_date=start_date,
+                end_date=end_date
+            )
+
+        elif data_type == 'stock':
+            if not isinstance(data_id, (int, str)):
+                raise ValueError("Stock data_id must be integer or string")
+                
+            stock_code = str(data_id)
+            return StockDataGenerator(
+                stock_code=stock_code,
                 mysql_db=mysql_db,
                 start_date=start_date,
                 end_date=end_date

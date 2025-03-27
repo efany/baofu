@@ -404,3 +404,37 @@ class XueqiuStockCrawler:
             import traceback
             print(traceback.format_exc())
             return "" 
+
+def test_get_stock_data():
+    """
+    测试获取股票数据功能
+    """
+    # 测试获取贵州茅台(600519.SH)的股票数据
+    stock_code = "SH600519"
+    start_date = "20230101"
+    end_date = "20231231"
+    
+    try:
+        # 创建爬虫实例
+        crawler = XueqiuStockCrawler()
+        
+        # 获取股票数据
+        print(f"正在获取 {stock_code} 的股票数据...")
+        data = crawler.fetch_stock_data(stock_code, start_date, end_date)
+        
+        # 检查返回结果
+        if data is not None and not data.empty:
+            print(f"成功获取 {len(data)} 条股票数据")
+            print("前5条数据：")
+            print(data.head())
+        else:
+            print("未获取到有效数据")
+            
+    except Exception as e:
+        print(f"测试失败: {str(e)}")
+        import traceback
+        print(traceback.format_exc())
+
+if __name__ == "__main__":
+    # 运行测试
+    test_get_stock_data()

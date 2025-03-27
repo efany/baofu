@@ -6,7 +6,7 @@ from .data_generator import DataGenerator, TableData, ChartDataType
 from database.mysql_database import MySQLDatabase
 from database.db_strategys import DBStrategys
 from task_utils.data_utils import calculate_max_drawdown
-from task_backtrader.backtrader_buy_and_hold_task import BacktraderBuyAndHoldTask
+from task_backtrader.backtrader_task import BacktraderTask
 
 class StrategyDataGenerator(DataGenerator):
     """策略数据生成器"""
@@ -29,7 +29,7 @@ class StrategyDataGenerator(DataGenerator):
             self.strategy_info['strategy'] = self.strategy_info['strategy'] \
                 .replace("<open_date>", self.start_date.strftime("%Y-%m-%d") if self.start_date else "") \
                 .replace("<close_date>", self.end_date.strftime("%Y-%m-%d") if self.end_date else "")
-            task = BacktraderBuyAndHoldTask(self.mysql_db, self.strategy_info)
+            task = BacktraderTask(self.mysql_db, self.strategy_info)
             task.execute()
             if task.is_success:
                 self.backtest_result = task.result
@@ -408,13 +408,13 @@ class StrategyDataGenerator(DataGenerator):
         # 转换为表格数据
         trade_data = []
         for _, trade in trades.iterrows():
-            amount = trade['price'] * trade['size']
+            amount = trade['executed_size'] * trade['executed_price']
             trade_data.append([
                 trade['date'].strftime('%Y-%m-%d'),
                 trade['type'],
                 trade['product'],
-                f"{trade['size']:.0f}",
-                f"¥{trade['price']:.4f}",
+                f"{trade['executed_size']:.0f}",
+                f"¥{trade['executed_price']:.4f}",
                 f"¥{amount:.2f}",
                 trade.get('order_message', '')
             ])

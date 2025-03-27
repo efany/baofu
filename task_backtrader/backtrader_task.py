@@ -13,9 +13,10 @@ from task_backtrader.backtrader_base_task import BacktraderBaseTask
 from task_backtrader.strategy.buy_and_hold_strategy import BuyAndHoldStrategy
 from task_backtrader.analyzer.trade_list_analyzer import TradeListAnalyzer
 from task_backtrader.analyzer.daily_asset_analyzer import DailyAssetAnalyzer
+from task_backtrader.commissions.zero_commission import ZeroCommission
 from database.mysql_database import MySQLDatabase
 
-class BacktraderBuyAndHoldTask(BacktraderBaseTask):
+class BacktraderTask(BacktraderBaseTask):
     """
     使用Backtrader实现买入持有策略的回测任务
     """
@@ -31,6 +32,7 @@ class BacktraderBuyAndHoldTask(BacktraderBaseTask):
                 - db_config: 数据库配置
                 - data_params: 数据参数JSON字符串
                     - fund_codes: 基金代码列表
+                    - stock_symbols: 股票代码列表
                 - strategy: 策略
                     {
                         "name": "BuyAndHold",
@@ -57,25 +59,26 @@ class BacktraderBuyAndHoldTask(BacktraderBaseTask):
         try:
             # 创建cerebro引擎
             cerebro = bt.Cerebro()
+            
             # 设置初始资金
             cerebro.broker.setcash(self.initial_cash)
 
-            # 设置手续费
-            cerebro.broker.setcommission(commission=0.0)  # 设置0.0%的手续费
+            # 设置零费率佣金方案
+            cerebro.broker.addcommissioninfo(ZeroCommission())
             
+            # 添加数据源
             for name, data in self.data_feeds.items():
                 cerebro.adddata(data, name=name)
             
             # 添加策略
             cerebro.addstrategy(self.strategy_class, params=self.strategy_param)
-                
             
             # 添加分析器
             cerebro.addanalyzer(bt.analyzers.Returns, _name='returns')
             cerebro.addanalyzer(bt.analyzers.DrawDown, _name='drawdown')
             cerebro.addanalyzer(bt.analyzers.SharpeRatio, _name='sharpe')
-            cerebro.addanalyzer(TradeListAnalyzer, _name='trade_list')  # 添加交易记录分析器
-            cerebro.addanalyzer(DailyAssetAnalyzer, _name='daily_asset')  # 添加每日资产分析器
+            cerebro.addanalyzer(TradeListAnalyzer, _name='trade_list')
+            cerebro.addanalyzer(DailyAssetAnalyzer, _name='daily_asset')
             
             # 运行回测
             results = cerebro.run()
@@ -117,40 +120,32 @@ class BacktraderBuyAndHoldTask(BacktraderBaseTask):
             logger.error(f"回测执行失败: {str(e)}")
             raise TaskConfigError(f"回测执行失败: {str(e)}")
 
-
-if __name__ == "__main__":
-    mysql_db = MySQLDatabase(
-        host='127.0.0.1',
-        user='baofu',
-        password='TYeKmJPfw2b7kxGK',
-        database='baofu',
-        pool_size=5
-    )
-
+def test_buy_and_hold(mysql_db):
     # 测试配置
     task_config = {
         "name": "buy_and_hold_backtest",
         "description": "买入持有策略回测",
         "data_params": """
             {
-                "fund_codes": ["007540","003376"]
+                "fund_codes": ["007540","003376"],
+                "stock_symbols": ["159949.SZ", "512550.SS", "159633.SZ", "159628.SZ"]
             }
         """,
         "initial_cash": 1000000,
         "strategy": """
             {
                 "name": "BuyAndHold",
-                "open_date": "",
+                "open_date": "2025-01-01",
                 "close_date": "",
                 "dividend_method": "reinvest",
-                "products": ["007540","003376"],
+                "products": ["159949.SZ", "512550.SS"],
                 "weights": [0.5,0.5]
             }
         """
     }
 
     # 执行回测
-    task = BacktraderBuyAndHoldTask(mysql_db, task_config)
+    task = BacktraderTask(mysql_db, task_config)
     task.execute()
 
     if task.is_success:
@@ -164,6 +159,71 @@ if __name__ == "__main__":
         logger.info(f"收益: {result['returns']}")
         logger.info(f"最大回撤: {result['drawdown']}")
         logger.info(f"夏普比率: {result['sharpe']}")
-        logger.info(f"每日资产: {result['daily_asset']}")
     else:
         logger.error(f"回测失败: {task.error}")
+def test_rebalance(mysql_db):
+    # 测试配置
+    task_config = {
+        "name": "rebalance_backtest",
+        "description": "再平衡策略回测",
+        "data_params": """
+            {
+                "stock_symbols": ["159949.SZ", "512550.SS", "159633.SZ", "159628.SZ"]
+            }
+        """,
+        "initial_cash": 1000000,
+        "strategy": """
+            {
+                "name": "Rebalance",
+                "open_date": "2024-01-01",
+                "close_date": "",
+                "dividend_method": "reinvest",
+                "triggers": {
+                    "period": {
+                        "freq": "month",
+                        "day": 1,
+                        "watermark":0.01
+                    }
+                },
+                "target_weights": {
+                    "159949.SZ": 0.3,
+                    "512550.SS": 0.3,
+                    "159633.SZ": 0.2,
+                    "159628.SZ": 0.2
+                },
+                "cash_reserve": 0.0
+            }
+        """
+    }
+
+    # 执行回测
+    task = BacktraderTask(mysql_db, task_config)
+    task.execute()
+
+    if task.is_success:
+        logger.info("回测完成")
+        result = task.result
+        logger.info(f"初始资金: {result['initial_value']:.2f}")
+        logger.info(f"最终资金: {result['final_value']:.2f}")
+        logger.info(f"收益率: {result['return_rate']:.2f}%")
+        logger.info(f"持仓详情: {result['positions']}")
+
+        logger.info(f"收益: {result['returns']}")
+        logger.info(f"最大回撤: {result['drawdown']}")
+        logger.info(f"夏普比率: {result['sharpe']}")
+    else:
+        logger.error(f"回测失败: {task.error}")
+
+if __name__ == "__main__":
+    mysql_db = MySQLDatabase(
+        host='127.0.0.1',
+        user='baofu',
+        password='TYeKmJPfw2b7kxGK',
+        database='baofu',
+        pool_size=5
+    )
+    # test_buy_and_hold(mysql_db)
+    test_rebalance(mysql_db)
+
+
+    

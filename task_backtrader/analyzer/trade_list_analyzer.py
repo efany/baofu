@@ -33,24 +33,24 @@ class TradeListAnalyzer(bt.Analyzer):
                 'status': 'submitted'
             }
             self.trades.append(trade_record)
-            logger.info(f"订单 {order.ref} 已提交")
+            # logger.info(f"订单 {order.ref} 已提交")
             return
 
         # 更新已存在订单的状态
         if existing_trade:
             if order.status == order.Accepted:
                 existing_trade['status'] = 'accepted'
-                logger.info(f"订单 {order.ref} 已接受")
+                # logger.info(f"订单 {order.ref} 已接受")
             elif order.status == order.Partial:
                 existing_trade['status'] = 'partial'
-                logger.info(f"订单 {order.ref} 部分成交")
+                # logger.info(f"订单 {order.ref} 部分成交")
             elif order.status == order.Completed:
                 existing_trade['status'] = 'completed'
                 existing_trade['executed_size'] = order.executed.size
                 existing_trade['executed_price'] = order.executed.price
                 existing_trade['executed_value'] = order.executed.value
                 existing_trade['executed_comm'] = order.executed.comm
-                logger.info(f"订单 {order.ref} 已完成")
+                # logger.info(f"订单 {order.ref} 已完成")
             elif order.status == order.Canceled:
                 existing_trade['status'] = 'canceled'
                 logger.info(f"订单 {order.ref} 已取消")
@@ -59,7 +59,7 @@ class TradeListAnalyzer(bt.Analyzer):
                 logger.info(f"订单 {order.ref} 已过期")
             elif order.status == order.Margin:
                 existing_trade['status'] = 'margin'
-                logger.info(f"订单 {order.ref} 保证金不足")
+                logger.info(f"订单 {order.ref} 保证金不足 {order}")
             elif order.status == order.Rejected:
                 existing_trade['status'] = 'rejected'
                 logger.info(f"订单 {order.ref} 已拒绝")

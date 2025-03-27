@@ -46,7 +46,7 @@ class UpdateFundsTask(BaseTask):
         """
         try:
             funds = self.db_funds.get_all_funds()
-            fund_codes = [row['ts_code'] for row in funds]
+            fund_codes = funds['ts_code'].tolist()
             return fund_codes
             
         except Exception as e:
@@ -112,7 +112,7 @@ if __name__ == "__main__":
     task_config = {
         "name": "update_funds",
         "description": "更新基金信息和净值数据",
-        "update_all": False,  # 设置为True以更新所有基金
+        "update_all": True,  # 设置为True以更新所有基金
         "fund_codes": ["010232","162715","006635"],  # 可选，指定待更新的基金代码 , 
     }
     task = UpdateFundsTask(task_config)

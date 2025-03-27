@@ -46,3 +46,68 @@ class BaseStrategy(bt.Strategy):
                     order = self.buy(data=data, size=size, price=data.close[1])
                     self.order_message[order.ref] = "分红再投资"
                     logger.info(f"将分红再投资: {size} 份 {data._name}，当前价格: {data.close[1]:.4f}, ref: {order.ref}")
+    
+    
+    def get_total_asset(self) -> int:
+        # 获取当前现金
+        cash = self.broker.getcash()
+
+        # 获取每个产品的资产值
+        product_assets = {}
+        total_asset = 0
+        
+        for i, data in enumerate(self.datas):
+            product_value = self.broker.get_value([data])
+            product_code = data._name
+            product_assets[product_code] = product_value
+            total_asset += product_value
+
+        # 计算总资产
+        return cash + total_asset
+                    
+    def print_positions(self, tag="当前持仓"):
+        """
+        打印当前持仓情况
+        
+        Args:
+            tag: 日志标签，用于区分不同场景下的持仓打印
+        """
+        # 获取当前现金
+        cash = self.broker.getcash()
+        
+        # 获取当前总资产
+        total_value = self.get_total_asset()
+        
+        # 获取当前日期
+        current_date = self.datas[0].datetime.date(0) if len(self.datas) > 0 else None
+        
+        logger.info(f"========== {tag} ({current_date}) ==========")
+        logger.info(f"现金: {cash:.2f}")
+        
+        # 统计持仓信息
+        positions_value = 0
+        positions_info = []
+        
+        for data in self.datas:
+            market_value = self.broker.get_value([data])
+            # 计算持仓占比
+            weight = market_value / total_value
+            positions_value += market_value
+            positions_info.append({
+                'symbol': data._name,
+                'value': market_value,
+                'weight': weight
+            })
+        
+        # 按市值排序
+        positions_info.sort(key=lambda x: x['value'], reverse=True)
+        
+        # 打印持仓信息
+        for pos in positions_info:
+            logger.info(f"{pos['symbol']} = {pos['value']:.2f} ({pos['weight']:.2%})")
+        
+        # 打印总结信息
+        cash_weight = cash / total_value
+        logger.info(f"持仓总市值: {positions_value:.2f} ({(1-cash_weight):.2%})")
+        logger.info(f"总资产: {total_value:.2f}")
+        logger.info("=========================================")

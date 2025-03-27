@@ -49,6 +49,8 @@ def display_page(pathname):
         return layout
     elif pathname == '/single_fund':
         return create_single_product_value_graph(mysql_db, "fund")  # Call the function to get the layout
+    elif pathname == '/single_stock':
+        return create_single_product_value_graph(mysql_db, "stock")  # Call the function to get the layout
     elif pathname == '/single_strategy':
         return create_single_product_value_graph(mysql_db, "strategy")  # Call the function to get the layout
     elif pathname == '/strategy_manage':

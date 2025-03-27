@@ -124,14 +124,15 @@ class BuyAndHoldStrategy(BaseStrategy):
                 target_value = available_cash * weight
 
                 # 使用后一日的收盘价
-                price = data.close[1]
+                price = data.open[1]
                 size = math.floor(target_value / price)  # 使用math.floor向下取整
                 
                 logger.info(f"产品{product}: 权重={weight}, 目标金额={target_value:.2f}, "
                         f"价格={price:.4f}, 数量={size:.4f}")
-                
+
+                # 计算所需保证金
                 # 创建买入订单
-                order = self.buy(data=data, size=size, price=data.close[1])
+                order = self.buy(data=data, size=size, price=data.open[1])
                 self.order_message[order.ref] = "开仓"
             self.position_opened = True
         # 如果当前日期大于平仓日期，则不进行操作

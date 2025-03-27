@@ -119,4 +119,46 @@ if __name__ == "__main__":
             print("数据表 'strategys' 校验。")
         else:
             print("数据表 'strategys' 创建失败。")
-    db.close_connection() 
+
+    if db.check_table_exists('stocks_info'):
+        print("数据表 'stocks_info' 已存在")
+    else:
+        table_schema = """
+        symbol VARCHAR(20),
+        name VARCHAR(100),
+        currency VARCHAR(10),
+        exchange VARCHAR(10),
+        market VARCHAR(10),
+        create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        """
+        db.create_table('stocks_info', table_schema)
+        if db.check_table_exists('stocks_info'):
+            print("数据表 'stocks_info' 校验。")
+        else:
+            print("数据表 'stocks_info' 创建失败。")
+
+    if db.check_table_exists('stocks_day_hist_data'):
+        print("数据表 'stocks_day_hist_data' 已存在")
+    else:
+        # Date   Open   High    Low  Close    Volume  Dividends  Stock Splits
+        table_schema = """
+        symbol VARCHAR(20),
+        date DATE,
+        open FLOAT,
+        high FLOAT,
+        low FLOAT,
+        close FLOAT,
+        volume FLOAT,
+        dividends FLOAT,
+        stock_splits FLOAT, 
+        create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        """
+        db.create_table('stocks_day_hist_data', table_schema)
+        if db.check_table_exists('stocks_day_hist_data'):
+            print("数据表 'stocks_day_hist_data' 校验。")
+        else:
+            print("数据表 'stocks_day_hist_data' 创建失败。")
+    db.close_connection()
+
