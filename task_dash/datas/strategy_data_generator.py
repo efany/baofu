@@ -22,7 +22,6 @@ class StrategyDataGenerator(DataGenerator):
     
     def _load_data(self):
         """加载策略数据"""
-        
         strategy = self.db_strategys.get_strategy(self.strategy_id)
         if not strategy.empty:
             self.strategy_info = strategy.iloc[0]
@@ -38,10 +37,6 @@ class StrategyDataGenerator(DataGenerator):
                     daily_asset = pd.DataFrame(self.backtest_result['daily_asset'])
                     daily_asset['date'] = pd.to_datetime(daily_asset['date'])
                     # 过滤日期范围
-                    if self.start_date:
-                        daily_asset = daily_asset[daily_asset['date'].dt.date >= self.start_date]
-                    if self.end_date:
-                        daily_asset = daily_asset[daily_asset['date'].dt.date <= self.end_date]
                     self.backtest_result['daily_asset'] = daily_asset.to_dict('records')
     
     def get_summary_data(self) -> List[Tuple[str, Any]]:
@@ -400,10 +395,10 @@ class StrategyDataGenerator(DataGenerator):
             }
         
         # 过滤日期范围
-        if self.start_date:
-            trades = trades[trades['date'] >= self.start_date]
-        if self.end_date:
-            trades = trades[trades['date'] <= self.end_date]
+        # if self.start_date:
+        #     trades = trades[trades['date'] >= self.start_date]
+        # if self.end_date:
+        #     trades = trades[trades['date'] <= self.end_date]
         
         # 转换为表格数据
         trade_data = []

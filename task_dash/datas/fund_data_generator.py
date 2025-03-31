@@ -24,6 +24,13 @@ class FundDataGenerator(DataGenerator):
         """加载基金数据"""
         self.fund_info = self.db_funds.get_fund_info(self.fund_code)
         self.fund_nav = self.db_funds_nav.get_fund_nav(self.fund_code)
+
+        if self.start_date and not self.fund_nav.empty:
+            # 修正数据start_date到前一个有效日期
+            prev_date = self.fund_nav[self.fund_nav['nav_date'] < self.start_date]['nav_date'].max()
+            if pd.notna(prev_date):
+                self.start_date = prev_date
+
         if self.start_date:
             self.fund_nav = self.fund_nav[self.fund_nav['nav_date'] >= self.start_date]
         if self.end_date:

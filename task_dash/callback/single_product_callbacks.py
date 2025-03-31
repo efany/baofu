@@ -166,11 +166,8 @@ def register_single_product_callbacks(app, mysql_db):
 
             # 获取数据
             summary_data = generator.get_summary_data()
-            logger.info(f"get summary_data: {summary_data}")
             chart_data = generator.get_chart_data()
-            logger.info(f"get chart_data: {chart_data}")
             extra_datas = generator.get_extra_datas()
-            logger.info(f"get extra_datas: {extra_datas}")
 
             if not chart_data:
                 return go.Figure(), html.Div("未找到数据", style={'color': 'red'}), [], []

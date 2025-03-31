@@ -12,7 +12,7 @@ class DailyAssetAnalyzer(bt.Analyzer):
         self.daily_assets = []
 
     def next(self):
-        if self.strategy.datetime.date() < self.open_date:
+        if not self.strategy.position_opened and not self.strategy.position_closed:
             return
 
         # 获取当前现金

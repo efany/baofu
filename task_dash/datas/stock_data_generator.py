@@ -32,6 +32,30 @@ class StockDataGenerator(DataGenerator):
     def _load_data(self):
         """加载股票数据"""
         self.stock_info = self.db_stocks.get_stock_info(self.stock_code)
+        
+        # 先获取原始日期范围的数据
+        original_data = self.db_stocks_day_hist.get_stock_hist_data(self.stock_code)
+        if not original_data.empty:
+            original_data['date'] = pd.to_datetime(original_data['date'])
+            original_data = original_data.sort_values('date')
+            
+            # 如果start_date有效，尝试找到前一个有效日期
+            if self.start_date is not None:
+                # 将start_date转换为datetime并与数据比较
+                start_datetime = pd.to_datetime(self.start_date)
+                
+                # 找到所有早于start_date的日期
+                earlier_dates = original_data[original_data['date'] < start_datetime]
+                
+                if not earlier_dates.empty:
+                    # 找到最接近start_date的前一个日期
+                    previous_date = earlier_dates['date'].max()
+                    logger.info(f"找到前一个有效数据日期: {self.start_date} -> {previous_date.date()}")
+                    self.start_date = previous_date.date()
+                else:
+                    logger.warning(f"没有找到早于 {self.start_date} 的有效数据日期")
+
+        # 使用调整后的日期范围获取数据
         self.stock_data = self.db_stocks_day_hist.get_stock_hist_data(self.stock_code, self.start_date, self.end_date)
         if not self.stock_data.empty:
             self.stock_data['date'] = pd.to_datetime(self.stock_data['date'])
