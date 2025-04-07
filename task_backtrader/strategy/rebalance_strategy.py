@@ -90,17 +90,8 @@ class RebalanceStrategy(BaseStrategy):
         # 处理平仓日期
         close_date_param = self.params.get('close_date')
         if close_date_param is None or close_date_param == "":
-            # 获取各个产品有效净值的最小日期作为平仓日期
-            max_date = None
-            for d in self.datas:
-                valid_dates = [datetime.fromordinal(int(date)).date() for date in d.datetime.array]
-                if not valid_dates:
-                    continue
-                current_max = max(valid_dates)
-                if max_date is None or current_max < max_date:
-                    max_date = current_max
-            self.close_date = max_date
-            logger.info(f"未指定平仓日期，使用各产品有效净值的最小日期作为平仓日期: {self.close_date}")
+            self.close_date = None
+            logger.info(f"未指定平仓日期，不执行平仓")
         else:
             self.close_date = datetime.strptime(close_date_param, '%Y-%m-%d').date()
         
@@ -132,7 +123,7 @@ class RebalanceStrategy(BaseStrategy):
             
             # 获取数据的起止日期
             start_date = self.open_date
-            end_date = self.close_date
+            end_date = self.close_date if self.close_date is not None else datetime.now().date()
 
             logger.info(f"start_date:{start_date},end_date:{end_date}")
             
@@ -203,7 +194,7 @@ class RebalanceStrategy(BaseStrategy):
                         
                 # 如果最大偏差小于等于watermark，则不执行再平衡
                 if max_deviation <= watermark:
-                    logger.info(f"最大持仓偏移 {max_deviation:.2%} 小于 watermark {watermark:.2%}，不执行再平衡")
+                    logger.info(f"{current_date} 最大持仓偏移 {max_deviation:.2%} 小于 watermark {watermark:.2%}，不执行再平衡")
                     need_rebalance = False
         return need_rebalance
     
@@ -213,35 +204,59 @@ class RebalanceStrategy(BaseStrategy):
         target_weights = self.params['target_weights']
         if 'deviation' not in triggers:
             return False
-            
-        deviation_config = triggers['deviation']
-        threshold = deviation_config.get('threshold', 0.1)
-        monitor_products = deviation_config.get('products', [])
+
+        # "triggers": {
+        #     "deviation": {
+        #         "159949.SZ": {
+        #             "rise": 0.1,
+        #             "fall": 0.1,
+        #         }
+        #         "512550.SS": {
+        #             "rise": 0.1,
+        #             "fall": 0.1,
+        #         }
+        #         "159633.SZ": {
+        #             "rise": 0.1,
+        #             "fall": 0.1,
+        #         }
+        #         "159628.SZ": {
+        #             "rise": 0.1,
+        #             "fall": 0.1,
+        #         }
+        #     }
+        # }
+        # 获取当前总资产
+        total_value = self.get_total_asset()
         
-        # 计算当前持仓权重
-        total_value = self.broker.getvalue()
-        current_weights = {}
-        
-        for symbol, target_weight in target_weights.items():
-            if monitor_products and symbol not in monitor_products:
-                continue
-                
+        # 遍历deviation中的产品
+        for symbol, deviation_config in triggers['deviation'].items():
+            # 获取产品数据
             data = self.getdatabyname(symbol)
             if not data:
                 continue
-                
+
+            # 获取当前持仓
             position = self.getposition(data)
             if not position:
                 current_weight = 0
             else:
                 current_weight = position.size * data.close[0] / total_value
-                
-            # 检查偏离度
-            deviation = abs(current_weight - target_weight)
-            if deviation > threshold:
-                logger.info(f"{symbol} 当前权重 {current_weight:.2%} 与目标权重 {target_weight:.2%} 偏离 {deviation:.2%}，触发再平衡")
+
+            # 获取目标权重
+            target_weight = target_weights.get(symbol, 0)
+            
+            # 计算当前权重与目标权重的偏差
+            deviation = (current_weight - target_weight) / target_weight
+            
+            # 检查是否触发上升或下降条件
+            if deviation > 0 and deviation > deviation_config.get('rise', 0):
+                logger.info(f"产品{symbol}当前权重{current_weight:.2%}超过目标权重{target_weight:.2%}，"
+                          f"偏差{deviation:.2%}大于上升阈值{deviation_config['rise']:.2%}，触发再平衡")
                 return True
-                
+            elif deviation < 0 and abs(deviation) > deviation_config.get('fall', 0):
+                logger.info(f"产品{symbol}当前权重{current_weight:.2%}低于目标权重{target_weight:.2%}，"
+                          f"偏差{abs(deviation):.2%}大于下降阈值{deviation_config['fall']:.2%}，触发再平衡")
+                return True
         return False
     
     def _calculate_target_position(self, symbol: str) -> int:
@@ -283,7 +298,7 @@ class RebalanceStrategy(BaseStrategy):
                     
         return target_value
     
-    def _rebalance_sell(self):
+    def _rebalance_sell(self, message:str = None):
         """
         执行投资组合再平衡
         
@@ -308,10 +323,11 @@ class RebalanceStrategy(BaseStrategy):
                 # 使用后一日的收盘价
                 price = data.open[1]
                 sell_size = math.floor(diff_position / price)
-                self.sell(data=data, size=-sell_size)
+                order = self.sell(data=data, size=-sell_size)
+                self.order_message[order.ref] = message
                 logger.info(f"{symbol}: sell {price:.2f}*{sell_size} = {(price*sell_size):.2f} --- current_position:{current_position} >> target_position:{target_position}")
 
-    def _rebalance_buy(self):
+    def _rebalance_buy(self, message:str = None):
         """
         执行投资组合再平衡
         
@@ -352,7 +368,8 @@ class RebalanceStrategy(BaseStrategy):
                 # 使用后一日的收盘价
                 price = data.open[1]
                 buy_size = math.floor((diff_position / total_diff) * cash / price)
-                self.buy(data=data, size=buy_size, price=price)
+                order = self.buy(data=data, size=buy_size, price=price)
+                self.order_message[order.ref] = message
                 logger.info(f"{symbol}: buy {price:.2f}*{buy_size} = {(price*buy_size):.2f} --- current_position:{current_position} >> target_position:{target_position}")
         
 
@@ -365,7 +382,7 @@ class RebalanceStrategy(BaseStrategy):
             return
         if self.data0.datetime.get_idx() >= self.data0.datetime.buflen() - 1:
             return
-            
+
         last_date = self.data0.datetime.date(-1)
         current_date = self.data0.datetime.date(0)
         next_date = self.data0.datetime.date(1)
@@ -373,21 +390,23 @@ class RebalanceStrategy(BaseStrategy):
         # 检查是否有待执行的买入操作
         if self.mark_balance == 2:
             logger.info(f"执行再平衡的第二部分《买入》，日期：{current_date} ")
-            self._rebalance_buy()
+            self._rebalance_buy("再平衡买入")
             self.mark_balance -= 1
+            return
         elif self.mark_balance == 1:
             self.print_positions()
             self.mark_balance -= 1
+            return
 
         # 如果还未开仓且到达开仓日期，执行首次建仓
         if not self.position_opened and next_date is not None and next_date >= self.open_date:
             logger.info(f"达到开仓日期 {current_date}，执行首次建仓")
-            self._rebalance_buy()  # 首次建仓时立即执行所有操作
+            self._rebalance_buy("开仓")  # 首次建仓时立即执行所有操作
             self.position_opened = True
             return
 
         # 如果已经到达平仓日期，执行平仓
-        if next_date >= self.close_date and not self.position_closed:
+        if self.close_date and next_date >= self.close_date and not self.position_closed:
             logger.info(f"达到平仓日期 {current_date}，执行平仓")
             # 遍历所有持仓产品进行平仓
             for symbol in self.params['target_weights'].keys():
@@ -396,7 +415,8 @@ class RebalanceStrategy(BaseStrategy):
                     continue
                 pos = self.getposition(data)
                 if pos.size > 0:
-                    self.sell(data=data, size=pos.size)
+                    order = self.sell(data=data, size=pos.size)
+                    self.order_message[order.ref] = "平仓"
             self.position_closed = True
             return
 
@@ -418,5 +438,5 @@ class RebalanceStrategy(BaseStrategy):
             if need_rebalance:
                 self.print_positions()
                 logger.info(f"执行再平衡的第一部分《卖出》，日期：{current_date} ")
-                self._rebalance_sell()  # 默认使用分离加减仓的方式
+                self._rebalance_sell("再平衡卖出")  # 默认使用分离加减仓的方式
                 self.mark_balance = 2

@@ -26,7 +26,7 @@ class DataGenerator(ABC):
         pass
 
     @abstractmethod
-    def get_chart_data(self, normalize: bool = False) -> List[Dict[str, Any]]:
+    def get_chart_data(self, normalize: bool = False, chart_type: int = 0) -> List[Dict[str, Any]]:
         """
         获取图表数据，用于绘制图形
         

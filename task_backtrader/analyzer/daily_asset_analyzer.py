@@ -46,7 +46,7 @@ class DailyAssetAnalyzer(bt.Analyzer):
         pass
         # 输出每日资产与净值
         # for asset in self.daily_assets:
-        #     logger.info(f"日期: {asset['date']}, 资产: {asset['asset_value']}")
+        #     logger.info(f"日期: {asset['date']}, 资产: {asset}")
     
     def get_analysis(self):
         """返回交易记录"""

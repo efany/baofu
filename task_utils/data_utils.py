@@ -2,6 +2,7 @@ import pandas as pd
 import sys
 import os
 from datetime import datetime
+from loguru import logger
 
 def calculate_return_rate(data, loc_name='accum_nav'):
     first_nav = data.iloc[0][loc_name]
@@ -27,6 +28,7 @@ def calculate_adjusted_nav(fund_nav, start_date=None, end_date=None):
     for i in range(1, len(fund_nav)):
         current_date = fund_nav.iloc[i]['nav_date']
         current_date = pd.to_datetime(current_date).date()
+
         if start_date and current_date < start_date:
             continue
         if end_date and current_date > end_date:
@@ -39,7 +41,7 @@ def calculate_adjusted_nav(fund_nav, start_date=None, end_date=None):
         dividend = fund_nav.iloc[i]['dividend']
         
         # 如果有分红，计算调整因子
-        if dividend > 0:
+        if dividend is not None and dividend > 0:
             adjustment_factor *= (prev_nav + dividend) / prev_nav
 
         # 计算修正净值

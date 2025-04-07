@@ -83,7 +83,7 @@ class StockDataGenerator(DataGenerator):
             ('区间收益率', f"{return_rate:+.2f}% ({first_close:.2f} -> {last_close:.2f})")
         ]
 
-    def get_chart_data(self, normalize: bool = False) -> List[Dict[str, Any]]:
+    def get_chart_data(self, normalize: bool = False, chart_type: int = 0) -> List[Dict[str, Any]]:
         """获取股票图表数据，显示为K线图"""
         if self.stock_data is None or self.stock_data.empty:
             return []
@@ -101,21 +101,31 @@ class StockDataGenerator(DataGenerator):
             close_price = self.normalize_series(close_price)
         
         # 将日期转换为中文格式
-        dates = self.stock_data['date'].dt.strftime('%Y年%m月%d日').tolist()
-        
-        return [
-            {
-                'x': dates,
-                'open': open_price.tolist(),
-                'high': high_price.tolist(),
-                'low': low_price.tolist(),
-                'close': close_price.tolist(),
-                'type': 'candlestick',
-                'name': 'K线图',
-                'increasing': {'line': {'color': 'red'}},  # 上涨为红色
-                'decreasing': {'line': {'color': 'green'}},  # 下跌为绿色
-            }
-        ]
+        dates = self.stock_data['date'].tolist()
+        if chart_type == 0:
+            return [
+                {
+                    'x': dates,
+                    'open': open_price.tolist(),
+                    'high': high_price.tolist(),
+                    'low': low_price.tolist(),
+                    'close': close_price.tolist(),
+                    'type': 'candlestick',
+                    'name': 'K线图',
+                    'increasing': {'line': {'color': 'red'}},  # 上涨为红色
+                    'decreasing': {'line': {'color': 'green'}},  # 下跌为绿色
+                }
+            ]
+        elif chart_type == 1:
+            return [
+                {
+                    'x': dates,
+                    'y': close_price.tolist(),
+                    'type': 'line',
+                    'name': '收盘价',
+                    'visible': True,
+                }
+            ]
     
     def get_extra_datas(self) -> List[TableData]:
         """获取股票额外数据"""
@@ -299,7 +309,7 @@ class StockDataGenerator(DataGenerator):
     def _get_ma_data(self, period: int, value_column: str, normalize: bool = False) -> List[Dict[str, Any]]:
         """获取移动平均线数据"""
         # dates = self.stock_data['date'].tolist()
-        dates = self.stock_data['date'].dt.strftime('%Y年%m月%d日').tolist()
+        dates = self.stock_data['date'].tolist()
         ma_data = []
         
         values = self.stock_data[value_column]
@@ -324,7 +334,7 @@ class StockDataGenerator(DataGenerator):
         if normalize:
             values = self.normalize_series(values)
             
-        dates = self.stock_data['date'].dt.strftime('%Y年%m月%d日')
+        dates = self.stock_data['date']
         drawdown_list = calculate_max_drawdown(
             self.stock_data['date'],
             values
@@ -342,8 +352,8 @@ class StockDataGenerator(DataGenerator):
                 if recovery_days:
                     text = f'{text}，修复：{recovery_days} days'
                     
-                start_date = dd['start_date'].strftime('%Y年%m月%d日')
-                end_date = dd['end_date'].strftime('%Y年%m月%d日')
+                start_date = dd['start_date']
+                end_date = dd['end_date']
                 data.append({
                     'type': 'scatter',
                     'x': [start_date, end_date, end_date, start_date, start_date],
@@ -360,7 +370,7 @@ class StockDataGenerator(DataGenerator):
                 })
                 
                 if recovery_days:
-                    recovery_date = dd['recovery_date'].strftime('%Y年%m月%d日')
+                    recovery_date = dd['recovery_date']
                     data.append({
                         'type': 'scatter',
                         'x': [end_date, recovery_date, recovery_date, end_date, end_date],

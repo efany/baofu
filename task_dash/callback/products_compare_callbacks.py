@@ -10,6 +10,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from task_dash.datas.data import create_data_generator
 from database.db_funds import DBFunds
+from database.db_stocks import DBStocks
 from database.db_strategys import DBStrategys
 from task_dash.utils import get_date_range, get_data_briefs
 from task_dash.callback.single_product_callbacks import create_table
@@ -61,6 +62,7 @@ def create_summary_table(table_data):
 def register_products_compare_callbacks(app, mysql_db):
     @app.callback(
         [Output('fund-dropdown', 'options'),
+         Output('stock-dropdown', 'options'),
          Output('strategy-dropdown', 'options')],
         Input('url', 'pathname')
     )
@@ -71,26 +73,31 @@ def register_products_compare_callbacks(app, mysql_db):
             fund_data = DBFunds(mysql_db).get_all_funds()
             fund_options = get_data_briefs('fund', fund_data)
             
+            # 获取股票选项
+            stock_data = DBStocks(mysql_db).get_all_stocks()
+            stock_options = get_data_briefs('stock', stock_data)
+            
             # 获取策略选项
             strategy_data = DBStrategys(mysql_db).get_all_strategies()
             strategy_options = get_data_briefs('strategy', strategy_data)
             
-            return fund_options, strategy_options
+            return fund_options, stock_options, strategy_options
             
         except Exception as e:
             logger.error(f"Error in update_dropdowns_options: {str(e)}")
-            return [], []
+            return [], [], []
 
     @app.callback(
         [Output('compare-value-graph', 'figure'),
          Output('products-summary', 'children'),
          Output('compare-tables-container', 'children')],
         [Input('fund-dropdown', 'value'),
+         Input('stock-dropdown', 'value'),
          Input('strategy-dropdown', 'value'),
          Input('compare-time-range', 'value'),
          Input('compare-line-options', 'value')]
     )
-    def update_comparison(fund_values, strategy_values, time_range, line_options):
+    def update_comparison(fund_values, stock_values, strategy_values, time_range, line_options):
         """更新对比图表和数据"""
         try:
             # 获取日期范围
@@ -102,7 +109,7 @@ def register_products_compare_callbacks(app, mysql_db):
             product_tables = []  # 存储每个产品的表格数据
             
             # 计算总产品数量，用于计算每列宽度
-            total_products = len(fund_values or []) + len(strategy_values or [])
+            total_products = len(fund_values or []) + len(stock_values or []) + len(strategy_values or [])
             if total_products == 0:
                 return go.Figure(), [], []
             
@@ -149,7 +156,6 @@ def register_products_compare_callbacks(app, mysql_db):
                             # 获取统计数据
                             extra_datas = generator.get_extra_datas()
                             if extra_datas:
-                                # 创建产品列
                                 product_tables.append(
                                     html.Div([
                                         html.H6(f"基金 {fund_id}", style={
@@ -166,7 +172,71 @@ def register_products_compare_callbacks(app, mysql_db):
                                             'gap': '10px'
                                         })
                                     ], style={
-                                        'width': column_width,  # 使用计算的宽度
+                                        'width': column_width,
+                                        'padding': '10px',
+                                        'border': '1px solid #e8e8e8',
+                                        'borderRadius': '4px',
+                                        'backgroundColor': '#fff'
+                                    })
+                                )
+            
+            # 处理股票数据
+            if stock_values:
+                for stock_id in stock_values:
+                    generator = create_data_generator(
+                        data_type='stock',
+                        data_id=stock_id,
+                        mysql_db=mysql_db,
+                        start_date=start_date,
+                        end_date=end_date
+                    )
+                    
+                    if generator:
+                        # 添加摘要信息
+                        summary_data = generator.get_summary_data()
+                        if summary_data:
+                            summary_children.append(
+                                html.Div([
+                                    create_summary_table(summary_data)
+                                ], style={'marginBottom': '15px'})
+                            )
+                        
+                        # 处理图表数据
+                        chart_data = generator.get_chart_data(normalize=True, chart_type=1)
+                        if chart_data:
+                            stock_figure_data = []
+                            stock_figure_data.append(chart_data[0])
+                            
+                            for option in line_options:
+                                extra_data = generator.get_extra_chart_data(option, normalize=True)
+                                stock_figure_data.extend(extra_data)
+                            
+                            for data in stock_figure_data:
+                                if 'name' in data:
+                                    data['name'] = f"{data['name']} (s-{stock_id})"
+                            
+                            figure_data.extend(stock_figure_data)
+                            
+                            # 获取统计数据
+                            extra_datas = generator.get_extra_datas()
+                            if extra_datas:
+                                product_tables.append(
+                                    html.Div([
+                                        html.H6(f"股票 {stock_id}", style={
+                                            'color': '#f5222d',
+                                            'marginBottom': '10px',
+                                            'textAlign': 'center'
+                                        }),
+                                        html.Div([
+                                            create_table(table_data)
+                                            for table_data in extra_datas
+                                        ], style={
+                                            'display': 'flex',
+                                            'flexDirection': 'column',
+                                            'gap': '10px'
+                                        })
+                                    ], style={
+                                        'width': column_width,
                                         'padding': '10px',
                                         'border': '1px solid #e8e8e8',
                                         'borderRadius': '4px',

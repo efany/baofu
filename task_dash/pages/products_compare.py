@@ -30,6 +30,22 @@ def create_products_compare_page(mysql_db):
                     'width': '100%'  # 容器占满宽度
                 }),
                 
+                # 股票选择
+                html.Div([
+                    html.Label('股票', style={'width': '50px'}),  # 固定标签宽度
+                    dcc.Dropdown(
+                        id='stock-dropdown',
+                        multi=True,  # 允许多选
+                        placeholder='选择股票...',
+                        style={'flex': 1}  # 占用剩余空间
+                    ),
+                ], style={
+                    'display': 'flex',
+                    'align-items': 'center',
+                    'margin-bottom': '10px',
+                    'width': '100%'  # 容器占满宽度
+                }),
+                
                 # 策略选择
                 html.Div([
                     html.Label('策略', style={'width': '50px'}),  # 固定标签宽度

@@ -167,32 +167,45 @@ def test_rebalance(mysql_db):
         "name": "rebalance_backtest",
         "description": "再平衡策略回测",
         "data_params": """
-            {
-                "stock_symbols": ["159949.SZ", "512550.SS", "159633.SZ", "159628.SZ"]
-            }
+{
+    "stock_symbols": ["159949.SZ", "512550.SS", "159633.SZ", "159628.SZ"]
+}
         """,
         "initial_cash": 1000000,
         "strategy": """
-            {
-                "name": "Rebalance",
-                "open_date": "2024-01-01",
-                "close_date": "",
-                "dividend_method": "reinvest",
-                "triggers": {
-                    "period": {
-                        "freq": "month",
-                        "day": 1,
-                        "watermark":0.01
-                    }
-                },
-                "target_weights": {
-                    "159949.SZ": 0.3,
-                    "512550.SS": 0.3,
-                    "159633.SZ": 0.2,
-                    "159628.SZ": 0.2
-                },
-                "cash_reserve": 0.0
+{
+    "name": "Rebalance",
+    "open_date": "2024-01-01",
+    "close_date": "",
+    "dividend_method": "reinvest",
+    "triggers": {
+        "deviation": {
+            "159949.SZ": {
+                "rise": 0.05,
+                "fall": 0.05
+            },
+            "512550.SS": {
+                "rise": 0.05,
+                "fall": 0.05
+            },
+            "159633.SZ": {
+                "rise": 0.05,
+                "fall": 0.05
+            },
+            "159628.SZ": {
+                "rise": 0.05,
+                "fall": 0.05
             }
+        }
+    },
+    "target_weights": {
+        "159949.SZ": 0.3,
+        "512550.SS": 0.3,
+        "159633.SZ": 0.2,
+        "159628.SZ": 0.2
+    },
+    "cash_reserve": 0.0
+}
         """
     }
 

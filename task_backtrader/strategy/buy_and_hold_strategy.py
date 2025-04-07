@@ -51,21 +51,8 @@ class BuyAndHoldStrategy(BaseStrategy):
             # 解析平仓日期
             close_date_param = self.params.get('close_date')
             if close_date_param is None or close_date_param == "":
-                # 获取各个产品有效净值的最小日期作为平仓日期
-                max_date = None
-                for d in self.datas:
-                    # 获取数据源的有效日期范围
-                    valid_dates = [datetime.fromordinal(int(date)).date() for date in d.datetime.array]
-                    if not valid_dates:
-                        continue
-                    # 获取当前数据源的最大日期
-                    current_max = max(valid_dates)
-                    # 更新最大日期
-                    if max_date is None or current_max < max_date:
-                        max_date = current_max
-                # 设置平仓日期为最大日期
-                self.close_date = max_date
-                logger.info(f"未指定平仓日期，使用各产品有效净值的最小日期作为平仓日期: {self.close_date}")
+                self.close_date = None
+                logger.info(f"未指定平仓日期，不执行平仓")
             else:
                 self.close_date = datetime.strptime(close_date_param, '%Y-%m-%d').date()
 
@@ -136,7 +123,7 @@ class BuyAndHoldStrategy(BaseStrategy):
                 self.order_message[order.ref] = "开仓"
             self.position_opened = True
         # 如果当前日期大于平仓日期，则不进行操作
-        elif next_date >= self.close_date and self.position_opened:
+        elif self.close_date and next_date >= self.close_date and self.position_opened:
             # 遍历所有持仓产品进行平仓
             for product in self.products:
                 # 获取对应数据源
