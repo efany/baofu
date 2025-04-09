@@ -124,6 +124,15 @@ def create_products_compare_page(mysql_db):
                 id='compare-value-graph',
                 style={'height': '60vh'}
             ),
+            
+            # 相关系数展示区域
+            html.Div([
+                html.H5("产品相关性分析", className="text-center mt-4"),
+                html.Div(id='correlation-matrix-container', className="mt-2")
+            ], style={
+                'margin': '20px 0',
+                'padding': '0 20px'
+            })
         ]),
         
         # 统计指标表格区域

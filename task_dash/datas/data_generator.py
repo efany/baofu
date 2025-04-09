@@ -60,6 +60,16 @@ class DataGenerator(ABC):
         """
         pass
 
+    @abstractmethod
+    def get_value_data(self) -> pd.DataFrame:
+        """
+        获取用于计算相关系数的主要数据
+        
+        Returns:
+            pd.DataFrame: 包含 date 和 value 两列的 DataFrame
+        """
+        pass
+
     def normalize_series(self, series: pd.Series) -> pd.Series:
         """归一化数据序列"""
         if series.empty:

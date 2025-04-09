@@ -59,6 +59,50 @@ def create_summary_table(table_data):
         'backgroundColor': '#f9f9f9',
     }) 
 
+def create_correlation_table(correlation_df):
+    """创建相关系数表格"""
+    if correlation_df.empty:
+        return html.Div("暂无相关性数据")
+        
+    # 创建表头
+    header = html.Tr([html.Th("产品")] + [
+        html.Th(col, style={'text-align': 'center'}) 
+        for col in correlation_df.columns
+    ])
+    
+    # 创建表格内容
+    rows = []
+    for idx, row in correlation_df.iterrows():
+        cells = [html.Td(idx)]  # 第一列是产品代码
+        for val in row:
+            # 根据相关系数的值设置不同的背景色
+            if abs(val) > 0.7:
+                bg_color = '#ff4d4f' if val > 0 else '#1890ff'
+            elif abs(val) > 0.4:
+                bg_color = '#ffa39e' if val > 0 else '#91d5ff'
+            else:
+                bg_color = '#fafafa'
+                
+            cells.append(html.Td(
+                f"{val:.2f}",
+                style={
+                    'text-align': 'center',
+                    'background-color': bg_color,
+                    'color': 'white' if abs(val) > 0.7 else 'black'
+                }
+            ))
+        rows.append(html.Tr(cells))
+    
+    return html.Table(
+        [html.Thead(header), html.Tbody(rows)],
+        style={
+            'width': '100%',
+            'border-collapse': 'collapse',
+            'border': '1px solid #d9d9d9',
+            'background-color': 'white'
+        }
+    )
+
 def register_products_compare_callbacks(app, mysql_db):
     @app.callback(
         [Output('fund-dropdown', 'options'),
@@ -90,7 +134,8 @@ def register_products_compare_callbacks(app, mysql_db):
     @app.callback(
         [Output('compare-value-graph', 'figure'),
          Output('products-summary', 'children'),
-         Output('compare-tables-container', 'children')],
+         Output('compare-tables-container', 'children'),
+         Output('correlation-matrix-container', 'children')],
         [Input('fund-dropdown', 'value'),
          Input('stock-dropdown', 'value'),
          Input('strategy-dropdown', 'value'),
@@ -107,11 +152,12 @@ def register_products_compare_callbacks(app, mysql_db):
             figure_data = []
             summary_children = []
             product_tables = []  # 存储每个产品的表格数据
+            generators = {}  # 存储产品id和generator的映射
             
             # 计算总产品数量，用于计算每列宽度
             total_products = len(fund_values or []) + len(stock_values or []) + len(strategy_values or [])
             if total_products == 0:
-                return go.Figure(), [], []
+                return go.Figure(), [], [], html.Div(f"Error: 需要选择至少一个产品进行对比")
             
             # 计算每列宽度百分比
             column_width = f"{100 / total_products}%"
@@ -126,8 +172,8 @@ def register_products_compare_callbacks(app, mysql_db):
                         start_date=start_date,
                         end_date=end_date
                     )
-                    
                     if generator:
+                        generators[f"f-{fund_id}"] = generator
                         # 添加摘要信息
                         summary_data = generator.get_summary_data()
                         if summary_data:
@@ -190,8 +236,8 @@ def register_products_compare_callbacks(app, mysql_db):
                         start_date=start_date,
                         end_date=end_date
                     )
-                    
                     if generator:
+                        generators[f"s-{stock_id}"] = generator
                         # 添加摘要信息
                         summary_data = generator.get_summary_data()
                         if summary_data:
@@ -254,8 +300,8 @@ def register_products_compare_callbacks(app, mysql_db):
                         start_date=start_date,
                         end_date=end_date
                     )
-                    
                     if generator:
+                        generators[f"st-{strategy_id}"] = generator
                         # 添加摘要信息
                         summary_data = generator.get_summary_data()
                         if summary_data:
@@ -340,8 +386,62 @@ def register_products_compare_callbacks(app, mysql_db):
                 }
             ) if product_tables else []
             
-            return figure, summary_children if len(summary_children) > 1 else [], tables_container
+            # 计算相关系数
+            all_data = pd.DataFrame()
+            date_data = {}  # 用于存储每个产品的日期和涨跌幅数据
+
+            # 收集所有产品的数据
+            for product_id, generator in generators.items():
+                data = generator.get_value_data()
+                if not data.empty:
+                    # 确保日期列是datetime类型
+                    data['date'] = pd.to_datetime(data['date'])
+                    # 确保value列是float类型
+                    data['value'] = pd.to_numeric(data['value'], errors='coerce')
+                    
+                    # 计算涨跌幅并保存
+                    pct_change = data['value'].pct_change()
+                    date_data[product_id] = pd.DataFrame({
+                        'date': data['date'],
+                        'pct_change': pct_change.fillna(0).astype('float64')
+                    }).set_index('date')
+                    logger.info(f"产品{product_id}的数据长度: {len(date_data[product_id])}")
+
+            # 如果有足够的数据进行对比
+            if len(date_data) > 1:
+                # 合并所有产品的数据，确保数据类型一致
+                all_data = pd.concat(
+                    [df['pct_change'].rename(pid) for pid, df in date_data.items()], 
+                    axis=1
+                ).astype('float64')
+                
+                logger.info(f"合并后的数据形状: {all_data.shape}")
+                logger.info(f"合并后的数据类型: {all_data.dtypes}")
+                logger.info(f"合并后的数据索引: {all_data.index[:5]}")  # 显示前5个日期
+                logger.info(f"前10个数据:\n{all_data.head(10)}")
+                
+                # 计算相关系数矩阵
+                if not all_data.empty and len(all_data.columns) > 1:
+                    # 对齐日期并确保数据类型
+                    all_data = all_data.ffill()
+                    all_data = all_data.bfill()
+                    all_data = all_data.astype('float64')  # 确保数据类型一致
+                    
+                    correlation_df = all_data.corr()
+                    correlation_table = create_correlation_table(correlation_df)
+                else:
+                    correlation_table = html.Div(
+                        "数据对齐后无法计算相关性",
+                        style={'color': 'gray', 'text-align': 'center', 'margin': '20px'}
+                    )
+            else:
+                correlation_table = html.Div(
+                    "需要选择至少两个产品进行相关性分析",
+                    style={'color': 'gray', 'text-align': 'center', 'margin': '20px'}
+                )
+            
+            return figure, summary_children if len(summary_children) > 1 else [], tables_container, correlation_table
             
         except Exception as e:
             logger.error(f"Error in update_comparison: {str(e)}")
-            return go.Figure(), [], []
+            return go.Figure(), [], [], html.Div(f"Error: {str(e)}")

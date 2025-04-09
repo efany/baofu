@@ -9,6 +9,7 @@ from database.db_stocks import DBStocks
 from task_dash.utils import get_data_briefs
 import json
 from task_data.update_funds_task import UpdateFundsTask
+from task_data.update_stocks_task import UpdateStocksTask
 from task_data.update_stocks_info_task import UpdateStocksInfoTask
 from task_data.update_stocks_day_hist_task import UpdateStocksDayHistTask
 from database.mysql_database import MySQLDatabase
@@ -52,22 +53,68 @@ def register_product_manage_callbacks(app, mysql_db):
     @app.callback(
         Output("product-list-container", "children"),
         [Input("product-type-selector", "value"),
-         Input("update-product-data-button", "n_clicks")]
+         Input("update-product-data-button", "n_clicks"),
+         Input("add-product-button", "n_clicks")],
+        [State("new-product-code", "value")],
+        prevent_initial_call=True
     )
-    def update_product_list(product_type, n_clicks):
-        """更新产品列表"""
-        try:
-            if product_type == "fund":
-                return load_fund_list(mysql_db)
-            elif product_type == "stock":
-                return load_stock_list(mysql_db)
-            else:
-                return html.Div("请选择产品类型", style={"color": "gray", "padding": "20px"})
-            
-        except Exception as e:
-            logger.error(f"获取产品列表失败: {str(e)}")
-            return html.Div(f"获取产品列表失败: {str(e)}", 
-                           style={"color": "red", "padding": "20px"})
+    def update_product_list(product_type, update_clicks, add_clicks, new_product_code):
+        """更新产品列表：响应产品类型切换、更新产品和添加产品"""
+        ctx = dash.callback_context
+        if not ctx.triggered:
+            return load_fund_list(mysql_db) if product_type == "fund" else load_stock_list(mysql_db)
+        
+        trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
+        
+        # 处理添加新产品
+        if trigger_id == "add-product-button" and add_clicks:
+            if not new_product_code:
+                return load_fund_list(mysql_db) if product_type == "fund" else load_stock_list(mysql_db)
+
+            try:
+                # 处理输入的代码，支持多个代码，去除空格
+                product_codes = [code.strip() for code in new_product_code.split(",") if code.strip()]
+                
+                if not product_codes:
+                    logger.warning("未输入有效的产品代码")
+                    return load_fund_list(mysql_db) if product_type == "fund" else load_stock_list(mysql_db)
+                
+                logger.info(f"开始添加新{product_type}: {product_codes}")
+                
+                if product_type == "fund":
+                    # 创建更新基金任务
+                    task_config = {
+                        "name": "update_funds",
+                        "description": "添加新基金并更新数据",
+                        "fund_codes": product_codes,
+                        "update_all": False
+                    }
+                    task = UpdateFundsTask(task_config)
+                else:
+                    # 创建更新股票任务
+                    task_config = {
+                        "name": "update_stocks",
+                        "description": "添加新股票并更新数据",
+                        "stock_symbols": product_codes,
+                        "proxy": "http://127.0.0.1:7890",
+                        "update_info": True,
+                        "update_hist": True
+                    }
+                    task = UpdateStocksTask(mysql_db, task_config)
+                
+                # 执行任务
+                task.execute()
+                
+                if task.is_success:
+                    logger.success(f"成功添加新{product_type}: {', '.join(product_codes)}")
+                else:
+                    logger.error(f"添加失败: {task.error}")
+                    
+            except Exception as e:
+                logger.error(f"添加产品失败: {str(e)}")
+        
+        # 根据产品类型加载列表
+        return load_fund_list(mysql_db) if product_type == "fund" else load_stock_list(mysql_db)
 
     def load_fund_list(mysql_db):
         """加载基金列表"""

@@ -77,6 +77,11 @@ class UpdateStocksDayHistTask(BaseTask):
         end_date = datetime.strptime(self.task_config.get('end_date'), '%Y-%m-%d').date() if self.task_config.get('end_date') else None
 
         last_date = self.get_last_update_date(symbol)
+
+        if last_date and last_date == date.today():
+            last_date = last_date - timedelta(days=1)
+            logger.info(f"股票{symbol}的最新数据日期是今日，调整为昨日: {last_date}")
+
         if last_date:
             if start_date is None:
                 start_date = (last_date + timedelta(days=1))

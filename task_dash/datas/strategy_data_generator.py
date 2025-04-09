@@ -418,4 +418,15 @@ class StrategyDataGenerator(DataGenerator):
             'name': '交易记录',
             'headers': ['日期', '类型', '产品', '数量', '价格', '金额', '备注'],
             'data': trade_data
-        } 
+        }
+
+    def get_value_data(self) -> pd.DataFrame:
+        """获取策略总资产数据"""
+        if not self.backtest_result or 'daily_asset' not in self.backtest_result:
+            return pd.DataFrame()
+        
+        daily_asset = pd.DataFrame(self.backtest_result['daily_asset'])
+        return pd.DataFrame({
+            'date': daily_asset['date'],
+            'value': daily_asset['total']
+        }) 

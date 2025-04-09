@@ -69,10 +69,10 @@ class FundDataGenerator(DataGenerator):
         
         dates = self.fund_nav['nav_date'].tolist()
         
-        # 准备数据
-        adjusted_nav = self.fund_nav['adjusted_nav']
-        accum_nav = self.fund_nav['accum_nav']
-        unit_nav = self.fund_nav['unit_nav']
+        # 准备数据，确保数据类型
+        adjusted_nav = pd.to_numeric(self.fund_nav['adjusted_nav'], errors='coerce')
+        accum_nav = pd.to_numeric(self.fund_nav['accum_nav'], errors='coerce')
+        unit_nav = pd.to_numeric(self.fund_nav['unit_nav'], errors='coerce')
         
         # 如果需要归一化处理
         if normalize:
@@ -307,11 +307,13 @@ class FundDataGenerator(DataGenerator):
         dates = self.fund_nav['nav_date'].tolist()
         ma_data = []
         
-        values = self.fund_nav[value_column]
+        # 确保数据类型
+        values = pd.to_numeric(self.fund_nav[value_column], errors='coerce')
         if normalize:
             values = self.normalize_series(values)
             
-        ma = values.rolling(window=period).mean()
+        # 计算移动平均线，并确保数据类型
+        ma = values.rolling(window=period).mean().astype('float64')
         ma_data.append({
             'x': dates,
             'y': ma.tolist(),
@@ -325,7 +327,8 @@ class FundDataGenerator(DataGenerator):
 
     def _get_drawdown_data(self, value_column: str, normalize: bool = False) -> List[Dict[str, Any]]:
         """获取回撤数据"""
-        values = self.fund_nav[value_column]
+        # 确保数据类型
+        values = pd.to_numeric(self.fund_nav[value_column], errors='coerce')
         if normalize:
             values = self.normalize_series(values)
             
@@ -375,3 +378,13 @@ class FundDataGenerator(DataGenerator):
                         'showlegend': True
                     })
         return data
+
+    def get_value_data(self) -> pd.DataFrame:
+        """获取基金净值数据"""
+        if self.fund_nav is None or self.fund_nav.empty:
+            return pd.DataFrame()
+        
+        return pd.DataFrame({
+            'date': self.fund_nav['nav_date'],
+            'value': self.fund_nav['adjusted_nav']
+        })

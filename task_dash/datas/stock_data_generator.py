@@ -384,3 +384,13 @@ class StockDataGenerator(DataGenerator):
                         'showlegend': True
                     })
         return data
+
+    def get_value_data(self) -> pd.DataFrame:
+        """获取股票收盘价数据"""
+        if self.stock_data is None or self.stock_data.empty:
+            return pd.DataFrame()
+        
+        return pd.DataFrame({
+            'date': self.stock_data['date'],
+            'value': self.stock_data['close']
+        })

@@ -40,7 +40,6 @@ def create_product_management(mysql_db):
                     html.H4(id="product-list-title", children="基金列表"),
                     dbc.Card(
                         dbc.CardBody([
-                            # 产品列表将在这里动态加载
                             html.Div(id="product-list-container")
                         ])
                     )
@@ -51,12 +50,34 @@ def create_product_management(mysql_db):
                     html.H4("数据操作"),
                     dbc.Card(
                         dbc.CardBody([
+                            # 添加新产品的表单
+                            html.H5("添加新产品", className="mb-3"),
+                            dbc.Row([
+                                dbc.Col([
+                                    dbc.Label("产品代码"),
+                                    dbc.Input(
+                                        id="new-product-code",
+                                        type="text",
+                                        placeholder="输入产品代码，多个代码用逗号分隔"
+                                    )
+                                ]),
+                            ], className="mb-3"),
+                            dbc.Button(
+                                "添加产品",
+                                id="add-product-button",
+                                color="primary",
+                                className="mb-4"
+                            ),
+                            
+                            html.Hr(),  # 分隔线
+                            
                             # 更新按钮
+                            html.H5("更新数据", className="mb-3"),
                             dbc.Button(
                                 id="update-product-data-button",
                                 children="更新基金数据",
                                 color="primary",
-                                className="me-2"
+                                className="mb-3"
                             ),
                             
                             # 更新状态显示

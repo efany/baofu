@@ -82,7 +82,7 @@ class UpdateFundsInfoTask(BaseTask):
 
         db_fund_info = self.db_funds.get_fund_info(fund_code)
 
-        if not db_fund_info.empty:
+        if db_fund_info is not None and not db_fund_info.empty:
             logger.debug(f"基金{fund_code}已存在")
             self.db_funds.update_fund_info(fund_code, {'name': fund_info['fund_name'], 
                                            'management': fund_info['fund_company']})
