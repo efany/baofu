@@ -40,8 +40,8 @@ class RebalanceStrategy(BaseStrategy):
                 }
             },
             'target_weights': {  # 目标持仓权重
-                '159949.SZ': 0.3,
-                '512550.SS': 0.7
+                '159949.SZ': "0.3",
+                '512550.SS': "0.7"
             },
             'cash_reserve': 0.05  # 现金储备比例
         }
@@ -54,7 +54,7 @@ class RebalanceStrategy(BaseStrategy):
             raise ValueError("必须设置目标持仓权重")
         
         # 验证权重之和是否接近1
-        total_weight = sum(self.params['target_weights'].values())
+        total_weight = sum(float(weight) for weight in self.params['target_weights'].values())
         if not 0.99 <= total_weight <= 1.01:
             raise ValueError(f"目标持仓权重之和必须接近1，当前为{total_weight}")
         
@@ -177,6 +177,7 @@ class RebalanceStrategy(BaseStrategy):
                 # 检查每个产品的持仓偏移
                 max_deviation = 0
                 for symbol, target_weight in self.params['target_weights'].items():
+                    target_weight = float(target_weight)
                     data = self.getdatabyname(symbol)
                     if not data:
                         continue
@@ -195,6 +196,7 @@ class RebalanceStrategy(BaseStrategy):
                 # 如果最大偏差小于等于watermark，则不执行再平衡
                 if max_deviation <= watermark:
                     logger.info(f"{current_date} 最大持仓偏移 {max_deviation:.2%} 小于 watermark {watermark:.2%}，不执行再平衡")
+                    self.print_positions()
                     need_rebalance = False
         return need_rebalance
     
@@ -243,7 +245,7 @@ class RebalanceStrategy(BaseStrategy):
                 current_weight = position.size * data.close[0] / total_value
 
             # 获取目标权重
-            target_weight = target_weights.get(symbol, 0)
+            target_weight = float(target_weights.get(symbol, 0))
             
             # 计算当前权重与目标权重的偏差
             deviation = (current_weight - target_weight) / target_weight
@@ -275,7 +277,7 @@ class RebalanceStrategy(BaseStrategy):
             logger.warning(f"产品{symbol}不在目标权重配置中")
             return 0
             
-        weight = target_weights[symbol]
+        weight = float(target_weights[symbol])
         if weight <= 0:
             logger.warning(f"产品{symbol}的目标权重小于等于0")
             return 0

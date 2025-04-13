@@ -3,6 +3,7 @@ from typing import Dict, List, Optional
 import sys
 import os
 import pandas as pd
+from loguru import logger
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from database.mysql_database import MySQLDatabase
@@ -29,6 +30,7 @@ class DBStrategys:
                 - data_params: 数据参数
                 - initial_cash: 初始资金
                 - strategy: 策略配置
+                - parameters: 策略参数
                 
         Returns:
             bool: 是否添加成功
@@ -36,8 +38,8 @@ class DBStrategys:
         try:
             sql = """
                 INSERT INTO strategys 
-                (name, description, data_params, initial_cash, strategy)
-                VALUES (%s, %s, %s, %s, %s)
+                (name, description, data_params, initial_cash, strategy, parameters)
+                VALUES (%s, %s, %s, %s, %s, %s)
             """
             params = (
                 strategy_data.get('name'),
@@ -45,6 +47,7 @@ class DBStrategys:
                 strategy_data.get('data_params'),
                 strategy_data.get('initial_cash'),
                 strategy_data.get('strategy'),
+                strategy_data.get('parameters')
             )
             self.db.execute_query(sql, params)
             return True
@@ -85,8 +88,10 @@ class DBStrategys:
         return pd.DataFrame()
 
     def update_strategy(self, strategy_id: int, strategy_data: Dict) -> bool:
-        print(f"Updating strategy with ID: {strategy_id}")
-        print(f"Strategy data: {strategy_data}")
+        logger.info(f"Updating strategy with ID: {strategy_id}")
+        logger.info(f"Strategy data: {strategy_data}")
+        logger.info(f"Strategy: {strategy_data.get('strategy')}")
+        logger.info(f"Parameters: {strategy_data.get('parameters')}")
         """
         更新策略信息
         
@@ -104,7 +109,8 @@ class DBStrategys:
                     description = %s,
                     data_params = %s,
                     initial_cash = %s,
-                    strategy = %s
+                    strategy = %s,
+                    parameters = %s
                 WHERE strategy_id = %s
             """
             params = (
@@ -113,6 +119,7 @@ class DBStrategys:
                 strategy_data.get('data_params'),
                 strategy_data.get('initial_cash'),
                 strategy_data.get('strategy'),
+                strategy_data.get('parameters'),
                 strategy_id
             )
             self.db.execute_query(sql, params)

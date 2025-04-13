@@ -173,6 +173,7 @@ def register_products_compare_callbacks(app, mysql_db):
                         end_date=end_date
                     )
                     if generator:
+                        generator.load()
                         generators[f"f-{fund_id}"] = generator
                         # 添加摘要信息
                         summary_data = generator.get_summary_data()
@@ -237,6 +238,7 @@ def register_products_compare_callbacks(app, mysql_db):
                         end_date=end_date
                     )
                     if generator:
+                        generator.load()
                         generators[f"s-{stock_id}"] = generator
                         # 添加摘要信息
                         summary_data = generator.get_summary_data()
@@ -301,6 +303,7 @@ def register_products_compare_callbacks(app, mysql_db):
                         end_date=end_date
                     )
                     if generator:
+                        generator.load()
                         generators[f"st-{strategy_id}"] = generator
                         # 添加摘要信息
                         summary_data = generator.get_summary_data()

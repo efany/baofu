@@ -2,7 +2,7 @@ import sys
 import os
 import dash
 from dash import html, dcc
-from dash.dependencies import Input, Output
+from dash.dependencies import Input, Output, State
 import plotly.graph_objs as go
 import pandas as pd
 from loguru import logger
@@ -136,21 +136,146 @@ def register_single_product_callbacks(app, mysql_db):
             logger.error(f"Error in update_data_options: {str(e)}")
             return [], ''
 
+    # 添加参数配置回调
+    @app.callback(
+        Output('params-config-container', 'children'),
+        [Input('product-dropdown', 'value'),
+         Input('type-dropdown', 'value')]
+    )
+    def update_params_config(selected_data, data_type):
+        """更新参数配置界面"""
+        if not selected_data or not data_type:
+            return html.Div()
+        
+        try:
+            # 创建数据生成器
+            generator = create_data_generator(
+                data_type=data_type,
+                data_id=selected_data,
+                mysql_db=mysql_db,
+                start_date=None,
+                end_date=None
+            )
+            
+            if generator is None:
+                return html.Div("无法获取参数配置", style={'color': 'red'})
+            
+            # 获取参数配置
+            params_config = generator.get_params_config()
+            if not params_config:
+                return html.Div("该产品无可配置参数", style={'color': 'gray', 'padding': '10px'})
+            
+            # 创建参数输入界面
+            params_inputs = []
+            for param in params_config:
+                param_id = f"param-{param['name']}"
+                
+                # 根据参数类型创建不同的输入组件
+                if param['type'] == 'number':
+                    input_component = dcc.Input(
+                        id=param_id,
+                        type='number',
+                        value=param.get('value', param.get('default')),
+                        min=param.get('min'),
+                        max=param.get('max'),
+                        step=param.get('step', 1),
+                        style={'width': '150px'}
+                    )
+                elif param['type'] == 'select':
+                    input_component = dcc.Dropdown(
+                        id=param_id,
+                        options=param.get('options', []),
+                        value=param.get('value', param.get('default')),
+                        style={'width': '150px'}
+                    )
+                elif param['type'] == 'float':
+                    input_component = dcc.Input(
+                        id=param_id,
+                        type='number',
+                        value=param.get('value', param.get('default')),
+                        min=param.get('min'),
+                        max=param.get('max'),
+                        step=param.get('step', 0.01),
+                        style={'width': '150px'}
+                    )
+                else:  # text类型或其他类型
+                    input_component = dcc.Input(
+                        id=param_id,
+                        type='text',
+                        value=param.get('value', param.get('default')),
+                        placeholder=param.get('placeholder', ''),
+                        style={'width': '150px'}
+                    )
+                
+                params_inputs.append(
+                    html.Div([
+                        html.Label(
+                            param['label'], 
+                            style={
+                                'marginRight': '10px',
+                                'minWidth': '120px',
+                                'display': 'inline-block',
+                                'textAlign': 'right'
+                            }
+                        ),
+                        input_component,
+                        html.Div(
+                            param.get('description', ''),
+                            style={
+                                'marginLeft': '10px',
+                                'color': '#666',
+                                'fontSize': '12px'
+                            }
+                        ) if param.get('description') else None
+                    ], style={
+                        'marginBottom': '10px',
+                        'display': 'flex',
+                        'alignItems': 'center'
+                    })
+                )
+            
+            return html.Div(params_inputs)
+            
+        except Exception as e:
+            logger.error(f"Error in update_params_config: {str(e)}")
+            return html.Div(f"参数配置加载失败: {str(e)}", style={'color': 'red'})
+
     @app.callback(
         [Output('product-value-graph', 'figure'),
          Output('product-summary-table', 'children'),
          Output('product-tables-left-column', 'children'),
          Output('product-tables-right-column', 'children')],
-        [Input('type-dropdown', 'value'),
-         Input('product-dropdown', 'value'),
-         Input('line-options', 'value'),
-         Input('time-range-dropdown', 'value')]
+        [Input('query-button', 'n_clicks')],
+        [State('type-dropdown', 'value'),
+         State('product-dropdown', 'value'),
+         State('line-options', 'value'),
+         State('time-range-dropdown', 'value'),
+         State('params-config-container', 'children')]  # 添加参数配置状态
     )
-    def update_product_display(data_type, selected_data, line_options, time_range):
+    def update_product_display(n_clicks, data_type, selected_data, line_options, time_range, params_config):
         """更新数据展示"""
+        if not n_clicks:  # 初始加载时不触发更新
+            raise dash.exceptions.PreventUpdate
+        
         try:
             # 获取日期范围
             start_date, end_date = get_date_range(time_range)
+
+            logger.info(f"更新数据时间范围: {start_date} {end_date}")
+            
+            # 解析参数配置
+            params = {}
+            if params_config and isinstance(params_config, dict):
+                for param_div in params_config.get('props', {}).get('children', []):
+                    if isinstance(param_div, dict) and 'props' in param_div:
+                        input_props = param_div['props']
+                        for child in input_props.get('children', []):
+                            if isinstance(child, dict) and child.get('props', {}).get('id', '').startswith('param-'):
+                                param_name = child['props']['id'].replace('param-', '')
+                                param_value = child['props'].get('value')
+                                if param_value is not None:
+                                    params[param_name] = param_value
+                                    logger.info(f"更新参数: {param_name} = {param_value}")
             
             # 创建数据生成器
             generator = create_data_generator(
@@ -163,6 +288,13 @@ def register_single_product_callbacks(app, mysql_db):
 
             if generator is None:
                 return go.Figure(), html.Div("创建数据生成器失败", style={'color': 'red'}), [], []
+
+            # 更新参数
+            if params:
+                generator.update_params(params)
+
+            if not generator.load():
+                return go.Figure(), html.Div("数据加载失败", style={'color': 'red'}), [], []
 
             # 获取数据
             summary_data = generator.get_summary_data()

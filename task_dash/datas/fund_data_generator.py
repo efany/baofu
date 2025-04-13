@@ -1,7 +1,7 @@
 from typing import Dict, List, Optional, Any, Tuple, Literal, TypedDict
 from datetime import date
 import pandas as pd
-from .data_generator import DataGenerator, TableData, ChartDataType
+from .data_generator import DataGenerator, TableData, ChartDataType, ParamConfig
 from database.db_funds import DBFunds
 from database.db_funds_nav import DBFundsNav
 from database.mysql_database import MySQLDatabase
@@ -18,9 +18,8 @@ class FundDataGenerator(DataGenerator):
         self.db_funds = DBFunds(mysql_db)
         self.fund_info = None
         self.fund_nav = None
-        self._load_data()
     
-    def _load_data(self):
+    def load(self) -> bool:
         """加载基金数据"""
         self.fund_info = self.db_funds.get_fund_info(self.fund_code)
         self.fund_nav = self.db_funds_nav.get_fund_nav(self.fund_code)
@@ -41,6 +40,15 @@ class FundDataGenerator(DataGenerator):
         calculate_adjusted_nav(self.fund_nav, self.start_date, self.end_date)
 
         logger.info(f"基金数据加载完成: {self.fund_code}  {self.start_date}  {self.end_date} , 共{len(self.fund_nav)}条数据")
+        return True
+
+    def get_params_config(self) -> List[ParamConfig]:
+        """获取基金参数配置"""
+        return []
+    
+    def update_params(self, params: Dict[str, Any]) -> bool:
+        """更新基金参数"""
+        return True
     
     def get_summary_data(self) -> List[Tuple[str, Any]]:
         """获取基金摘要数据"""

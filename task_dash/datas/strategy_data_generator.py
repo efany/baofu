@@ -2,11 +2,12 @@ from typing import Dict, List, Optional, Any, Tuple, Literal, TypedDict
 from datetime import date
 import pandas as pd
 from loguru import logger
-from .data_generator import DataGenerator, TableData, ChartDataType
+from .data_generator import DataGenerator, TableData, ChartDataType, ParamConfig
 from database.mysql_database import MySQLDatabase
 from database.db_strategys import DBStrategys
 from task_utils.data_utils import calculate_max_drawdown
 from task_backtrader.backtrader_task import BacktraderTask
+import json
 
 class StrategyDataGenerator(DataGenerator):
     """策略数据生成器"""
@@ -16,19 +17,60 @@ class StrategyDataGenerator(DataGenerator):
         self.strategy_id = strategy_id
         self.db_strategys = DBStrategys(mysql_db)
         self.mysql_db = mysql_db
-        self.strategy_info = None
         self.backtest_result = None
-        self._load_data()
+        self.strategys = self.db_strategys.get_strategy(self.strategy_id)
+        self.parameter_configs = []
+        self.params = {}
+        if not self.strategys.empty:
+            self.strategy = self.strategys.iloc[0]
+        else:
+            self.strategy = None
+        
+        if self.strategy is not None:
+            parameters = json.loads(self.strategy['parameters'])
+            if not parameters:
+                return []
+            parameters = parameters['parameters']
+            for parameter in parameters:
+                if parameter['type'] == 'float':
+                    param = ParamConfig(
+                        type=parameter['type'],
+                        name=parameter['name'],
+                        label=parameter['label'],
+                        value=float(parameter['value']),
+                        min=float(parameter['min']),
+                        max=float(parameter['max']),
+                        step=float(parameter['step'])
+                    )
+                    self.params[parameter['name']] = parameter['value']
+                    self.parameter_configs.append(param)
     
-    def _load_data(self):
+    def load(self) -> bool:
         """加载策略数据"""
-        strategy = self.db_strategys.get_strategy(self.strategy_id)
-        if not strategy.empty:
-            self.strategy_info = strategy.iloc[0]
-            self.strategy_info['strategy'] = self.strategy_info['strategy'] \
+        if self.strategy is None:
+            return False
+        
+        strategy_info = {
+            'name': self.strategy['name'],
+            'description': self.strategy['description'],
+            'initial_cash': self.strategy['initial_cash'],
+            'data_params': self.strategy['data_params'],
+            'strategy': self.strategy['strategy']
+        }
+        
+        # 获取策略参数
+        try:
+            # 替换日期占位符
+            strategy_info['strategy'] = strategy_info['strategy'] \
                 .replace("<open_date>", self.start_date.strftime("%Y-%m-%d") if self.start_date else "") \
                 .replace("<close_date>", self.end_date.strftime("%Y-%m-%d") if self.end_date else "")
-            task = BacktraderTask(self.mysql_db, self.strategy_info)
+
+            for param_name, param_value in self.params.items():
+                strategy_info['strategy'] = strategy_info['strategy'] \
+                    .replace(f"<{param_name}>", str(param_value))
+            
+            # 创建回测任务
+            task = BacktraderTask(self.mysql_db, strategy_info)
             task.execute()
             if task.is_success:
                 self.backtest_result = task.result
@@ -38,10 +80,28 @@ class StrategyDataGenerator(DataGenerator):
                     daily_asset['date'] = pd.to_datetime(daily_asset['date'])
                     # 过滤日期范围
                     self.backtest_result['daily_asset'] = daily_asset.to_dict('records')
+                return True
+            else:
+                return False
+            
+        except Exception as e:
+            logger.error(f"加载策略数据失败: {str(e)}")
+            return False
+        
+    def get_params_config(self) -> List[ParamConfig]:
+        """获取策略的可调节参数配置"""
+        return self.parameter_configs
+    
+    def update_params(self, params: Dict[str, Any]) -> bool:
+        """更新策略的参数设置"""
+        for param_name, param_value in params.items():
+            if param_name in self.params:
+                self.params[param_name] = param_value
+        return True
     
     def get_summary_data(self) -> List[Tuple[str, Any]]:
         """获取策略摘要数据"""
-        if self.strategy_info is None or not self.backtest_result:
+        if self.strategy is None or not self.backtest_result:
             return []
         
         daily_asset = pd.DataFrame(self.backtest_result['daily_asset'])
@@ -58,8 +118,8 @@ class StrategyDataGenerator(DataGenerator):
         
         return [
             ('策略ID', self.strategy_id),
-            ('策略名称', self.strategy_info['name']),
-            ('策略描述', self.strategy_info['description']),
+            ('策略名称', self.strategy['name']),
+            ('策略描述', self.strategy['description']),
             ('统计区间', date_range),
             ('区间收益率', f"{return_rate:+.2f}% (¥{initial_value:,.2f} -> ¥{final_value:,.2f})")
         ]

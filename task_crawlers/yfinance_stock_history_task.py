@@ -72,8 +72,12 @@ class YFinanceStockHistoryTask(BaseTask):
                 
                 # 获取当前批次的数据
                 logger.info(f"获取{self.stock_symbol}从{current_start.strftime('%Y-%m-%d')}到{current_end.strftime('%Y-%m-%d')}的数据")
-                df = ticker.history(start=current_start, end=current_end)
+                df = ticker.history(start=current_start, end=current_end, actions=True)
                 logger.info(f"获取到的数据长度: {len(df)}")
+                logger.info(f"获取到的数据:\n{df}")
+
+                # df_actions = ticker.actions
+                # logger.info(f"获取到的分红数据:\n{df_actions}")
                 
                 # 如果没有获取到数据，退出循环
                 if df.empty:
@@ -135,16 +139,16 @@ def main():
     task_config = {
         "name": "yfinance_stock_history",
         "description": "爬取yfinance股票历史数据",
-        "stock_symbol": "159633.SZ",
+        "stock_symbol": "515220.SS",
         "proxy": "http://127.0.0.1:7890",
-        "start_date": "2023-07-01",
-        "end_date": "2023-08-01"
+        "start_date": "2024-03-01",
+        "end_date": "2024-05-01"
     }
     
     task = YFinanceStockHistoryTask(task_config)
     task.execute()
     if task.is_success:
-        logger.info(f"历史数据前5条:\n{task.result}")
+        logger.info(f"历史数据前5条:\n{task.result['hist_data'][:5]}")
     else:
         logger.error("获取历史数据失败")
 

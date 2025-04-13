@@ -109,7 +109,8 @@ if __name__ == "__main__":
         description VARCHAR(500),
         data_params VARCHAR(500),
         initial_cash FLOAT,
-        strategy VARCHAR(500),
+        strategy VARCHAR(2000),
+        parameters VARCHAR(2000),
         create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         """

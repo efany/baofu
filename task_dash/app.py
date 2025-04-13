@@ -16,7 +16,7 @@ from task_dash.pages.single_product import create_single_product_value_graph
 from task_dash.callback.single_product_callbacks import register_single_product_callbacks
 
 from task_dash.pages.strategy_manage import create_strategy_management
-from task_dash.callback.strategy_manage_callback import register_strategy_manage_callbacks
+from task_dash.callback.strategy_manage_callbacks import register_strategy_manage_callbacks
 
 from task_dash.pages.products_compare import create_products_compare_page
 from task_dash.callback.products_compare_callbacks import register_products_compare_callbacks

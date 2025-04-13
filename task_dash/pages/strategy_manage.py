@@ -23,12 +23,14 @@ def create_strategy_form():
                 dbc.Input(id="strategy-cash-input", type="number", placeholder="输入初始资金")
             ], width=6),
         ], className="mb-3"),
+        
         dbc.Row([
             dbc.Col([
                 dbc.Label("策略描述"),
                 dbc.Textarea(id="strategy-description-input", placeholder="输入策略描述")
             ], width=12),
         ], className="mb-3"),
+        
         dbc.Row([
             dbc.Col([
                 dbc.Label("数据参数"),
@@ -36,7 +38,6 @@ def create_strategy_form():
                     id="strategy-data-params-input",
                     value="""
                     {
-                        "start_date": "2024-01-01",
                         "fund_codes": ["007540","003376"]
                     }
                     """,
@@ -44,6 +45,26 @@ def create_strategy_form():
                 )
             ], width=12),
         ], className="mb-3"),
+        
+        dbc.Row([
+            dbc.Col([
+                dbc.Label("策略参数"),
+                dbc.Textarea(
+                    id="strategy-parameters-input",
+                    value="""
+                    {
+                        "rebalance_period": 20,
+                        "position_size": 50,
+                        "ma_periods": ["MA20", "MA60"],
+                        "show_drawdown": "top3"
+                    }
+                    """,
+                    rows=6,
+                    placeholder="输入策略参数（JSON格式）"
+                )
+            ], width=12),
+        ], className="mb-3"),
+        
         dbc.Row([
             dbc.Col([
                 dbc.Label("策略配置"),
@@ -52,8 +73,8 @@ def create_strategy_form():
                     value="""
                     {
                         "name": "BuyAndHold",
-                        "open_date": "2024-01-01",
-                        "close_date": "2024-12-30",
+                        "open_date": "<open_date>",
+                        "close_date": "<close_date>",
                         "dividend_method": "reinvest",
                         "products": ["007540","003376"],
                         "weights": [0.5,0.5]

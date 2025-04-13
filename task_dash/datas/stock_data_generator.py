@@ -6,7 +6,7 @@ from loguru import logger
 from database.db_stocks_day_hist import DBStocksDayHist
 from database.db_stocks import DBStocks
 from database.mysql_database import MySQLDatabase
-from .data_generator import DataGenerator, TableData
+from .data_generator import DataGenerator, TableData, ParamConfig
 from task_utils.data_utils import calculate_adjusted_nav, calculate_return_rate, calculate_max_drawdown
 
 class StockDataGenerator(DataGenerator):
@@ -27,9 +27,8 @@ class StockDataGenerator(DataGenerator):
         self.db_stocks = DBStocks(mysql_db)
         self.db_stocks_day_hist = DBStocksDayHist(mysql_db)
         self.stock_data = None
-        self._load_data()
     
-    def _load_data(self):
+    def load(self) -> bool:
         """加载股票数据"""
         self.stock_info = self.db_stocks.get_stock_info(self.stock_code)
         
@@ -54,6 +53,10 @@ class StockDataGenerator(DataGenerator):
                     self.start_date = previous_date.date()
                 else:
                     logger.warning(f"没有找到早于 {self.start_date} 的有效数据日期")
+                    return False
+        else:    
+            logger.warning(f"没有找到股票数据: {self.stock_code}")
+            return False
 
         # 使用调整后的日期范围获取数据
         self.stock_data = self.db_stocks_day_hist.get_stock_hist_data(self.stock_code, self.start_date, self.end_date)
@@ -63,6 +66,16 @@ class StockDataGenerator(DataGenerator):
             logger.info(f"股票数据加载完成: {self.stock_code}  {self.start_date}  {self.end_date} , 共{len(self.stock_data)}条数据")
         else:
             logger.warning(f"未找到股票数据: {self.stock_code}")
+            return False
+        
+        return True
+    def get_params_config(self) -> List[ParamConfig]:
+        """获取股票参数配置"""
+        return []
+    
+    def update_params(self, params: Dict[str, Any]) -> bool:
+        """更新股票参数"""
+        return True
 
     def get_summary_data(self) -> List[Tuple[str, Any]]:
         """获取股票摘要数据"""
