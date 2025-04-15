@@ -74,7 +74,6 @@ class YFinanceStockHistoryTask(BaseTask):
                 logger.info(f"获取{self.stock_symbol}从{current_start.strftime('%Y-%m-%d')}到{current_end.strftime('%Y-%m-%d')}的数据")
                 df = ticker.history(start=current_start, end=current_end, actions=True)
                 logger.info(f"获取到的数据长度: {len(df)}")
-                logger.info(f"获取到的数据:\n{df}")
 
                 # df_actions = ticker.actions
                 # logger.info(f"获取到的分红数据:\n{df_actions}")
@@ -119,7 +118,6 @@ class YFinanceStockHistoryTask(BaseTask):
                     'total_records': len(all_data)
                 }
                 logger.info(f"成功获取{self.stock_symbol}的历史数据，共{len(all_data)}条记录")
-                logger.info(f"{all_data}")
 
             else:
                 return {

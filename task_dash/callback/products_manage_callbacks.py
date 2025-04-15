@@ -389,16 +389,9 @@ def register_product_manage_callbacks(app, mysql_db):
             
     def update_stock_data(selected_stocks):
         """更新股票数据"""
-        # 更新股票信息
-        info_task_config = {
-            "name": "update_stocks_info",
-            "description": "更新股票基本信息",
-            "stock_symbols": selected_stocks
-        }
-        
         # 更新股票历史数据
-        hist_task_config = {
-            "name": "update_stocks_day_hist",
+        task_config = {
+            "name": "update_stocks",
             "description": "更新股票日线历史数据",
             "stock_symbols": selected_stocks,
             "proxy": "http://127.0.0.1:7890",  # 根据实际情况调整代理
@@ -411,29 +404,18 @@ def register_product_manage_callbacks(app, mysql_db):
         
         try:
             # 执行股票信息更新任务
-            info_task = UpdateStocksInfoTask(mysql_db, info_task_config)
-            info_task.execute()
+            task = UpdateStocksTask(mysql_db, task_config)
+            task.execute()
             
-            if info_task.is_success:
+            if task.is_success:
                 info_result = "股票信息更新成功\n"
                 logger.info(f"成功更新{len(selected_stocks)}只股票的基本信息")
             else:
-                info_result = f"股票信息更新失败: {info_task.error}\n"
-                logger.error(f"更新股票信息失败: {info_task.error}")
-            
-            # 执行股票历史数据更新任务
-            hist_task = UpdateStocksDayHistTask(mysql_db, hist_task_config)
-            hist_task.execute()
-            
-            if hist_task.is_success:
-                hist_result = "股票历史数据更新成功\n"
-                logger.info(f"成功更新{len(selected_stocks)}只股票的历史数据")
-            else:
-                hist_result = f"股票历史数据更新失败: {hist_task.error}\n"
-                logger.error(f"更新股票历史数据失败: {hist_task.error}")
-            
+                info_result = f"股票信息更新失败: {task.error}\n"
+                logger.error(f"更新股票信息失败: {task.error}")
+
             # 合并结果
-            if info_task.is_success and hist_task.is_success:
+            if task.is_success:
                 return html.Div(
                     f"成功更新 {len(selected_stocks)} 只股票的基本信息和历史数据",
                     style={"color": "green"}

@@ -86,7 +86,7 @@ class StrategyDataGenerator(DataGenerator):
             
         except Exception as e:
             logger.error(f"加载策略数据失败: {str(e)}")
-            return False
+            return Falswe
         
     def get_params_config(self) -> List[ParamConfig]:
         """获取策略的可调节参数配置"""

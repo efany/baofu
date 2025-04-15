@@ -11,6 +11,7 @@ from database.mysql_database import MySQLDatabase
 from task.base_task import BaseTask
 from task.exceptions import TaskConfigError, TaskExecutionError
 from task_crawlers.yfinance_stock_history_task import YFinanceStockHistoryTask
+from task_crawlers.akshare_etf_history_task import AKShareETFHistoryTask
 from database.db_stocks_day_hist import DBStocksDayHist
 
 class UpdateStocksDayHistTask(BaseTask):
@@ -110,7 +111,8 @@ class UpdateStocksDayHistTask(BaseTask):
         }
         
         # 执行爬虫任务
-        crawler = YFinanceStockHistoryTask(crawler_config)
+        # crawler = YFinanceStockHistoryTask(crawler_config)
+        crawler = AKShareETFHistoryTask(crawler_config)   
         crawler.execute()
         
         if not crawler.is_success:
@@ -182,7 +184,7 @@ if __name__ == "__main__":
     task_config = {
         "name": "update_stocks_day_hist",
         "description": "更新股票日线历史数据",
-        "stock_symbols": ["512500.SS"],  # 示例股票代码列表
+        "stock_symbols": ["515220.SS"],  # 示例股票代码列表
         "proxy": "http://127.0.0.1:7890"  # 可选的代理设置
     }
     
