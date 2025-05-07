@@ -6,6 +6,7 @@ from loguru import logger
 import sys
 import os
 import pandas as pd
+import numpy as np
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from task_dash.datas.data import create_data_generator
@@ -103,6 +104,176 @@ def create_correlation_table(correlation_df):
         }
     )
 
+def create_product_tables(product_extra_datas):
+    """创建产品表格，将相同name的表格合并显示"""
+    
+    # 按表格名称分组
+    grouped_tables = {}
+    for product_id, extra_datas in product_extra_datas.items():
+        for table_data in extra_datas:
+            name = table_data['name']
+            if name not in grouped_tables:
+                grouped_tables[name] = []
+            # 添加产品标识
+            table_data['product_id'] = product_id
+            grouped_tables[name].append(table_data)
+    
+    tables = []
+    
+    # 处理每组表格
+    for table_name, table_group in grouped_tables.items():
+        if len(table_group) > 1:  # 多个产品的相同表格，需要合并
+            tables.append(
+                html.Div([
+                    html.H6(table_name, style={
+                        'color': '#1890ff',
+                        'marginBottom': '10px',
+                        'textAlign': 'center'
+                    }),
+                    create_merged_table(table_group)
+                ], style={
+                    'width': '100%',
+                    'padding': '10px',
+                    'border': '1px solid #e8e8e8',
+                    'borderRadius': '4px',
+                    'backgroundColor': '#fff',
+                    'marginBottom': '20px'
+                })
+            )
+        else:  # 单个产品的表格，直接显示
+            table_data = table_group[0]
+            tables.append(
+                html.Div([
+                    html.H6(f"{table_name} ({table_data['product_id']})", style={
+                        'color': '#1890ff',
+                        'marginBottom': '10px',
+                        'textAlign': 'center'
+                    }),
+                    create_table(table_data)
+                ], style={
+                    'width': '100%',
+                    'padding': '10px',
+                    'border': '1px solid #e8e8e8',
+                    'borderRadius': '4px',
+                    'backgroundColor': '#fff',
+                    'marginBottom': '20px'
+                })
+            )
+    
+    return html.Div(
+        tables,
+        style={
+            'display': 'flex',
+            'flexDirection': 'column',
+            'width': '100%',
+            'gap': '20px'
+        }
+    )
+
+def create_merged_table(table_group):
+    """创建合并后的对比表格"""
+    if not table_group:
+        return html.Div("暂无数据")
+    
+    # 提取所有指标名称
+    all_metrics = set()
+    for table in table_group:
+        for row in table['data']:
+            all_metrics.add(row[0])  # 假设第一列是指标名称
+    
+    # 创建表头
+    header = html.Tr([
+        html.Th("指标"),
+        *[html.Th(f"产品 {table['product_id']}", style={'textAlign': 'center'}) 
+          for table in table_group]
+    ])
+    
+    # 创建表格内容
+    rows = []
+    for metric in sorted(all_metrics):
+        row_data = [html.Td(metric, style={'fontWeight': 'bold'})]
+        
+        # 获取第一个产品的值作为基准
+        base_value = None
+        base_table = table_group[0]
+        base_row = next((row for row in base_table['data'] if row[0] == metric), None)
+        if base_row:
+            try:
+                base_value = float(str(base_row[1]).replace(',', '').replace('%', ''))
+            except (ValueError, TypeError):
+                base_value = None
+        
+        # 添加第一列数据
+        if base_row:
+            row_data.append(html.Td(base_row[1], style={'textAlign': 'center'}))
+        else:
+            row_data.append(html.Td('-', style={'textAlign': 'center'}))
+        
+        # 添加其他列数据，并与第一列比较
+        for table in table_group[1:]:
+            cell_value = next((row[1] for row in table['data'] if row[0] == metric), '-')
+            
+            # 如果基准值存在且当前值可以转换为数值，则计算差异
+            if base_value is not None:
+                try:
+                    current_value = float(str(cell_value).replace(',', '').replace('%', ''))
+                    abs_diff = current_value - base_value
+                    rel_diff = (abs_diff / abs(base_value)) * 100 if base_value != 0 else float('inf')
+                    
+                    # 设置颜色
+                    if abs_diff > 0:
+                        color = '#f5222d'  # 红色表示高于基准
+                    elif abs_diff < 0:
+                        color = '#52c41a'  # 绿色表示低于基准
+                    else:
+                        color = '#000000'  # 黑色表示相等
+                    
+                    # 格式化显示
+                    if '%' in str(cell_value):  # 百分比值
+                        formatted_value = f"{cell_value}\n({abs_diff:+.2f}%)"
+                    else:  # 普通数值
+                        formatted_value = (
+                            f"{cell_value}\n"
+                            f"[Δ: {abs_diff:+.2f} ({rel_diff:+.2f}%)]"
+                        )
+                    
+                    cell_content = html.Div([
+                        html.Div(cell_value, style={'marginBottom': '2px'}),
+                        html.Div(
+                            f"Δ: {abs_diff:+.2f} ({rel_diff:+.2f}%)", 
+                            style={
+                                'fontSize': '12px',
+                                'color': color,
+                                'borderTop': '1px solid #eee'
+                            }
+                        )
+                    ], style={'textAlign': 'center'})
+                    
+                except (ValueError, TypeError):
+                    cell_content = cell_value
+            else:
+                cell_content = cell_value
+            
+            row_data.append(html.Td(
+                cell_content,
+                style={
+                    'textAlign': 'center',
+                    'padding': '8px'
+                }
+            ))
+        
+        rows.append(html.Tr(row_data))
+    
+    return html.Table(
+        [html.Thead(header), html.Tbody(rows)],
+        style={
+            'width': '100%',
+            'borderCollapse': 'collapse',
+            'border': '1px solid #d9d9d9',
+            'backgroundColor': '#fff'
+        }
+    )
+
 def register_products_compare_callbacks(app, mysql_db):
     @app.callback(
         [Output('fund-dropdown', 'options'),
@@ -151,16 +322,13 @@ def register_products_compare_callbacks(app, mysql_db):
             # 创建图表数据
             figure_data = []
             summary_children = []
-            product_tables = []  # 存储每个产品的表格数据
             generators = {}  # 存储产品id和generator的映射
+            product_extra_datas = {}  # 存储每个产品的统计数据
             
             # 计算总产品数量，用于计算每列宽度
             total_products = len(fund_values or []) + len(stock_values or []) + len(strategy_values or [])
             if total_products == 0:
                 return go.Figure(), [], [], html.Div(f"Error: 需要选择至少一个产品进行对比")
-            
-            # 计算每列宽度百分比
-            column_width = f"{100 / total_products}%"
             
             # 处理基金数据
             if fund_values:
@@ -203,29 +371,7 @@ def register_products_compare_callbacks(app, mysql_db):
                             # 获取统计数据
                             extra_datas = generator.get_extra_datas()
                             if extra_datas:
-                                product_tables.append(
-                                    html.Div([
-                                        html.H6(f"基金 {fund_id}", style={
-                                            'color': '#1890ff',
-                                            'marginBottom': '10px',
-                                            'textAlign': 'center'
-                                        }),
-                                        html.Div([
-                                            create_table(table_data)
-                                            for table_data in extra_datas
-                                        ], style={
-                                            'display': 'flex',
-                                            'flexDirection': 'column',
-                                            'gap': '10px'
-                                        })
-                                    ], style={
-                                        'width': column_width,
-                                        'padding': '10px',
-                                        'border': '1px solid #e8e8e8',
-                                        'borderRadius': '4px',
-                                        'backgroundColor': '#fff'
-                                    })
-                                )
+                                product_extra_datas[f"f-{fund_id}"] = extra_datas
             
             # 处理股票数据
             if stock_values:
@@ -268,29 +414,7 @@ def register_products_compare_callbacks(app, mysql_db):
                             # 获取统计数据
                             extra_datas = generator.get_extra_datas()
                             if extra_datas:
-                                product_tables.append(
-                                    html.Div([
-                                        html.H6(f"股票 {stock_id}", style={
-                                            'color': '#f5222d',
-                                            'marginBottom': '10px',
-                                            'textAlign': 'center'
-                                        }),
-                                        html.Div([
-                                            create_table(table_data)
-                                            for table_data in extra_datas
-                                        ], style={
-                                            'display': 'flex',
-                                            'flexDirection': 'column',
-                                            'gap': '10px'
-                                        })
-                                    ], style={
-                                        'width': column_width,
-                                        'padding': '10px',
-                                        'border': '1px solid #e8e8e8',
-                                        'borderRadius': '4px',
-                                        'backgroundColor': '#fff'
-                                    })
-                                )
+                                product_extra_datas[f"s-{stock_id}"] = extra_datas
             
             # 处理策略数据
             if strategy_values:
@@ -333,31 +457,8 @@ def register_products_compare_callbacks(app, mysql_db):
                             # 获取统计数据
                             extra_datas = generator.get_extra_datas()
                             if extra_datas:
-                                # 创建产品列
-                                product_tables.append(
-                                    html.Div([
-                                        html.H6(f"策略 {strategy_id}", style={
-                                            'color': '#52c41a',
-                                            'marginBottom': '10px',
-                                            'textAlign': 'center'
-                                        }),
-                                        html.Div([
-                                            create_table(table_data)
-                                            for table_data in extra_datas
-                                        ], style={
-                                            'display': 'flex',
-                                            'flexDirection': 'column',
-                                            'gap': '10px'
-                                        })
-                                    ], style={
-                                        'width': column_width,  # 使用计算的宽度
-                                        'padding': '10px',
-                                        'border': '1px solid #e8e8e8',
-                                        'borderRadius': '4px',
-                                        'backgroundColor': '#fff'
-                                    })
-                                )
-            
+                                product_extra_datas[f"st-{strategy_id}"] = extra_datas
+
             # 创建图表
             figure = {
                 'data': figure_data,
@@ -377,17 +478,7 @@ def register_products_compare_callbacks(app, mysql_db):
             }
             
             # 创建表格容器
-            tables_container = html.Div(
-                product_tables,
-                style={
-                    'display': 'flex',
-                    'flexWrap': 'nowrap',  # 不换行
-                    'gap': '20px',
-                    'width': '100%',  # 占满容器宽度
-                    'marginTop': '20px',
-                    'padding': '0 20px'  # 添加左右内边距
-                }
-            ) if product_tables else []
+            tables_container = create_product_tables(product_extra_datas)
             
             # 计算相关系数
             all_data = pd.DataFrame()
@@ -418,19 +509,33 @@ def register_products_compare_callbacks(app, mysql_db):
                     axis=1
                 ).astype('float64')
                 
-                logger.info(f"合并后的数据形状: {all_data.shape}")
-                logger.info(f"合并后的数据类型: {all_data.dtypes}")
-                logger.info(f"合并后的数据索引: {all_data.index[:5]}")  # 显示前5个日期
-                logger.info(f"前10个数据:\n{all_data.head(10)}")
-                
                 # 计算相关系数矩阵
                 if not all_data.empty and len(all_data.columns) > 1:
-                    # 对齐日期并确保数据类型
-                    all_data = all_data.ffill()
-                    all_data = all_data.bfill()
-                    all_data = all_data.astype('float64')  # 确保数据类型一致
+                    # 创建一个空的相关系数矩阵
+                    correlation_df = pd.DataFrame(index=all_data.columns, columns=all_data.columns)
                     
-                    correlation_df = all_data.corr()
+                    # 对每对产品单独计算相关系数
+                    for i, col1 in enumerate(all_data.columns):
+                        for j, col2 in enumerate(all_data.columns):
+                            if i < j:  # 只计算上三角矩阵
+                                # 只使用两个产品同时有数据的日期
+                                logger.info(f"计算{col1}和{col2}的相关系数")
+                                pair_data = all_data[[col1, col2]].copy().dropna()  # 选择两列数据并删除缺失值
+                                if not pair_data.empty and len(pair_data) > 1:  # 确保有足够的数据点
+                                    if len(pair_data) > 1:  # 确保还有足够的数据点
+                                        # 使用numpy的corrcoef计算相关系数
+                                        x = pair_data[col1].values
+                                        y = pair_data[col2].values
+                                        corr = np.corrcoef(x, y)[0, 1]
+                                        logger.info(f"计算得到的相关系数: {corr}, 时间窗口起止: {pair_data.index[0]} - {pair_data.index[-1]}")
+                                        correlation_df.loc[col1, col2] = corr
+                                        correlation_df.loc[col2, col1] = corr  # 对称矩阵
+                                    else:
+                                        correlation_df.loc[col1, col2] = None
+                                        correlation_df.loc[col2, col1] = None
+                            if i == j:
+                                correlation_df.loc[col1, col2] = 1
+                    
                     correlation_table = create_correlation_table(correlation_df)
                 else:
                     correlation_table = html.Div(

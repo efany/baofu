@@ -1,0 +1,286 @@
+import pandas as pd
+from typing import Dict, Any, Optional, List
+from loguru import logger
+import os
+import sys
+from datetime import datetime, date
+
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+
+from database.mysql_database import MySQLDatabase
+
+class DBForexDayHist:
+    """外汇日线历史数据库操作类"""
+
+    def __init__(self, mysql_db: MySQLDatabase):
+        """
+        初始化
+        
+        Args:
+            mysql_db: MySQL数据库实例
+        """
+        self.mysql_db = mysql_db
+
+    def get_all_forex(self) -> List[str]:
+        """
+        获取所有外汇代码列表
+        
+        Returns:
+            List[str]: 外汇代码列表
+        """
+        sql = """
+            SELECT DISTINCT symbol
+            FROM forex_day_hist_data
+            ORDER BY symbol
+        """
+        results = self.mysql_db.execute_query(sql)
+        if not results:
+            logger.warning("未找到任何外汇数据")
+            return pd.DataFrame()
+            
+        return pd.DataFrame(results)
+
+    def get_last_forex_hist_date(self, symbol: str) -> Optional[date]:
+        """
+        获取指定外汇代码的最新数据日期
+        
+        Args:
+            symbol: 外汇代码
+            
+        Returns:
+            Optional[date]: 最新数据日期，如果不存在则返回None
+        """
+        sql = """
+            SELECT MAX(date) as last_date
+            FROM forex_day_hist_data 
+            WHERE symbol = %s
+        """
+        result = self.mysql_db.execute_query(sql, (symbol,))
+        if not result:
+            logger.warning(f"未找到外汇{symbol}的历史数据")
+            return None
+            
+        # 获取第一行第一列的值
+        last_date = result[0]['last_date'] if result[0] else None
+        if not last_date:
+            logger.warning(f"未找到外汇{symbol}的历史数据")
+            return None
+        
+        return last_date
+
+    def get_forex_hist_data(self, symbol: str, start_date: date = None, end_date: date = None) -> pd.DataFrame:
+        """
+        获取外汇历史数据
+        
+        Args:
+            symbol: 外汇代码
+            start_date: 开始日期，可选
+            end_date: 结束日期，可选
+            
+        Returns:
+            pd.DataFrame: 外汇历史数据，如果不存在返回空DataFrame
+        """
+        sql = """
+            SELECT 
+                symbol, date, open, high, low, close, change_pct
+            FROM forex_day_hist_data 
+            WHERE symbol = %s
+        """
+        params = [symbol]
+        
+        if start_date:
+            sql += " AND date >= %s"
+            params.append(start_date)
+        if end_date:
+            sql += " AND date <= %s"
+            params.append(end_date)
+            
+        sql += " ORDER BY date"
+        
+        result = self.mysql_db.execute_query(sql, tuple(params))
+        if not result:
+            logger.warning(f"未找到外汇{symbol}的历史数据")
+            return pd.DataFrame()
+        
+        return pd.DataFrame(result)
+
+    def insert_forex_hist_data(self, hist_data: Dict[str, Any]) -> bool:
+        """
+        插入外汇历史数据
+        
+        Args:
+            hist_data: 外汇历史数据字典，包含以下字段：
+                - symbol: 外汇代码
+                - date: 交易日期
+                - open: 开盘价
+                - high: 最高价
+                - low: 最低价
+                - close: 收盘价
+                - change_pct: 涨跌幅
+                
+        Returns:
+            bool: 插入是否成功
+        """
+        sql = """
+            INSERT INTO forex_day_hist_data (
+                symbol, date, open, high, low, close, change_pct
+            ) VALUES (
+                %(symbol)s, %(date)s, %(open)s, %(high)s, %(low)s, %(close)s, %(change_pct)s
+            )
+        """
+        return self.mysql_db.execute_query(sql, hist_data) is not None
+
+    def batch_insert_forex_hist_data(self, hist_data_list: List[Dict[str, Any]]) -> bool:
+        """
+        批量插入外汇历史数据
+        
+        Args:
+            hist_data_list: 外汇历史数据字典列表
+                
+        Returns:
+            bool: 插入是否全部成功
+        """
+        if not hist_data_list:
+            logger.warning("没有数据需要插入")
+            return False
+
+        sql = """
+            INSERT INTO forex_day_hist_data (
+                symbol, date, open, high, low, close, change_pct
+            ) VALUES (
+                %(symbol)s, %(date)s, %(open)s, %(high)s, %(low)s, %(close)s, %(change_pct)s
+            )
+        """
+        try:
+            for hist_data in hist_data_list:
+                self.mysql_db.execute_query(sql, hist_data)
+            logger.debug(f"批量插入{len(hist_data_list)}条历史数据成功")
+            return True
+        except Exception as e:
+            logger.error(f"批量插入外汇历史数据失败: {str(e)}")
+            raise
+
+    def update_forex_hist_data(self, symbol: str, date_str: str, hist_data: Dict[str, Any]) -> bool:
+        """
+        更新外汇历史数据
+        
+        Args:
+            symbol: 外汇代码
+            date_str: 交易日期
+            hist_data: 外汇历史数据字典，包含要更新的字段
+            
+        Returns:
+            bool: 更新是否成功
+        """
+        # 构建UPDATE语句
+        set_clause = ", ".join([f"{k} = %s" for k in hist_data.keys()])
+        sql = f"""
+            UPDATE forex_day_hist_data 
+            SET {set_clause}
+            WHERE symbol = %s AND date = %s
+        """
+        
+        # 构建参数tuple
+        params = tuple(hist_data.values()) + (symbol, date_str)
+        return self.mysql_db.execute_query(sql, params) is not None
+
+    def delete_forex_hist_data(self, symbol: str, start_date: date = None, end_date: date = None) -> bool:
+        """
+        删除外汇历史数据
+        
+        Args:
+            symbol: 外汇代码
+            start_date: 开始日期，可选
+            end_date: 结束日期，可选
+            
+        Returns:
+            bool: 删除是否成功
+        """
+        sql = "DELETE FROM forex_day_hist_data WHERE symbol = %s"
+        params = [symbol]
+        
+        if start_date:
+            sql += " AND date >= %s"
+            params.append(start_date)
+        if end_date:
+            sql += " AND date <= %s"
+            params.append(end_date)
+            
+        return self.mysql_db.execute_query(sql, tuple(params)) is not None
+
+
+if __name__ == "__main__":
+    # 初始化数据库连接
+    mysql_db = MySQLDatabase(
+        host='127.0.0.1',
+        user='baofu',
+        password='TYeKmJPfw2b7kxGK',
+        database='baofu'
+    )
+
+    # 创建DBForexDayHist实例
+    db_forex_hist = DBForexDayHist(mysql_db)
+
+    # 测试插入外汇历史数据
+    test_hist_data = {
+        'symbol': 'USDCNY',
+        'date': '2024-03-20',
+        'open': 7.2345,
+        'high': 7.2456,
+        'low': 7.2234,
+        'close': 7.2389,
+        'change_pct': 0.12
+    }
+    print("插入外汇历史数据结果:", db_forex_hist.insert_forex_hist_data(test_hist_data))
+
+    # 测试批量插入
+    test_hist_data_list = [
+        {
+            'symbol': 'USDCNY',
+            'date': '2024-03-21',
+            'open': 7.2389,
+            'high': 7.2567,
+            'low': 7.2345,
+            'close': 7.2456,
+            'change_pct': 0.09
+        },
+        {
+            'symbol': 'USDCNY',
+            'date': '2024-03-22',
+            'open': 7.2456,
+            'high': 7.2678,
+            'low': 7.2456,
+            'close': 7.2567,
+            'change_pct': 0.15
+        }
+    ]
+    print("批量插入外汇历史数据结果:", db_forex_hist.batch_insert_forex_hist_data(test_hist_data_list))
+
+    # 测试获取外汇历史数据
+    print("获取外汇历史数据:")
+    hist_data = db_forex_hist.get_forex_hist_data('USDCNY', 
+                                                 start_date='2024-03-01',
+                                                 end_date='2024-03-31')
+    print(hist_data)
+
+    # 测试更新外汇历史数据
+    update_data = {
+        'close': 7.2400,
+        'change_pct': 0.10
+    }
+    print("更新外汇历史数据结果:", 
+          db_forex_hist.update_forex_hist_data('USDCNY', '2024-03-20', update_data))
+
+    # 测试删除外汇历史数据
+    print("删除外汇历史数据结果:", 
+          db_forex_hist.delete_forex_hist_data('USDCNY', 
+                                             start_date='2024-03-20',
+                                             end_date='2024-03-22'))
+
+    # 测试获取外汇历史数据
+    print("获取外汇历史数据:")
+    hist_data = db_forex_hist.get_forex_hist_data('USDCNY')
+    print(hist_data)
+
+    # 关闭数据库连接
+    mysql_db.close_connection() 

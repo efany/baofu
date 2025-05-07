@@ -251,13 +251,15 @@ class RebalanceStrategy(BaseStrategy):
             deviation = (current_weight - target_weight) / target_weight
             
             # 检查是否触发上升或下降条件
-            if deviation > 0 and deviation > deviation_config.get('rise', 0):
+            rise_offset = float(deviation_config.get('rise', '0'))
+            fall_offset = float(deviation_config.get('fall', '0'))
+            if deviation > 0 and deviation > rise_offset:
                 logger.info(f"产品{symbol}当前权重{current_weight:.2%}超过目标权重{target_weight:.2%}，"
-                          f"偏差{deviation:.2%}大于上升阈值{deviation_config['rise']:.2%}，触发再平衡")
+                          f"偏差{deviation:.2%}大于上升阈值{rise_offset:.2%}，触发再平衡")
                 return True
-            elif deviation < 0 and abs(deviation) > deviation_config.get('fall', 0):
+            elif deviation < 0 and abs(deviation) > fall_offset:
                 logger.info(f"产品{symbol}当前权重{current_weight:.2%}低于目标权重{target_weight:.2%}，"
-                          f"偏差{abs(deviation):.2%}大于下降阈值{deviation_config['fall']:.2%}，触发再平衡")
+                          f"偏差{abs(deviation):.2%}大于下降阈值{fall_offset:.2%}，触发再平衡")
                 return True
         return False
     
@@ -376,6 +378,9 @@ class RebalanceStrategy(BaseStrategy):
         
 
     def next(self):
+
+        super().next()
+    
         """
         主要的策略逻辑
         检查是否满足再平衡条件，如果满足则执行再平衡

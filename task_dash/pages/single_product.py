@@ -23,7 +23,8 @@ def create_single_product_value_graph(mysql_db, data_type):
                     options=[
                         {'label': '基金', 'value': 'fund'},
                         {'label': '策略', 'value': 'strategy'},
-                        {'label': '股票', 'value': 'stock'}
+                        {'label': '股票', 'value': 'stock'},
+                        {'label': '外汇', 'value': 'forex'}
                     ],
                     value=data_type,
                     style={'width': '150px'}

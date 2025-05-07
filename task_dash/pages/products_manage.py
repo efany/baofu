@@ -24,7 +24,8 @@ def create_product_management(mysql_db):
                         id="product-type-selector",
                         options=[
                             {"label": "基金", "value": "fund"},
-                            {"label": "股票", "value": "stock"}
+                            {"label": "股票", "value": "stock"},
+                            {"label": "外汇", "value": "forex"}
                         ],
                         value="fund",  # 默认选择基金
                         inline=True,

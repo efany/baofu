@@ -13,6 +13,7 @@ from task_utils.data_utils import calculate_return_rate
 from database.db_funds import DBFunds
 from database.db_strategys import DBStrategys
 from database.db_stocks import DBStocks
+from database.db_forex_day_hist import DBForexDayHist
 from task_dash.utils import get_date_range, get_data_briefs
 from task_dash.datas.data import create_data_generator
 from task_dash.datas.data_generator import TableData
@@ -123,6 +124,8 @@ def register_single_product_callbacks(app, mysql_db):
                 data = DBStrategys(mysql_db).get_all_strategies()
             elif selected_type == 'stock':
                 data = DBStocks(mysql_db).get_all_stocks()
+            elif selected_type == 'forex':
+                data = DBForexDayHist(mysql_db).get_all_forex()
             else:
                 data = pd.DataFrame()
             

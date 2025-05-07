@@ -6,10 +6,12 @@ import pandas as pd
 from loguru import logger
 from database.db_funds import DBFunds
 from database.db_stocks import DBStocks
+from database.db_forex_day_hist import DBForexDayHist
 from task_dash.utils import get_data_briefs
 import json
 from task_data.update_funds_task import UpdateFundsTask
 from task_data.update_stocks_task import UpdateStocksTask
+from task_data.update_forex_task import UpdateForexTask
 from task_data.update_stocks_info_task import UpdateStocksInfoTask
 from task_data.update_stocks_day_hist_task import UpdateStocksDayHistTask
 from database.mysql_database import MySQLDatabase
@@ -34,6 +36,8 @@ def register_product_manage_callbacks(app, mysql_db):
             return "基金列表"
         elif product_type == "stock":
             return "股票列表"
+        elif product_type == "forex":
+            return "外汇列表"
         return "产品列表"
     
     # 更新按钮文字
@@ -47,6 +51,8 @@ def register_product_manage_callbacks(app, mysql_db):
             return "更新基金数据"
         elif product_type == "stock":
             return "更新股票数据"
+        elif product_type == "forex":
+            return "更新外汇数据"
         return "更新产品数据"
     
     # 页面加载时初始化产品列表
@@ -69,7 +75,14 @@ def register_product_manage_callbacks(app, mysql_db):
         # 处理添加新产品
         if trigger_id == "add-product-button" and add_clicks:
             if not new_product_code:
-                return load_fund_list(mysql_db) if product_type == "fund" else load_stock_list(mysql_db)
+                if product_type == "forex":
+                    return load_forex_list(mysql_db)
+                elif product_type == "stock":
+                    return load_stock_list(mysql_db)
+                elif product_type == "fund":
+                    return load_fund_list(mysql_db)
+                else:
+                    return html.Div("未知的产品类型", style={"color": "red"})
 
             try:
                 # 处理输入的代码，支持多个代码，去除空格
@@ -77,7 +90,14 @@ def register_product_manage_callbacks(app, mysql_db):
                 
                 if not product_codes:
                     logger.warning("未输入有效的产品代码")
-                    return load_fund_list(mysql_db) if product_type == "fund" else load_stock_list(mysql_db)
+                    if product_type == "forex":
+                        return load_forex_list(mysql_db)
+                    elif product_type == "stock":
+                        return load_stock_list(mysql_db)
+                    elif product_type == "fund":
+                        return load_fund_list(mysql_db)
+                    else:
+                        return html.Div("未知的产品类型", style={"color": "red"})
                 
                 logger.info(f"开始添加新{product_type}: {product_codes}")
                 
@@ -90,7 +110,7 @@ def register_product_manage_callbacks(app, mysql_db):
                         "update_all": False
                     }
                     task = UpdateFundsTask(task_config)
-                else:
+                elif product_type == "stock":
                     # 创建更新股票任务
                     task_config = {
                         "name": "update_stocks",
@@ -101,6 +121,14 @@ def register_product_manage_callbacks(app, mysql_db):
                         "update_hist": True
                     }
                     task = UpdateStocksTask(mysql_db, task_config)
+                elif product_type == "forex":
+                    # 创建更新外汇任务
+                    task_config = {
+                        "name": "update_forex",
+                        "description": "添加新外汇并更新数据",
+                        "symbols": product_codes,
+                    }
+                    task = UpdateForexTask(mysql_db, task_config)
                 
                 # 执行任务
                 task.execute()
@@ -114,7 +142,14 @@ def register_product_manage_callbacks(app, mysql_db):
                 logger.error(f"添加产品失败: {str(e)}")
         
         # 根据产品类型加载列表
-        return load_fund_list(mysql_db) if product_type == "fund" else load_stock_list(mysql_db)
+        if product_type == "forex":
+            return load_forex_list(mysql_db)
+        elif product_type == "stock":
+            return load_stock_list(mysql_db)
+        elif product_type == "fund":
+            return load_fund_list(mysql_db)
+        else:
+            return html.Div("未知的产品类型", style={"color": "red"})
 
     def load_fund_list(mysql_db):
         """加载基金列表"""
@@ -229,6 +264,63 @@ def register_product_manage_callbacks(app, mysql_db):
         ])
         
         return stock_list
+
+    def load_forex_list(mysql_db):
+        """加载外汇列表"""
+        # 创建外汇数据库操作对象
+        db_forex_day_hist = DBForexDayHist(mysql_db)
+        
+        # 获取所有外汇数据
+        forex_df = db_forex_day_hist.get_all_forex()
+        
+        if forex_df is None or forex_df.empty:
+            return html.Div("暂无外汇数据", style={"color": "gray", "padding": "20px"})
+        
+        # 使用get_data_briefs函数获取简要信息
+        forex_briefs = get_data_briefs("forex", forex_df)
+        
+        # 创建可勾选的外汇列表
+        forex_list = html.Div([
+            html.Div(f"共 {len(forex_df)} 只外汇", 
+                     style={"margin": "10px 0", "fontWeight": "bold"}),
+            
+            # 全选/取消全选按钮
+            html.Div([
+                dbc.Button("全选", id="select-all-products", color="secondary", size="sm", className="me-2"),
+                dbc.Button("取消全选", id="deselect-all-products", color="secondary", size="sm"),
+            ], style={"margin": "10px 0"}),
+            
+            # 搜索框
+            dbc.Input(
+                id="product-search-input",
+                type="text",
+                placeholder="搜索外汇...",
+                style={"margin": "10px 0"}
+            ),
+            
+            # 可勾选的外汇列表
+            dbc.Checklist(
+                id="product-checklist",
+                options=[
+                    {"label": item['label'], "value": item['value']} 
+                    for item in forex_briefs
+                ],
+                value=[],  # 默认不选中任何外汇
+                style={"maxHeight": "400px", "overflowY": "auto"}
+            ),  
+            
+            # 隐藏的div用于存储选中的产品
+            html.Div(id="selected-products-store", style={"display": "none"}),
+            
+            # 隐藏的div用于存储所有产品选项
+            html.Div(
+                id="all-products-options-store", 
+                children=json.dumps([item['value'] for item in forex_briefs]),
+                style={"display": "none"}
+            )
+        ])
+        
+        return forex_list
 
     # 全选/取消全选回调
     @app.callback(
@@ -348,6 +440,8 @@ def register_product_manage_callbacks(app, mysql_db):
             return update_fund_data(selected_products)
         elif product_type == "stock":
             return update_stock_data(selected_products)
+        elif product_type == "forex":
+            return update_forex_data(selected_products)
         else:
             return html.Div(
                 "未知的产品类型",
@@ -433,3 +527,35 @@ def register_product_manage_callbacks(app, mysql_db):
                 error_msg,
                 style={"color": "red"}
             ), error_msg + "\n" + info_result + hist_result 
+
+    def update_forex_data(selected_forex):
+        """更新外汇数据"""
+        # 创建任务配置
+        task_config = {
+            "name": "update_forex",
+            "description": "更新外汇历史数据",
+            "symbols": selected_forex,
+        }
+        
+        # 创建并执行更新任务
+        try:
+            task = UpdateForexTask(mysql_db, task_config)
+            task.execute()
+
+            if task.is_success:
+                return html.Div(
+                    f"成功更新 {len(selected_forex)} 只外汇",
+                    style={"color": "green"}
+                ), f"成功更新 {len(selected_forex)} 只外汇：\n" + "\n".join(selected_forex)
+            else:
+                return html.Div(
+                    f"更新失败: {task.error}",
+                    style={"color": "red"}
+                ), f"更新失败: {task.error}\n"
+                
+        except Exception as e:
+            logger.error(f"更新外汇数据失败: {str(e)}")
+            return html.Div(
+                f"更新过程中发生错误: {str(e)}",
+                style={"color": "red"}
+            ), f"更新过程中发生错误: {str(e)}\n"

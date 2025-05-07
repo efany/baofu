@@ -161,5 +161,24 @@ if __name__ == "__main__":
             print("数据表 'stocks_day_hist_data' 校验。")
         else:
             print("数据表 'stocks_day_hist_data' 创建失败。")
-    db.close_connection()
 
+    if db.check_table_exists('forex_day_hist_data'):
+        print("数据表 'forex_day_hist_data' 已存在")
+    else:
+        table_schema = """
+        symbol VARCHAR(20),
+        date DATE,
+        open FLOAT,
+        high FLOAT,
+        low FLOAT,
+        close FLOAT,
+        change_pct FLOAT, 
+        create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        """
+        db.create_table('forex_day_hist_data', table_schema)
+        if db.check_table_exists('forex_day_hist_data'):
+            print("数据表 'forex_day_hist_data' 校验。")
+        else:
+            print("数据表 'forex_day_hist_data' 创建失败。")
+    db.close_connection()

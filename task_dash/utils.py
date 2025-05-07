@@ -41,6 +41,24 @@ def get_stock_name(symbol: str) -> str:
     """
     return STOCK_NAME_MAP.get(symbol, symbol)
 
+FOREX_NAME_MAP: Dict[str, str] = {
+    'USDCNH': '美元兑人民币',
+    'USDJPY': '美元兑日元',
+    'USDCHF': '美元兑瑞郎'
+}
+
+def get_forex_name(symbol: str) -> str:
+    """
+    获取外汇的中文简称
+    
+    Args:
+        symbol: 外汇代码，例如 'USDCNH'
+        
+    Returns:
+        str: 外汇的中文简称，如果没有找到则返回外汇代码
+    """
+    return FOREX_NAME_MAP.get(symbol, symbol)
+
 def get_data_briefs(data_type, data) -> list:
     if data_type == "fund":
         return [{'label': f"{item['name']}({item['ts_code']})", 'value': item['ts_code']} for index, item in data.iterrows()]
@@ -48,7 +66,8 @@ def get_data_briefs(data_type, data) -> list:
         return [{'label': f"{item['name']}({item['strategy_id']})", 'value': item['strategy_id']} for index, item in data.iterrows()]
     elif data_type == "stock":
         return [{'label': f"{get_stock_name(item['symbol'])}({item['symbol']})", 'value': item['symbol']} for index, item in data.iterrows()]
-
+    elif data_type == "forex":
+        return [{'label': f"{get_forex_name(item['symbol'])}({item['symbol']})", 'value': item['symbol']} for index, item in data.iterrows()]
 
 def get_date_range(time_range):
     """

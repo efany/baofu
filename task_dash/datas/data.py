@@ -4,6 +4,7 @@ from .data_generator import DataGenerator
 from .fund_data_generator import FundDataGenerator
 from .strategy_data_generator import StrategyDataGenerator
 from .stock_data_generator import StockDataGenerator
+from .forex_data_generator import ForexDataGenerator
 from database.db_funds import DBFunds
 from database.db_funds_nav import DBFundsNav
 from database.db_strategys import DBStrategys
@@ -70,7 +71,18 @@ def create_data_generator(
                 start_date=start_date,
                 end_date=end_date
             )
-            
+        
+        elif data_type == 'forex':
+            if not isinstance(data_id, str):
+                raise ValueError("Forex data_id must be string (forex code)")
+
+            logger.info(f"创建外汇数据生成器: {data_id}")
+            return ForexDataGenerator(
+                forex_code=data_id,
+                mysql_db=mysql_db,
+                start_date=start_date,
+                end_date=end_date
+            )
         else:
             raise ValueError(f"Unknown data type: {data_type}")
             
