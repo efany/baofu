@@ -42,8 +42,7 @@ class RebalanceStrategy(BaseStrategy):
             'target_weights': {  # 目标持仓权重
                 '159949.SZ': "0.3",
                 '512550.SS': "0.7"
-            },
-            'cash_reserve': 0.05  # 现金储备比例
+            }
         }
         """
         super().__init__(params)
@@ -53,10 +52,7 @@ class RebalanceStrategy(BaseStrategy):
         if 'target_weights' not in self.params:
             raise ValueError("必须设置目标持仓权重")
         
-        # 验证权重之和是否接近1
-        total_weight = sum(float(weight) for weight in self.params['target_weights'].values())
-        if not 0.99 <= total_weight <= 1.01:
-            raise ValueError(f"目标持仓权重之和必须接近1，当前为{total_weight}")
+        self.total_weight = sum(float(weight) for weight in self.params['target_weights'].values())
         
         # 验证triggers参数
         if 'triggers' not in self.params:
@@ -104,7 +100,6 @@ class RebalanceStrategy(BaseStrategy):
         logger.info(f"平仓日期: {self.close_date}")
         logger.info(f"目标权重: {self.params['target_weights']}")
         logger.info(f"触发条件: {self.params['triggers']}")
-        logger.info(f"现金储备: {self.params['cash_reserve']:.1%}")
         
     def _init_triggers(self):
         """初始化触发条件"""
@@ -293,12 +288,8 @@ class RebalanceStrategy(BaseStrategy):
         # 计算投资组合总价值
         portfolio_value = self.get_total_asset()
         
-        # 预留现金
-        cash_reserve = self.params['cash_reserve']
-        available_value = portfolio_value * (1 - cash_reserve)
-        
         # 计算目标市值
-        target_value = available_value * weight
+        target_value = portfolio_value * weight
                     
         return target_value
     
@@ -342,8 +333,20 @@ class RebalanceStrategy(BaseStrategy):
                 - 'buy': 只处理加仓
         """
         
-        cash = self.broker.getcash()
-        logger.info(f"cash:{cash}")
+        # 获取当前总资产
+        total_value = self.get_total_asset()
+        # 预留现金
+        available_value = total_value * self.total_weight
+        current_cash = self.broker.getcash()
+        logger.info(f"total_value:{total_value}, available_value:{available_value}, current_cash:{current_cash}")
+        
+        if current_cash < total_value - available_value:
+            logger.info(f"持有现金{current_cash}小于目标现金仓位{total_value - available_value}，不执行再平衡")
+            return
+
+        cash = current_cash - (total_value - available_value)
+        logger.info(f"可用买入现金 cash:{cash}")
+
         total_diff = 0
 
         # 遍历所有产品
@@ -367,7 +370,7 @@ class RebalanceStrategy(BaseStrategy):
             current_position = self.broker.get_value([data])
             target_position = self._calculate_target_position(symbol)
             diff_position = target_position - current_position
-
+            logger.info(f"symbol:{symbol}, current_position:{current_position}, target_position:{target_position}, diff_position:{diff_position}")
             if diff_position > 0:
                 # 使用后一日的收盘价
                 price = data.open[1]

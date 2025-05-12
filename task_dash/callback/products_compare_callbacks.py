@@ -12,6 +12,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from task_dash.datas.data import create_data_generator
 from database.db_funds import DBFunds
 from database.db_stocks import DBStocks
+from database.db_forex_day_hist import DBForexDayHist
 from database.db_strategys import DBStrategys
 from task_dash.utils import get_date_range, get_data_briefs
 from task_dash.callback.single_product_callbacks import create_table
@@ -278,6 +279,7 @@ def register_products_compare_callbacks(app, mysql_db):
     @app.callback(
         [Output('fund-dropdown', 'options'),
          Output('stock-dropdown', 'options'),
+         Output('forex-dropdown', 'options'),
          Output('strategy-dropdown', 'options')],
         Input('url', 'pathname')
     )
@@ -291,12 +293,16 @@ def register_products_compare_callbacks(app, mysql_db):
             # 获取股票选项
             stock_data = DBStocks(mysql_db).get_all_stocks()
             stock_options = get_data_briefs('stock', stock_data)
+
+            # 获取外汇选项
+            forex_data = DBForexDayHist(mysql_db).get_all_forex(extend=True)
+            forex_options = get_data_briefs('forex', forex_data)
             
             # 获取策略选项
             strategy_data = DBStrategys(mysql_db).get_all_strategies()
             strategy_options = get_data_briefs('strategy', strategy_data)
             
-            return fund_options, stock_options, strategy_options
+            return fund_options, stock_options, forex_options, strategy_options
             
         except Exception as e:
             logger.error(f"Error in update_dropdowns_options: {str(e)}")
@@ -310,10 +316,11 @@ def register_products_compare_callbacks(app, mysql_db):
         [Input('fund-dropdown', 'value'),
          Input('stock-dropdown', 'value'),
          Input('strategy-dropdown', 'value'),
+         Input('forex-dropdown', 'value'),
          Input('compare-time-range', 'value'),
          Input('compare-line-options', 'value')]
     )
-    def update_comparison(fund_values, stock_values, strategy_values, time_range, line_options):
+    def update_comparison(fund_values, stock_values, strategy_values, forex_values, time_range, line_options):
         """更新对比图表和数据"""
         try:
             # 获取日期范围
@@ -326,7 +333,7 @@ def register_products_compare_callbacks(app, mysql_db):
             product_extra_datas = {}  # 存储每个产品的统计数据
             
             # 计算总产品数量，用于计算每列宽度
-            total_products = len(fund_values or []) + len(stock_values or []) + len(strategy_values or [])
+            total_products = len(fund_values or []) + len(stock_values or []) + len(strategy_values or []) + len(forex_values or [])
             if total_products == 0:
                 return go.Figure(), [], [], html.Div(f"Error: 需要选择至少一个产品进行对比")
             
@@ -415,6 +422,50 @@ def register_products_compare_callbacks(app, mysql_db):
                             extra_datas = generator.get_extra_datas()
                             if extra_datas:
                                 product_extra_datas[f"s-{stock_id}"] = extra_datas
+            
+            # 处理外汇数据
+            if forex_values:
+                for forex_id in forex_values:
+                    generator = create_data_generator(
+                        data_type='forex',
+                        data_id=forex_id,
+                        mysql_db=mysql_db,
+                        start_date=start_date,
+                        end_date=end_date
+                    )
+                    if generator:
+                        generator.load()
+                        generators[f"f-{forex_id}"] = generator
+                        # 添加摘要信息
+                        summary_data = generator.get_summary_data()
+                        if summary_data:
+                            summary_children.append(
+                                html.Div([
+                                    create_summary_table(summary_data)
+                                ], style={'marginBottom': '15px'})
+                            )
+                        
+                        # 处理图表数据
+                        chart_data = generator.get_chart_data(normalize=True, chart_type=1)
+                        if chart_data:
+                            forex_figure_data = []
+                            forex_figure_data.append(chart_data[0])
+                            
+                            for option in line_options:
+                                extra_data = generator.get_extra_chart_data(option, normalize=True)
+                                forex_figure_data.extend(extra_data)
+                                
+                            for data in forex_figure_data:
+                                if 'name' in data:
+                                    data['name'] = f"{data['name']} (f-{forex_id})"
+                            
+                            figure_data.extend(forex_figure_data)
+                            
+                            # 获取统计数据
+                            extra_datas = generator.get_extra_datas()
+                            if extra_datas:
+                                product_extra_datas[f"f-{forex_id}"] = extra_datas
+                                
             
             # 处理策略数据
             if strategy_values:

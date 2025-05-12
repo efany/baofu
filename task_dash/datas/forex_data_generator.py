@@ -28,33 +28,7 @@ class ForexDataGenerator(DataGenerator):
     
     def load(self) -> bool:
         """加载外汇数据"""
-        # 先获取原始日期范围的数据
-        original_data = self.db_forex_hist.get_forex_hist_data(self.forex_code)
-        if not original_data.empty:
-            original_data['date'] = pd.to_datetime(original_data['date'])
-            original_data = original_data.sort_values('date')
-            
-            # 如果start_date有效，尝试找到前一个有效日期
-            if self.start_date is not None:
-                # 将start_date转换为datetime并与数据比较
-                start_datetime = pd.to_datetime(self.start_date)
-                
-                # 找到所有早于start_date的日期
-                earlier_dates = original_data[original_data['date'] < start_datetime]
-                
-                if not earlier_dates.empty:
-                    # 找到最接近start_date的前一个日期
-                    previous_date = earlier_dates['date'].max()
-                    logger.info(f"找到前一个有效数据日期: {self.start_date} -> {previous_date.date()}")
-                    self.start_date = previous_date.date()
-                else:
-                    logger.warning(f"没有找到早于 {self.start_date} 的 {self.forex_code} 有效数据日期")
-        else:    
-            logger.warning(f"没有找到外汇数据: {self.forex_code}")
-            return False
-
-        # 使用调整后的日期范围获取数据
-        self.forex_data = self.db_forex_hist.get_forex_hist_data(self.forex_code, self.start_date, self.end_date)
+        self.forex_data = self.db_forex_hist.get_extend_forex_hist_data(self.forex_code, self.start_date, self.end_date)
         if not self.forex_data.empty:
             self.forex_data['date'] = pd.to_datetime(self.forex_data['date'])
             self.forex_data = self.forex_data.sort_values('date')
@@ -336,24 +310,60 @@ class ForexDataGenerator(DataGenerator):
 
     def _get_drawdown_chart_data(self, normalize: bool = False) -> List[Dict[str, Any]]:
         """获取回撤图表数据"""
-        dates = self.forex_data['date'].tolist()
         values = self.forex_data['close']
-        
         if normalize:
             values = self.normalize_series(values)
             
-        # 计算回撤
-        cummax = values.cummax()
-        drawdown = (values - cummax) / cummax * 100
+        dates = self.forex_data['date']
+        drawdown_list = calculate_max_drawdown(
+            self.forex_data['date'],
+            values
+        )
         
-        return [{
-            'x': dates,
-            'y': drawdown.tolist(),
-            'type': 'line',
-            'name': '回撤',
-            'visible': True,
-            'line': {'color': 'red'}
-        }]
+        data = []
+        # 绘制回撤区域
+        for i in range(len(drawdown_list)):
+            if pd.notna(drawdown_list[i]):
+                dd = drawdown_list[i]
+                drawdown_days = (dd['end_date'] - dd['start_date']).days
+                recovery_days = (dd['recovery_date'] - dd['end_date']).days if dd.get('recovery_date') else None
+                
+                text = f'回撤: {dd["value"]*100:.4f}%({drawdown_days} days)' 
+                if recovery_days:
+                    text = f'{text}，修复：{recovery_days} days'
+                    
+                start_date = dd['start_date']
+                end_date = dd['end_date']
+                data.append({
+                    'type': 'scatter',
+                    'x': [start_date, end_date, end_date, start_date, start_date],
+                    'y': [dd['start_value'], dd['start_value'], dd['end_value'], dd['end_value'], dd['start_value']],
+                    'fill': 'toself',
+                    'fillcolor': 'rgba(255, 0, 0, 0.2)',
+                    'line': {'width': 0},
+                    'mode': 'lines+text',
+                    'text': [text],
+                    'textposition': 'top right',
+                    'textfont': {'size': 12, 'color': 'red'},
+                    'name': f'TOP{i+1} 回撤',
+                    'showlegend': True
+                })
+                
+                if recovery_days:
+                    recovery_date = dd['recovery_date']
+                    data.append({
+                        'type': 'scatter',
+                        'x': [end_date, recovery_date, recovery_date, end_date, end_date],
+                        'y': [dd['end_value'], dd['end_value'], dd['start_value'], dd['start_value'], dd['end_value']],
+                        'fill': 'toself',
+                        'fillcolor': 'rgba(0, 255, 0, 0.2)',
+                        'line': {'width': 0},
+                        'mode': 'lines+text',
+                        'textfont': {'size': 12, 'color': 'red'},
+                        'name': f'TOP{i+1} 回撤修复',
+                        'showlegend': True
+                    })
+        return data
 
     def get_value_data(self) -> pd.DataFrame:
         """获取用于计算相关系数的主要数据"""

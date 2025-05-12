@@ -44,7 +44,14 @@ def get_stock_name(symbol: str) -> str:
 FOREX_NAME_MAP: Dict[str, str] = {
     'USDCNH': '美元兑人民币',
     'USDJPY': '美元兑日元',
-    'USDCHF': '美元兑瑞郎'
+    'USDCHF': '美元兑瑞郎',
+    'JPYUSD': '日元兑美元',
+    'CNHUSD': '人民币兑美元',
+    'CHFUSD': '瑞郎兑美元',
+    'CNHJPY': '人民币兑日元',
+    'CNHCHF': '人民币兑瑞郎',
+    'JPYCNH': '日元兑人民币',
+    'CHFCNH': '瑞郎兑人民币'
 }
 
 def get_forex_name(symbol: str) -> str:

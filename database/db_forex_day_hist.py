@@ -21,7 +21,7 @@ class DBForexDayHist:
         """
         self.mysql_db = mysql_db
 
-    def get_all_forex(self) -> List[str]:
+    def get_all_forex(self, extend: bool = False) -> List[str]:
         """
         获取所有外汇代码列表
         
@@ -37,8 +37,27 @@ class DBForexDayHist:
         if not results:
             logger.warning("未找到任何外汇数据")
             return pd.DataFrame()
+        pd_results = pd.DataFrame(results)
+        if extend:
+            # 定义虚拟数据与真实数据的依赖关系
+            virtual_data_dependencies = {
+                'JPYUSD': ['USDJPY'],  # JPYUSD依赖于USDJPY
+                'CNHUSD': ['USDCNH'],  # CNHUSD依赖于USDCNH
+                'CHFUSD': ['USDCHF'],   # CHFUSD依赖于USDCHF
+                'CNHJPY': ['USDCNH', 'USDJPY'],  # CNHJPY依赖于USDCNH和USDJPY
+                'CNHCHF': ['USDCNH', 'USDCHF'],  # CNHCHF依赖于USDCNH和USDCHF
+                'JPYCNH': ['USDJPY', 'USDCNH'],  # JPYCNH依赖于USDJPY和USDCNH
+                'CHFCNH': ['USDCHF', 'USDCNH']  # CHFCNH依赖于USDCHF和USDCNH
+            }
             
-        return pd.DataFrame(results)
+            # 遍历所有虚拟数据依赖关系
+            for virtual_symbol, real_symbols in virtual_data_dependencies.items():
+                # 检查所有依赖的真实数据是否存在
+                if all(symbol in pd_results['symbol'].values for symbol in real_symbols):
+                    # 创建虚拟数据，仅包含symbol字段
+                    virtual_data = pd.DataFrame({'symbol': [virtual_symbol]})
+                    pd_results = pd.concat([pd_results, virtual_data], ignore_index=True)
+        return pd_results
 
     def get_last_forex_hist_date(self, symbol: str) -> Optional[date]:
         """
@@ -103,6 +122,84 @@ class DBForexDayHist:
             return pd.DataFrame()
         
         return pd.DataFrame(result)
+    
+    def get_extend_forex_hist_data(self, symbol: str, start_date: date = None, end_date: date = None) -> pd.DataFrame:
+        # 使用调整后的日期范围获取数据
+        if symbol in ["USDCNH", "USDJPY", "USDCHF"]:
+            return self.get_forex_hist_data(symbol, start_date, end_date)
+        elif symbol in ["CNHUSD", "JPYUSD", "CHFUSD"]:
+            if symbol == "CNHUSD":
+                deps_forex_code = "USDCNH"
+            elif symbol == "JPYUSD":
+                deps_forex_code = "USDJPY"
+            elif symbol == "CHFUSD":
+                deps_forex_code = "USDCHF"
+            forex_data = self.get_forex_hist_data(deps_forex_code, start_date, end_date)
+            forex_data['close'] = 1 / forex_data['close']
+            forex_data['open'] = 1 / forex_data['open']
+            forex_data['high'] = 1 / forex_data['high']
+            forex_data['low'] = 1 / forex_data['low']
+            return forex_data
+        elif symbol == "CNHJPY":
+            usdcnh_data = self.get_forex_hist_data("USDCNH", start_date, end_date)
+            usdjpy_data = self.get_forex_hist_data("USDJPY", start_date, end_date)
+            
+            # 合并两个数据集
+            merged_data = pd.merge(usdcnh_data, usdjpy_data, on='date', suffixes=('_usdcnh', '_usdjpy'))
+            # 过滤掉任一数据源中为NaN的行
+            merged_data = merged_data.dropna(subset=['open_usdcnh', 'high_usdcnh', 'low_usdcnh', 'close_usdcnh', 
+                                                    'open_usdjpy', 'high_usdjpy', 'low_usdjpy', 'close_usdjpy'])
+            
+            # 计算CNHJPY数据
+            return pd.DataFrame({
+                'date': merged_data['date'],
+                'open': (1 / merged_data['open_usdcnh']) * merged_data['open_usdjpy'],
+                'high': (1 / merged_data['high_usdcnh']) * merged_data['high_usdjpy'],
+                'low': (1 / merged_data['low_usdcnh']) * merged_data['low_usdjpy'],
+                'close': (1 / merged_data['close_usdcnh']) * merged_data['close_usdjpy']
+            })
+        elif symbol == "JPYCNH":
+            usdjpy_data = self.get_forex_hist_data("USDJPY", start_date, end_date)
+            usdcnh_data = self.get_forex_hist_data("USDCNH", start_date, end_date)
+            merged_data = pd.merge(usdjpy_data, usdcnh_data, on='date', suffixes=('_usdjpy', '_usdcnh'))
+            return pd.DataFrame({
+                'date': merged_data['date'],
+                'open': merged_data['open_usdcnh'] / merged_data['open_usdjpy'],
+                'high': merged_data['high_usdcnh'] / merged_data['high_usdjpy'],
+                'low': merged_data['low_usdcnh'] / merged_data['low_usdjpy'],
+                'close': merged_data['close_usdcnh'] / merged_data['close_usdjpy']
+            })
+        elif symbol == "CNHCHF":
+            usdcnh_data = self.get_forex_hist_data("USDCNH", start_date, end_date)
+            usdchf_data = self.get_forex_hist_data("USDCHF", start_date, end_date)
+            
+            # 合并两个数据集
+            merged_data = pd.merge(usdcnh_data, usdchf_data, on='date', suffixes=('_usdcnh', '_usdchf'))
+            # 过滤掉任一数据源中为NaN的行
+            merged_data = merged_data.dropna(subset=['open_usdcnh', 'high_usdcnh', 'low_usdcnh', 'close_usdcnh', 
+                                                    'open_usdchf', 'high_usdchf', 'low_usdchf', 'close_usdchf'])
+            
+            # 计算CNHCHF数据
+            return pd.DataFrame({
+                'date': merged_data['date'],
+                'open': (1 / merged_data['open_usdcnh']) * merged_data['open_usdchf'],
+                'high': (1 / merged_data['high_usdcnh']) * merged_data['high_usdchf'],
+                'low': (1 / merged_data['low_usdcnh']) * merged_data['low_usdchf'],
+                'close': (1 / merged_data['close_usdcnh']) * merged_data['close_usdchf']
+            })
+        elif symbol == "CHFCNH":
+            usdchf_data = self.get_forex_hist_data("USDCHF", start_date, end_date)
+            usdcnh_data = self.get_forex_hist_data("USDCNH", start_date, end_date)
+            merged_data = pd.merge(usdchf_data, usdcnh_data, on='date', suffixes=('_usdchf', '_usdcnh'))
+            return pd.DataFrame({
+                'date': merged_data['date'],
+                'open': merged_data['open_usdcnh'] / merged_data['open_usdchf'],
+                'high': merged_data['high_usdcnh'] / merged_data['high_usdchf'],
+                'low': merged_data['low_usdcnh'] / merged_data['low_usdchf'],
+                'close': merged_data['close_usdcnh'] / merged_data['close_usdchf']
+            })
+        else:
+            return self.get_forex_hist_data(symbol, start_date, end_date)
 
     def insert_forex_hist_data(self, hist_data: Dict[str, Any]) -> bool:
         """

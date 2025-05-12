@@ -125,7 +125,7 @@ def register_single_product_callbacks(app, mysql_db):
             elif selected_type == 'stock':
                 data = DBStocks(mysql_db).get_all_stocks()
             elif selected_type == 'forex':
-                data = DBForexDayHist(mysql_db).get_all_forex()
+                data = DBForexDayHist(mysql_db).get_all_forex(extend=True)
             else:
                 data = pd.DataFrame()
             

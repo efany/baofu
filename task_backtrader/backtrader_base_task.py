@@ -14,11 +14,12 @@ from task.exceptions import TaskConfigError, TaskExecutionError
 from database.db_funds import DBFunds
 from database.db_funds_nav import DBFundsNav
 from database.db_stocks_day_hist import DBStocksDayHist
+from database.db_forex_day_hist import DBForexDayHist
 from database.mysql_database import MySQLDatabase
 from task_backtrader.strategy.buy_and_hold_strategy import BuyAndHoldStrategy
 from task_backtrader.strategy.rebalance_strategy import RebalanceStrategy
 from task_backtrader.feeds.pandas_data_extends import PandasDataExtends
-
+from task_backtrader.strategy.forex_rebalance_strategy import ForexRebalanceStrategy
 class BacktraderBaseTask(BaseTask):
     """Backtrader任务基类，负责连接数据库获取基金和股票数据"""
     
@@ -52,7 +53,7 @@ class BacktraderBaseTask(BaseTask):
         self.mysql_db = mysql_db
         self.db_funds_nav = DBFundsNav(self.mysql_db)
         self.db_stocks_day_hist = DBStocksDayHist(self.mysql_db)
-
+        self.db_forex_day_hist = DBForexDayHist(self.mysql_db)
         # 获取基金数据
         self.funds_code = data_params['fund_codes'] if 'fund_codes' in data_params else []
         self.funds_nav = {}
@@ -66,6 +67,13 @@ class BacktraderBaseTask(BaseTask):
         for symbol in self.stock_symbols:
             self.stocks_day_hist[symbol] = self.db_stocks_day_hist.get_stock_hist_data(symbol)
             logger.debug(f"股票 {symbol} 的历史数据共计: {len(self.stocks_day_hist[symbol])} 条")
+
+        # 获取外汇数据
+        self.forex_symbols = data_params['forex_symbols'] if 'forex_symbols' in data_params else []
+        self.forex_day_hist = {}
+        for symbol in self.forex_symbols:
+            self.forex_day_hist[symbol] = self.db_forex_day_hist.get_extend_forex_hist_data(symbol)
+            logger.debug(f"外汇 {symbol} 的历史数据共计: {len(self.forex_day_hist[symbol])} 条")
 
     def make_data(self) -> Dict[str, bt.feeds.DataBase]:
         """
@@ -118,6 +126,27 @@ class BacktraderBaseTask(BaseTask):
             )
             data_feeds[symbol] = data
 
+        # 处理外汇数据
+        for symbol in self.forex_symbols:
+            df = self.forex_day_hist[symbol]
+            if df is None or df.empty:
+                raise TaskConfigError(f"无法获取外汇{symbol}的历史数据")
+
+            df['date'] = pd.to_datetime(df['date'])
+            df['dividend'] = 0
+            df["volume"] = 0
+
+            data = PandasDataExtends(
+                dataname=df,
+                datetime='date',
+                open='open',
+                high='high',
+                low='low',
+                close='close',
+                volume='volume',
+                dividend='dividend'
+            )
+            data_feeds[symbol] = data
         return data_feeds
 
     def make_strategy(self, strategy_params: Dict[str, Any]) -> bt.Strategy:
@@ -135,6 +164,8 @@ class BacktraderBaseTask(BaseTask):
             return BuyAndHoldStrategy
         elif strategy_name == 'Rebalance':
             return RebalanceStrategy
+        elif strategy_name == 'ForexRebalance':
+            return ForexRebalanceStrategy
         return None
 
     def close(self) -> None:
@@ -146,16 +177,15 @@ class BacktraderBaseTask(BaseTask):
 if __name__ == "__main__":
     class TestTask(BacktraderBaseTask):
         def run(self):
-            data_feeds = self.make_data()
-            for name, feed in data_feeds.items():
-                logger.info(f"{name}: {len(feed.dataname)} records")
+            pass
     
     task_config = {
         "name": "test_task",
         "description": "测试任务",
         "data_params": """{
             "fund_codes": ["003376", "007540"],
-            "stock_symbols": ["159949.SZ", "512550.SS"]
+            "stock_symbols": ["159949.SZ", "512550.SS"],
+            "forex_symbols": ["CNHUSD", "CNHJPY", "CNHCHF"]
         }"""
     }
 

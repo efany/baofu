@@ -45,7 +45,23 @@ def create_products_compare_page(mysql_db):
                     'margin-bottom': '10px',
                     'width': '100%'  # 容器占满宽度
                 }),
-                
+
+                # 外汇选择
+                html.Div([
+                    html.Label('外汇', style={'width': '50px'}),  # 固定标签宽度
+                    dcc.Dropdown(
+                        id='forex-dropdown',
+                        multi=True,  # 允许多选
+                        placeholder='选择外汇...',
+                        style={'flex': 1}  # 占用剩余空间
+                    ),
+                ], style={
+                    'display': 'flex',
+                    'align-items': 'center',
+                    'margin-bottom': '10px',
+                    'width': '100%'  # 容器占满宽度
+                }),
+
                 # 策略选择
                 html.Div([
                     html.Label('策略', style={'width': '50px'}),  # 固定标签宽度
