@@ -7,6 +7,7 @@ import sys
 import os
 import pandas as pd
 import numpy as np
+import dash
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from task_dash.datas.data import create_data_generator
@@ -309,22 +310,60 @@ def register_products_compare_callbacks(app, mysql_db):
             return [], [], []
 
     @app.callback(
+        [Output('compare-start-date', 'date'),
+         Output('compare-end-date', 'date'),
+         Output('compare-start-date', 'disabled'),
+         Output('compare-end-date', 'disabled')],
+        [Input('compare-time-range', 'value')]  # 直接监听时间范围选择
+    )
+    def update_date_pickers(time_range):
+        """更新时间控件的状态和值"""
+        if time_range == 'custom':
+            # 如果是自定义时间范围，启用时间控件
+            return None, None, False, False
+        
+        # 获取日期范围
+        start_date, end_date = get_date_range(time_range)
+        
+        # 将日期转换为字符串格式 (YYYY-MM-DD)
+        start_str = start_date.strftime('%Y-%m-%d') if start_date else None
+        end_str = end_date.strftime('%Y-%m-%d') if end_date else None
+        
+        # 非自定义时间范围时禁用时间控件
+        return start_str, end_str, True, True
+
+    @app.callback(
         [Output('compare-value-graph', 'figure'),
          Output('products-summary', 'children'),
          Output('compare-tables-container', 'children'),
          Output('correlation-matrix-container', 'children')],
-        [Input('fund-dropdown', 'value'),
-         Input('stock-dropdown', 'value'),
-         Input('strategy-dropdown', 'value'),
-         Input('forex-dropdown', 'value'),
-         Input('compare-time-range', 'value'),
-         Input('compare-line-options', 'value')]
+        [Input('compare-confirm-button', 'n_clicks')],
+        [State('fund-dropdown', 'value'),
+         State('stock-dropdown', 'value'),
+         State('strategy-dropdown', 'value'),
+         State('forex-dropdown', 'value'),
+         State('compare-time-range', 'value'),
+         State('compare-start-date', 'date'),
+         State('compare-end-date', 'date'),
+         State('compare-line-options', 'value')]
     )
-    def update_comparison(fund_values, stock_values, strategy_values, forex_values, time_range, line_options):
+    def update_comparison(n_clicks, fund_values, stock_values, strategy_values, forex_values, 
+                         time_range, start_date_str, end_date_str, line_options):
         """更新对比图表和数据"""
+        if not n_clicks:  # 初始加载时不触发更新
+            raise dash.exceptions.PreventUpdate
+            
         try:
             # 获取日期范围
-            start_date, end_date = get_date_range(time_range)
+            if time_range == 'custom':
+                # 如果选择自定义时间范围，使用时间控件的值
+                if not start_date_str or not end_date_str:
+                    return go.Figure(), [], [], html.Div("请选择开始和结束日期", style={'color': 'red', 'text-align': 'center', 'margin': '20px'})
+                start_date = pd.to_datetime(start_date_str).date()
+                end_date = pd.to_datetime(end_date_str).date()
+            else:
+                # 否则使用预设的时间范围
+                start_date, end_date = get_date_range(time_range)
             
             # 创建图表数据
             figure_data = []
@@ -335,7 +374,7 @@ def register_products_compare_callbacks(app, mysql_db):
             # 计算总产品数量，用于计算每列宽度
             total_products = len(fund_values or []) + len(stock_values or []) + len(strategy_values or []) + len(forex_values or [])
             if total_products == 0:
-                return go.Figure(), [], [], html.Div(f"Error: 需要选择至少一个产品进行对比")
+                return go.Figure(), [], [], html.Div(f"请选择至少一个产品进行对比", style={'color': 'red', 'text-align': 'center', 'margin': '20px'})
             
             # 处理基金数据
             if fund_values:

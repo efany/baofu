@@ -24,7 +24,8 @@ def create_single_product_value_graph(mysql_db, data_type):
                         {'label': '基金', 'value': 'fund'},
                         {'label': '策略', 'value': 'strategy'},
                         {'label': '股票', 'value': 'stock'},
-                        {'label': '外汇', 'value': 'forex'}
+                        {'label': '外汇', 'value': 'forex'},
+                        {'label': '国债收益率', 'value': 'bond_yield'}
                     ],
                     value=data_type,
                     style={'width': '150px'}
@@ -50,17 +51,46 @@ def create_single_product_value_graph(mysql_db, data_type):
                         {'label': '近五年', 'value': '5Y'},
                         {'label': '本季度', 'value': 'CQ'},
                         {'label': '本年度', 'value': 'CY'},
-                        {'label': '所有', 'value': 'ALL'}
+                        {'label': '所有', 'value': 'ALL'},
+                        {'label': '自定义', 'value': 'custom'}  # 添加自定义选项
                     ],
                     value='1Y',  # 默认显示近一年
                     clearable=False,
                     style={'width': '150px'}
                 )
-            ], style={'marginRight': '20px'})
+            ], style={'marginRight': '10px'}),
+            
+            # 添加时间控件
+            html.Div([
+                html.Span('开始时间：', style={'marginRight': '5px'}),
+                dcc.DatePickerSingle(
+                    id='start-date-picker',
+                    style={'width': '200px', 'display': 'inline-block'},
+                    disabled=True,  # 默认禁用，当选择"自定义"时启用
+                    first_day_of_week=1,  # 设置周一为一周的第一天
+                    display_format='YYYY年MM月DD日',  # 设置显示格式
+                    month_format='YYYY年MM月',  # 设置月份显示格式
+                    clearable=False,  # 禁止清除日期
+                )
+            ], style={'marginRight': '10px', 'display': 'inline-block'}),
+            
+            html.Div([
+                html.Span('结束时间：', style={'marginRight': '5px'}),
+                dcc.DatePickerSingle(
+                    id='end-date-picker',
+                    style={'width': '150px', 'display': 'inline-block'},
+                    disabled=True,  # 默认禁用，当选择"自定义"时启用
+                    first_day_of_week=1,  # 设置周一为一周的第一天
+                    display_format='YYYY年MM月DD日',  # 设置显示格式
+                    month_format='YYYY年MM月',  # 设置月份显示格式
+                    clearable=False,  # 禁止清除日期
+                )
+            ], style={'display': 'inline-block'})
         ], style={
             'display': 'flex',
             'alignItems': 'flex-end',
-            'marginBottom': '20px'
+            'marginBottom': '20px',
+            'gap': '10px'
         }),
         
         # 参数配置区域

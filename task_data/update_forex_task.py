@@ -154,7 +154,7 @@ def main():
     task_config = {
         "name": "update_forex",
         "description": "更新外汇历史数据",
-        "symbols": ["USDCNH", "USDJPY"]
+        "symbols": ["USDCNH", "USDJPY", "USDCHF"]
     }
     
     # 创建并执行任务

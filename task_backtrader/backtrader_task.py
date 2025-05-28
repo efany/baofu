@@ -85,7 +85,10 @@ class BacktraderTask(BacktraderBaseTask):
             
             # 获取回测结果
             strat = results[0]
-            portfolio_value = cerebro.broker.getvalue()
+            daily_asset = strat.analyzers.daily_asset.get_analysis()
+            trade_list = strat.analyzers.trade_list.get_analysis()
+
+            portfolio_value = daily_asset[-1]['total']
             
             # 收集持仓详情
             positions = []
@@ -109,11 +112,8 @@ class BacktraderTask(BacktraderBaseTask):
                 'final_value': portfolio_value,
                 'return_rate': (portfolio_value - self.initial_cash) / self.initial_cash * 100,
                 'positions': positions,  # 持仓详情
-                'returns': strat.analyzers.returns.get_analysis(),
-                'drawdown': strat.analyzers.drawdown.get_analysis(),
-                'sharpe': strat.analyzers.sharpe.get_analysis(),
-                'daily_asset': strat.analyzers.daily_asset.get_analysis(),
-                'trades': strat.analyzers.trade_list.get_analysis()
+                'daily_asset': daily_asset,
+                'trades': trade_list
             }
             
         except Exception as e:
@@ -156,9 +156,6 @@ def test_buy_and_hold(mysql_db):
         logger.info(f"收益率: {result['return_rate']:.2f}%")
         logger.info(f"持仓详情: {result['positions']}")
 
-        logger.info(f"收益: {result['returns']}")
-        logger.info(f"最大回撤: {result['drawdown']}")
-        logger.info(f"夏普比率: {result['sharpe']}")
     else:
         logger.error(f"回测失败: {task.error}")
 def test_rebalance(mysql_db):
@@ -168,7 +165,8 @@ def test_rebalance(mysql_db):
         "description": "再平衡策略回测",
         "data_params": """
             {
-                "stock_symbols": ["159949.SZ", "512550.SS", "159633.SZ", "159628.SZ"]
+                "forex_symbols": ["USDCNH", "JPYCNH", "CHFCNH"],
+                "bond_types": ["CN_2Y", "US_2Y"]
             }
         """,
         "initial_cash": 1000000,
@@ -176,35 +174,24 @@ def test_rebalance(mysql_db):
             {
                 "name": "Rebalance",
                 "open_date": "2024-01-01",
-                "close_date": "",
-                "dividend_method": "reinvest",
+                "forex_financing": {
+                    "JPYCNH": 0.05,
+                    "CHFCNH": 0.05
+                },
+                "current_rate": {
+                    "CNY": "",
+                    "USDCNH": ""
+                },
                 "triggers": {
-                    "deviation": {
-                        "159949.SZ": {
-                            "rise": 0.05,
-                            "fall": 0.05
-                        },
-                        "512550.SS": {
-                            "rise": 0.05,
-                            "fall": 0.05
-                        },
-                        "159633.SZ": {
-                            "rise": 0.05,
-                            "fall": 0.05
-                        },
-                        "159628.SZ": {
-                            "rise": 0.05,
-                            "fall": 0.05
-                        }
+                    "period": {
+                    "freq": "month",
+                    "day": 1,
+                    "watermark": 0.01
                     }
                 },
                 "target_weights": {
-                    "159949.SZ": 0.3,
-                    "512550.SS": 0.3,
-                    "159633.SZ": 0.2,
-                    "159628.SZ": 0.2
-                },
-                "cash_reserve": 0.0
+                    "USDCNH": "0.3"
+                }
             }
         """
     }
@@ -221,9 +208,6 @@ def test_rebalance(mysql_db):
         logger.info(f"收益率: {result['return_rate']:.2f}%")
         logger.info(f"持仓详情: {result['positions']}")
 
-        logger.info(f"收益: {result['returns']}")
-        logger.info(f"最大回撤: {result['drawdown']}")
-        logger.info(f"夏普比率: {result['sharpe']}")
     else:
         logger.error(f"回测失败: {task.error}")
 

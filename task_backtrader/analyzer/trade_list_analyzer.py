@@ -65,5 +65,9 @@ class TradeListAnalyzer(bt.Analyzer):
                 logger.info(f"订单 {order.ref} 已拒绝")
 
     def get_analysis(self):
-        """返回交易记录"""
-        return self.trades 
+        """获取分析结果"""
+        # 合并融资交易和普通交易，并按日期排序
+        all_trades = self.strategy.financing_trades + self.trades
+        sorted_trades = sorted(all_trades, key=lambda x: x['date'])
+        
+        return sorted_trades

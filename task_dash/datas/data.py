@@ -5,10 +5,12 @@ from .fund_data_generator import FundDataGenerator
 from .strategy_data_generator import StrategyDataGenerator
 from .stock_data_generator import StockDataGenerator
 from .forex_data_generator import ForexDataGenerator
+from .bond_rate_data_generator import BondRateDataGenerator
 from database.db_funds import DBFunds
 from database.db_funds_nav import DBFundsNav
 from database.db_strategys import DBStrategys
 from database.db_stocks import DBStocks
+from database.db_bond_rate import DBBondRate
 from database.mysql_database import MySQLDatabase
 from loguru import logger
 
@@ -79,6 +81,17 @@ def create_data_generator(
             logger.info(f"创建外汇数据生成器: {data_id}")
             return ForexDataGenerator(
                 forex_code=data_id,
+                mysql_db=mysql_db,
+                start_date=start_date,
+                end_date=end_date
+            )
+        elif data_type == 'bond_yield':
+            if not isinstance(data_id, str):
+                raise ValueError("Bond yield data_id must be string (bond type)")
+
+            logger.info(f"创建债券利率数据生成器: {data_id}")
+            return BondRateDataGenerator(
+                bond_type=data_id,
                 mysql_db=mysql_db,
                 start_date=start_date,
                 end_date=end_date

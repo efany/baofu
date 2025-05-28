@@ -66,6 +66,30 @@ def get_forex_name(symbol: str) -> str:
     """
     return FOREX_NAME_MAP.get(symbol, symbol)
 
+BOND_NAME_MAP: Dict[str, str] = {
+    'CN_30Y': '中国30年期国债收益率',
+    'US_30Y': '美国30年期国债收益率',
+    'CN_10Y': '中国10年期国债收益率',
+    'US_10Y': '美国10年期国债收益率',
+    'CN_5Y': '中国5年期国债收益率',
+    'US_5Y': '美国5年期国债收益率',
+    'CN_2Y': '中国2年期国债收益率',
+    'US_2Y': '美国2年期国债收益率'
+}
+
+def get_bond_name(symbol: str) -> str:
+    """
+    获取债券的中文简称
+    
+    Args:
+        symbol: 债券代码，例如 'CN_30Y'
+        
+    Returns:
+        str: 债券的中文简称，如果没有找到则返回债券代码
+    """
+    return BOND_NAME_MAP.get(symbol, symbol)
+
+
 def get_data_briefs(data_type, data) -> list:
     if data_type == "fund":
         return [{'label': f"{item['name']}({item['ts_code']})", 'value': item['ts_code']} for index, item in data.iterrows()]
@@ -75,6 +99,10 @@ def get_data_briefs(data_type, data) -> list:
         return [{'label': f"{get_stock_name(item['symbol'])}({item['symbol']})", 'value': item['symbol']} for index, item in data.iterrows()]
     elif data_type == "forex":
         return [{'label': f"{get_forex_name(item['symbol'])}({item['symbol']})", 'value': item['symbol']} for index, item in data.iterrows()]
+    elif data_type == "bond_yield":
+        return [{'label': f"{get_bond_name(item['bond_type'])}({item['bond_type']})", 'value': item['bond_type']} for index, item in data.iterrows()]
+    else:
+        return []
 
 def get_date_range(time_range):
     """

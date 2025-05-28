@@ -122,9 +122,8 @@ class AKShareETFForexTask(BaseTask):
 if __name__ == '__main__':
     # 测试代码
     task_config = { 
-        'symbol': 'USDJPY',
+        'symbol': 'USDCHF',
         'start_date': '2024-02-01',
-        'end_date': '2024-02-21'
     }
     task = AKShareETFForexTask(task_config)
     task.run()

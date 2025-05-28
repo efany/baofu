@@ -44,6 +44,16 @@ class StrategyDataGenerator(DataGenerator):
                     )
                     self.params[parameter['name']] = parameter['value']
                     self.parameter_configs.append(param)
+                elif parameter['type'] == 'select':
+                    param = ParamConfig(
+                        type=parameter['type'],
+                        name=parameter['name'],
+                        label=parameter['label'],
+                        value=parameter['value'],
+                        options=parameter['options']
+                    )
+                    self.params[parameter['name']] = parameter['value']
+                    self.parameter_configs.append(param)
     
     def load(self) -> bool:
         """加载策略数据"""
@@ -73,6 +83,7 @@ class StrategyDataGenerator(DataGenerator):
             task = BacktraderTask(self.mysql_db, strategy_info)
             task.execute()
             if task.is_success:
+                logger.info(f"回测任务执行成功")
                 self.backtest_result = task.result
                 # 转换日期格式
                 if 'daily_asset' in self.backtest_result:
@@ -166,15 +177,77 @@ class StrategyDataGenerator(DataGenerator):
                 
                 if normalize:
                     product_data = self.normalize_series(product_data)
-                    
+                
+                # 如果产品数据为空，或Y轴均为0值，则不添加到图表中
+                if product_data.empty:
+                    continue
+                if product_data.tolist().count(0) == len(product_data):
+                    continue
+                
                 chart_data.append({
                     'x': dates,
                     'y': product_data.tolist(),
                     'type': 'line',
-                    'name': f'产品{product_code}',
+                    'name': f'{product_code}持仓',
                     'visible': 'legendonly'
                 })
         
+        # 添加融资数据
+        if 'financing' in daily_asset.columns:
+            financing = daily_asset['financing']
+            chart_data.append({
+                'x': dates,
+                'y': financing.tolist(),
+                'type': 'line',
+                'name': '融资',
+                'visible': 'legendonly'
+            })
+            financing_interest = daily_asset['financing_interest']
+            chart_data.append({
+                'x': dates,
+                'y': financing_interest.tolist(),
+                'type': 'line',
+                'name': '融资利息',
+                'visible': 'legendonly'
+            })
+        
+        if 'cash_interest' in daily_asset.columns:
+            cash_interest = daily_asset['cash_interest']
+            chart_data.append({
+                'x': dates,
+                'y': cash_interest.tolist(),
+                'type': 'line',
+                'name': '现金利息',
+                'visible': 'legendonly'
+            })
+
+        # 添加每个产品的利息数据
+        if 'product_interests' in daily_asset.iloc[0]:
+            product_codes = []
+            product_interests = daily_asset['product_interests']
+            # 遍历所有日期的product_interests，收集所有计息产品代码
+            product_codes = set()
+            for _, row in daily_asset.iterrows():
+                if 'product_interests' in row and isinstance(row['product_interests'], dict):
+                    product_codes.update(row['product_interests'].keys())
+            product_codes = list(product_codes)
+            for product_code in product_codes:
+                product_interest_data = pd.Series([
+                    row['product_interests'].get(product_code, 0) 
+                    for _, row in daily_asset.iterrows()
+                ])
+                if product_interest_data.empty:
+                    continue
+                if product_interest_data.tolist().count(0) == len(product_interest_data):
+                    continue
+                chart_data.append({
+                    'x': dates,
+                    'y': product_interest_data.tolist(),
+                    'type': 'line',
+                    'name': f'{product_code}利息',
+                    'visible': 'legendonly'
+                    })
+            
         return chart_data
     
     def get_extra_datas(self) -> List[TableData]:

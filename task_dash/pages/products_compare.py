@@ -95,12 +95,28 @@ def create_products_compare_page(mysql_db):
                         {'label': '近五年', 'value': '5Y'},
                         {'label': '本季度', 'value': 'CQ'},
                         {'label': '本年度', 'value': 'CY'},
-                        {'label': '所有', 'value': 'ALL'}
+                        {'label': '所有', 'value': 'ALL'},
+                        {'label': '自定义', 'value': 'custom'}  # 添加自定义选项
                     ],
                     value='1Y',
                     clearable=False,
                     style={'width': '120px'}
                 ),
+                # 添加日期选择器
+                html.Div([
+                    dcc.DatePickerSingle(
+                        id='compare-start-date',
+                        placeholder='开始日期',
+                        disabled=True,  # 初始状态禁用
+                        style={'width': '130px', 'marginLeft': '10px'}
+                    ),
+                    dcc.DatePickerSingle(
+                        id='compare-end-date',
+                        placeholder='结束日期',
+                        disabled=True,  # 初始状态禁用
+                        style={'width': '130px', 'marginLeft': '10px'}
+                    ),
+                ], style={'display': 'inline-flex', 'alignItems': 'center'}),
                 # 辅助线选择
                 dcc.Checklist(
                     id='compare-line-options',
@@ -114,6 +130,22 @@ def create_products_compare_page(mysql_db):
                     value=[],
                     inline=True,
                     style={'margin-left': '20px'}
+                ),
+                # 确认按钮
+                html.Button(
+                    '确认',
+                    id='compare-confirm-button',
+                    n_clicks=0,
+                    style={
+                        'marginLeft': '20px',
+                        'padding': '5px 15px',
+                        'backgroundColor': '#1890ff',
+                        'color': 'white',
+                        'border': 'none',
+                        'borderRadius': '4px',
+                        'cursor': 'pointer',
+                        'height': '32px'  # 与下拉框高度保持一致
+                    }
                 ),
             ], style={
                 'display': 'flex',

@@ -181,4 +181,25 @@ if __name__ == "__main__":
             print("数据表 'forex_day_hist_data' 校验。")
         else:
             print("数据表 'forex_day_hist_data' 创建失败。")
+
+    if db.check_table_exists('bond_rate_history'):
+        print("数据表 'bond_rate_history' 已存在")
+    else:
+        # bond_type  | str    | 债券类型（如：CN_10Y, US_10Y等）
+        # date       | date   | 日期
+        # rate       | float  | 利率值
+        table_schema = """
+        bond_type VARCHAR(20),
+        date DATE,
+        rate FLOAT,
+        create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (bond_type, date)
+        """
+        db.create_table('bond_rate_history', table_schema)
+        if db.check_table_exists('bond_rate_history'):
+            print("数据表 'bond_rate_history' 校验。")
+        else:
+            print("数据表 'bond_rate_history' 创建失败。")
+
     db.close_connection()

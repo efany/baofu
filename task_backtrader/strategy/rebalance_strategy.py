@@ -62,42 +62,13 @@ class RebalanceStrategy(BaseStrategy):
         self.rebalance_dates = set()  # 用set存储再平衡日期，提高查找效率
         self.current_weights = {}  # 记录当前持仓的目标权重
         self.last_rebalance_value = 0  # 记录上次再平衡时的投资组合总价值
-        self.position_opened = False  # 是否已开仓
-        self.position_closed = False  # 是否已平仓
         self.mark_balance = 0
-        
-        # 处理开仓日期
-        open_date_param = self.params.get('open_date')
-        if open_date_param is None or open_date_param == "":
-            # 获取各个产品有效净值的最大日期作为开仓日期
-            min_date = None
-            for d in self.datas:
-                valid_dates = [datetime.fromordinal(int(date)).date() for date in d.datetime.array]
-                if not valid_dates:
-                    continue
-                current_min = min(valid_dates)
-                if min_date is None or current_min > min_date:
-                    min_date = current_min
-            self.open_date = min_date
-            logger.info(f"未指定开仓日期，使用各产品有效净值的最大日期作为开仓日期: {self.open_date}")
-        else:
-            self.open_date = datetime.strptime(open_date_param, '%Y-%m-%d').date()
-
-        # 处理平仓日期
-        close_date_param = self.params.get('close_date')
-        if close_date_param is None or close_date_param == "":
-            self.close_date = None
-            logger.info(f"未指定平仓日期，不执行平仓")
-        else:
-            self.close_date = datetime.strptime(close_date_param, '%Y-%m-%d').date()
         
         # 初始化触发条件
         self._init_triggers()
         
         # 记录初始配置
         logger.info("策略初始化配置:")
-        logger.info(f"开仓日期: {self.open_date}")
-        logger.info(f"平仓日期: {self.close_date}")
         logger.info(f"目标权重: {self.params['target_weights']}")
         logger.info(f"触发条件: {self.params['triggers']}")
         
@@ -379,6 +350,24 @@ class RebalanceStrategy(BaseStrategy):
                 self.order_message[order.ref] = message
                 logger.info(f"{symbol}: buy {price:.2f}*{buy_size} = {(price*buy_size):.2f} --- current_position:{current_position} >> target_position:{target_position}")
         
+    def open_trade(self):
+        """开仓"""
+        super().open_trade()
+        logger.info(f"开仓")
+        self._rebalance_buy("开仓")  # 首次建仓时立即执行所有操作
+    
+    def close_trade(self):
+        """平仓"""
+        super().close_trade()
+        logger.info(f"平仓")
+        for symbol in self.params['target_weights'].keys():
+            data = self.getdatabyname(symbol)
+            if data is None:
+                continue
+            pos = self.getposition(data)
+            if pos.size > 0:
+                order = self.sell(data=data, size=pos.size)
+                self.order_message[order.ref] = "平仓"
 
     def next(self):
 
@@ -388,14 +377,11 @@ class RebalanceStrategy(BaseStrategy):
         主要的策略逻辑
         检查是否满足再平衡条件，如果满足则执行再平衡
         """
-        if self.position_closed:
-            return
-        if self.data0.datetime.get_idx() >= self.data0.datetime.buflen() - 1:
+        if not (self.is_open_traded and not self.is_close_traded):
             return
 
         last_date = self.data0.datetime.date(-1)
         current_date = self.data0.datetime.date(0)
-        next_date = self.data0.datetime.date(1)
 
         # 检查是否有待执行的买入操作
         if self.mark_balance == 2:
@@ -408,45 +394,21 @@ class RebalanceStrategy(BaseStrategy):
             self.mark_balance -= 1
             return
 
-        # 如果还未开仓且到达开仓日期，执行首次建仓
-        if not self.position_opened and next_date is not None and next_date >= self.open_date:
-            logger.info(f"达到开仓日期 {current_date}，执行首次建仓")
-            self._rebalance_buy("开仓")  # 首次建仓时立即执行所有操作
-            self.position_opened = True
-            return
+        # 检查是否需要再平衡
+        need_rebalance = False
+        
+        if self._check_period_trigger():
+            logger.info(f"当前日期 {current_date} 触发再平衡")
+            need_rebalance = True
 
-        # 如果已经到达平仓日期，执行平仓
-        if self.close_date and next_date >= self.close_date and not self.position_closed:
-            logger.info(f"达到平仓日期 {current_date}，执行平仓")
-            # 遍历所有持仓产品进行平仓
-            for symbol in self.params['target_weights'].keys():
-                data = self.getdatabyname(symbol)
-                if data is None:
-                    continue
-                pos = self.getposition(data)
-                if pos.size > 0:
-                    order = self.sell(data=data, size=pos.size)
-                    self.order_message[order.ref] = "平仓"
-            self.position_closed = True
-            return
-
-        # 只有在开仓日期和平仓日期之间才执行再平衡
-        if self.position_opened and not self.position_closed:
-            # 检查是否需要再平衡
-            need_rebalance = False
-            
-            if self._check_period_trigger():
-                logger.info(f"当前日期 {current_date} 触发再平衡")
-                need_rebalance = True
-
-            # 检查偏离触发
-            if self._check_deviation_trigger():
-                logger.info("产品权重偏离触发再平衡")
-                need_rebalance = True
-            
-            # 执行再平衡
-            if need_rebalance:
-                self.print_positions()
-                logger.info(f"执行再平衡的第一部分《卖出》，日期：{current_date} ")
-                self._rebalance_sell("再平衡卖出")  # 默认使用分离加减仓的方式
-                self.mark_balance = 2
+        # 检查偏离触发
+        if self._check_deviation_trigger():
+            logger.info("产品权重偏离触发再平衡")
+            need_rebalance = True
+        
+        # 执行再平衡
+        if need_rebalance:
+            self.print_positions()
+            logger.info(f"执行再平衡的第一部分《卖出》，日期：{current_date} ")
+            self._rebalance_sell("再平衡卖出")  # 默认使用分离加减仓的方式
+            self.mark_balance = 2

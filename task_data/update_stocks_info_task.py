@@ -42,10 +42,10 @@ class UpdateStocksInfoTask(BaseTask):
     def crawl_stock_info(self, stock_symbol: str) -> Dict[str, Any]:
         """
         更新单个股票的信息
-        
+
         Args:
             stock_symbol: 股票代码
-            
+
         Returns:
             Dict[str, Any]: 更新后的股票信息
         """
@@ -56,7 +56,7 @@ class UpdateStocksInfoTask(BaseTask):
             "stock_symbol": stock_symbol,
             "proxy": self.task_config.get('proxy')  # 如果配置中有代理，则使用代理
         }
-        
+
         # 执行爬虫任务
         crawler = YFinanceStockInfoTask(crawler_config)
         crawler.execute()

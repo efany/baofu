@@ -14,6 +14,7 @@ from database.db_funds import DBFunds
 from database.db_strategys import DBStrategys
 from database.db_stocks import DBStocks
 from database.db_forex_day_hist import DBForexDayHist
+from database.db_bond_rate import DBBondRate
 from task_dash.utils import get_date_range, get_data_briefs
 from task_dash.datas.data import create_data_generator
 from task_dash.datas.data_generator import TableData
@@ -126,6 +127,8 @@ def register_single_product_callbacks(app, mysql_db):
                 data = DBStocks(mysql_db).get_all_stocks()
             elif selected_type == 'forex':
                 data = DBForexDayHist(mysql_db).get_all_forex(extend=True)
+            elif selected_type == 'bond_yield':
+                data = DBBondRate(mysql_db).get_all_bond()
             else:
                 data = pd.DataFrame()
             
@@ -243,6 +246,30 @@ def register_single_product_callbacks(app, mysql_db):
             logger.error(f"Error in update_params_config: {str(e)}")
             return html.Div(f"参数配置加载失败: {str(e)}", style={'color': 'red'})
 
+    # 添加时间控件联动回调
+    @app.callback(
+        [Output('start-date-picker', 'date'),
+         Output('end-date-picker', 'date'),
+         Output('start-date-picker', 'disabled'),
+         Output('end-date-picker', 'disabled')],
+        [Input('time-range-dropdown', 'value')]
+    )
+    def update_date_pickers(time_range):
+        """更新时间控件的状态和值"""
+        if time_range == 'custom':
+            # 如果是自定义时间范围，启用时间控件
+            return None, None, False, False
+        
+        # 获取日期范围
+        start_date, end_date = get_date_range(time_range)
+        
+        # 将日期转换为字符串格式 (YYYY-MM-DD)
+        start_str = start_date.strftime('%Y-%m-%d') if start_date else None
+        end_str = end_date.strftime('%Y-%m-%d') if end_date else None
+        
+        # 非自定义时间范围时禁用时间控件
+        return start_str, end_str, True, True
+
     @app.callback(
         [Output('product-value-graph', 'figure'),
          Output('product-summary-table', 'children'),
@@ -253,16 +280,25 @@ def register_single_product_callbacks(app, mysql_db):
          State('product-dropdown', 'value'),
          State('line-options', 'value'),
          State('time-range-dropdown', 'value'),
-         State('params-config-container', 'children')]  # 添加参数配置状态
+         State('start-date-picker', 'date'),  # 添加开始时间状态
+         State('end-date-picker', 'date'),    # 添加结束时间状态
+         State('params-config-container', 'children')]
     )
-    def update_product_display(n_clicks, data_type, selected_data, line_options, time_range, params_config):
+    def update_product_display(n_clicks, data_type, selected_data, line_options, time_range, 
+                             start_date_str, end_date_str, params_config):
         """更新数据展示"""
         if not n_clicks:  # 初始加载时不触发更新
             raise dash.exceptions.PreventUpdate
         
         try:
             # 获取日期范围
-            start_date, end_date = get_date_range(time_range)
+            if time_range == 'custom':
+                # 如果选择自定义时间范围，使用时间控件的值
+                start_date = pd.to_datetime(start_date_str).date() if start_date_str else None
+                end_date = pd.to_datetime(end_date_str).date() if end_date_str else None
+            else:
+                # 否则使用预设的时间范围
+                start_date, end_date = get_date_range(time_range)
 
             logger.info(f"更新数据时间范围: {start_date} {end_date}")
             
