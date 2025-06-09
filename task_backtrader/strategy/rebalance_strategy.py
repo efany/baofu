@@ -8,6 +8,8 @@ from loguru import logger
 sys.path.append(os.path.join(os.path.dirname(__file__), '../..'))
 
 from task_backtrader.strategy.base_strategy import BaseStrategy
+from task_backtrader.strategy.trigger.trigger_factory import TriggerFactory
+from task_backtrader.strategy.trigger.base_trigger import BaseTrigger
 
 
 class RebalanceStrategy(BaseStrategy):
@@ -59,176 +61,18 @@ class RebalanceStrategy(BaseStrategy):
             raise ValueError("必须设置触发条件")
         
         # 初始化变量
-        self.rebalance_dates = set()  # 用set存储再平衡日期，提高查找效率
         self.current_weights = {}  # 记录当前持仓的目标权重
         self.last_rebalance_value = 0  # 记录上次再平衡时的投资组合总价值
         self.mark_balance = 0
         
-        # 初始化触发条件
-        self._init_triggers()
+        # 初始化触发器
+        self.triggers = TriggerFactory.create_triggers(self.params)
         
         # 记录初始配置
         logger.info("策略初始化配置:")
         logger.info(f"目标权重: {self.params['target_weights']}")
         logger.info(f"触发条件: {self.params['triggers']}")
         
-    def _init_triggers(self):
-        """初始化触发条件"""
-        triggers = self.params['triggers']
-        
-        # 处理日期触发
-        if 'dates' in triggers:
-            for date_str in triggers['dates']:
-                self.rebalance_dates.add(date_str)
-        
-        # 处理周期触发
-        if 'period' in triggers:
-            period = triggers['period']
-            freq = period.get('freq', 'month')
-            day = period.get('day', -1)  # 默认为每周期最后一天
-            
-            # 获取数据的起止日期
-            start_date = self.open_date
-            end_date = self.close_date if self.close_date is not None else datetime.now().date()
-
-            logger.info(f"start_date:{start_date},end_date:{end_date}")
-            
-            current_date = start_date
-            while current_date <= end_date:
-                if freq == 'month':
-                    # 每月触发
-                    if day > 0 and current_date.day == day:
-                        self.rebalance_dates.add(current_date.strftime('%Y-%m-%d'))
-                    elif day < 0 and (current_date + timedelta(days=1)).month != current_date.month:
-                        self.rebalance_dates.add(current_date.strftime('%Y-%m-%d'))
-                elif freq == 'quarter':
-                    # 每季度触发
-                    if current_date.month in [3, 6, 9, 12]:
-                        if day > 0 and current_date.day == day:
-                            self.rebalance_dates.add(current_date.strftime('%Y-%m-%d'))
-                        elif day < 0 and (current_date + timedelta(days=1)).month != current_date.month:
-                            self.rebalance_dates.add(current_date.strftime('%Y-%m-%d'))
-                elif freq == 'year':
-                    # 每年触发
-                    if current_date.month == 12:
-                        if day > 0 and current_date.day == day:
-                            self.rebalance_dates.add(current_date.strftime('%Y-%m-%d'))
-                        elif day < 0 and (current_date + timedelta(days=1)).year != current_date.year:
-                            self.rebalance_dates.add(current_date.strftime('%Y-%m-%d'))
-                current_date += timedelta(days=1)
-        logger.info(f"{self.rebalance_dates}")
-
-    def _check_period_trigger(self) -> bool:
-        need_rebalance = False
-
-        last_date = self.data0.datetime.date(-1)
-        current_date = self.data0.datetime.date(0)
-        # 获取所有小于等于当前日期的再平衡日期
-        valid_dates = [d for d in self.rebalance_dates if datetime.strptime(d, '%Y-%m-%d').date() <= current_date]
-        # 如果有有效日期
-        if valid_dates:
-            # 获取最大的有效日期
-            latest_valid_date = max(valid_dates, key=lambda d: datetime.strptime(d, '%Y-%m-%d').date())
-            # 如果这个日期大于上次再平衡日期
-            if datetime.strptime(latest_valid_date, '%Y-%m-%d').date() > last_date:
-                need_rebalance = True
-        
-        if need_rebalance:
-            # 获取触发配置中的watermark阈值
-            watermark = self.params['triggers']['period'].get('watermark', 0.0)
-            if watermark > 0:
-                # 计算总资产
-                total_value = self.get_total_asset()
-
-                # 检查每个产品的持仓偏移
-                max_deviation = 0
-                for symbol, target_weight in self.params['target_weights'].items():
-                    target_weight = float(target_weight)
-                    data = self.getdatabyname(symbol)
-                    if not data:
-                        continue
-                        
-                    position = self.getposition(data)
-                    if not position:
-                        current_weight = 0
-                    else:
-                        current_weight = position.size * data.close[0] / total_value
-                        
-                    # 计算当前权重与目标权重的偏差
-                    deviation = abs(current_weight - target_weight)
-                    if deviation > max_deviation:
-                        max_deviation = deviation
-                        
-                # 如果最大偏差小于等于watermark，则不执行再平衡
-                if max_deviation <= watermark:
-                    logger.info(f"{current_date} 最大持仓偏移 {max_deviation:.2%} 小于 watermark {watermark:.2%}，不执行再平衡")
-                    self.print_positions()
-                    need_rebalance = False
-        return need_rebalance
-    
-    def _check_deviation_trigger(self) -> bool:
-        """检查是否触发偏离条件"""
-        triggers = self.params['triggers']
-        target_weights = self.params['target_weights']
-        if 'deviation' not in triggers:
-            return False
-
-        # "triggers": {
-        #     "deviation": {
-        #         "159949.SZ": {
-        #             "rise": 0.1,
-        #             "fall": 0.1,
-        #         }
-        #         "512550.SS": {
-        #             "rise": 0.1,
-        #             "fall": 0.1,
-        #         }
-        #         "159633.SZ": {
-        #             "rise": 0.1,
-        #             "fall": 0.1,
-        #         }
-        #         "159628.SZ": {
-        #             "rise": 0.1,
-        #             "fall": 0.1,
-        #         }
-        #     }
-        # }
-        # 获取当前总资产
-        total_value = self.get_total_asset()
-        
-        # 遍历deviation中的产品
-        for symbol, deviation_config in triggers['deviation'].items():
-            # 获取产品数据
-            data = self.getdatabyname(symbol)
-            if not data:
-                continue
-
-            # 获取当前持仓
-            position = self.getposition(data)
-            if not position:
-                current_weight = 0
-            else:
-                current_weight = position.size * data.close[0] / total_value
-
-            # 获取目标权重
-            target_weight = float(target_weights.get(symbol, 0))
-            
-            # 计算当前权重与目标权重的偏差
-            deviation = (current_weight - target_weight) / target_weight
-            
-            # 检查是否触发上升或下降条件
-            rise_offset = float(deviation_config.get('rise', '0'))
-            fall_offset = float(deviation_config.get('fall', '0'))
-            if deviation > 0 and deviation > rise_offset:
-                logger.info(f"产品{symbol}当前权重{current_weight:.2%}超过目标权重{target_weight:.2%}，"
-                          f"偏差{deviation:.2%}大于上升阈值{rise_offset:.2%}，触发再平衡")
-                return True
-            elif deviation < 0 and abs(deviation) > fall_offset:
-                logger.info(f"产品{symbol}当前权重{current_weight:.2%}低于目标权重{target_weight:.2%}，"
-                          f"偏差{abs(deviation):.2%}大于下降阈值{fall_offset:.2%}，触发再平衡")
-                return True
-        return False
-    
     def _calculate_target_position(self, symbol: str) -> int:
         """
         计算指定产品的目标持仓数量
@@ -352,12 +196,18 @@ class RebalanceStrategy(BaseStrategy):
         
     def open_trade(self):
         """开仓"""
+        for trigger in self.triggers:
+            need_rebalance, message = trigger.open_trade(self)
+
         super().open_trade()
-        logger.info(f"开仓")
+        logger.info(f"开仓，日期：{self.data0.datetime.date(0)}")
         self._rebalance_buy("开仓")  # 首次建仓时立即执行所有操作
     
     def close_trade(self):
         """平仓"""
+        for trigger in self.triggers:
+            need_rebalance, message = trigger.close_trade(self)
+    
         super().close_trade()
         logger.info(f"平仓")
         for symbol in self.params['target_weights'].keys():
@@ -370,22 +220,15 @@ class RebalanceStrategy(BaseStrategy):
                 self.order_message[order.ref] = "平仓"
 
     def next(self):
-
+        """主要的策略逻辑"""
         super().next()
     
-        """
-        主要的策略逻辑
-        检查是否满足再平衡条件，如果满足则执行再平衡
-        """
         if not (self.is_open_traded and not self.is_close_traded):
             return
 
-        last_date = self.data0.datetime.date(-1)
-        current_date = self.data0.datetime.date(0)
-
         # 检查是否有待执行的买入操作
         if self.mark_balance == 2:
-            logger.info(f"执行再平衡的第二部分《买入》，日期：{current_date} ")
+            logger.info(f"执行再平衡的第二部分《买入》，日期：{self.data0.datetime.date(0)} ")
             self._rebalance_buy("再平衡买入")
             self.mark_balance -= 1
             return
@@ -397,18 +240,16 @@ class RebalanceStrategy(BaseStrategy):
         # 检查是否需要再平衡
         need_rebalance = False
         
-        if self._check_period_trigger():
-            logger.info(f"当前日期 {current_date} 触发再平衡")
-            need_rebalance = True
-
-        # 检查偏离触发
-        if self._check_deviation_trigger():
-            logger.info("产品权重偏离触发再平衡")
-            need_rebalance = True
+        # 遍历所有触发器
+        for trigger in self.triggers:
+            need_rebalance, message = trigger.check(self)
+            if need_rebalance:
+                logger.info(f"触发器{trigger.__class__.__name__}触发再平衡，原因：{message}")
+                break
         
         # 执行再平衡
         if need_rebalance:
             self.print_positions()
-            logger.info(f"执行再平衡的第一部分《卖出》，日期：{current_date} ")
+            logger.info(f"执行再平衡的第一部分《卖出》，日期：{self.data0.datetime.date(0)} ")
             self._rebalance_sell("再平衡卖出")  # 默认使用分离加减仓的方式
             self.mark_balance = 2

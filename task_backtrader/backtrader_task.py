@@ -48,7 +48,7 @@ class BacktraderTask(BacktraderBaseTask):
         self.initial_cash = self.task_config.get('initial_cash', 1_000_000.0)
 
         # 准备数据
-        self.data_feeds = self.make_data()
+        self.data_feeds = self.make_data(extra_fields=['MA360'])
         
         # 解析data_params
         self.strategy_param = json.loads(self.task_config['strategy'])
@@ -159,38 +159,40 @@ def test_buy_and_hold(mysql_db):
     else:
         logger.error(f"回测失败: {task.error}")
 def test_rebalance(mysql_db):
+                    #     "period": {
+                    #     "freq": "month",
+                    #     "day": 1,
+                    #     "watermark": 0.01
+                    # }
     # 测试配置
     task_config = {
         "name": "rebalance_backtest",
         "description": "再平衡策略回测",
         "data_params": """
             {
-                "forex_symbols": ["USDCNH", "JPYCNH", "CHFCNH"],
-                "bond_types": ["CN_2Y", "US_2Y"]
+                "stock_symbols": ["159949.SZ", "512550.SS", "159633.SZ", "159628.SZ"]
             }
         """,
         "initial_cash": 1000000,
         "strategy": """
             {
                 "name": "Rebalance",
-                "open_date": "2024-01-01",
-                "forex_financing": {
-                    "JPYCNH": 0.05,
-                    "CHFCNH": 0.05
-                },
-                "current_rate": {
-                    "CNY": "",
-                    "USDCNH": ""
-                },
+                "open_date": "2025-01-01",
+                "dividend_method": "reinvest",
                 "triggers": {
-                    "period": {
-                    "freq": "month",
-                    "day": 1,
-                    "watermark": 0.01
+                    "sorting": {
+                        "factor": "MA360",
+                        "top_n": 4,
+                        "weights": [0.3, 0.3, 0.2, 0.2],
+                        "freq": "quarter",
+                        "day": 1
                     }
                 },
                 "target_weights": {
-                    "USDCNH": "0.3"
+                    "159949.SZ": 0.3,
+                    "512550.SS": 0.3,
+                    "159633.SZ": 0.2,
+                    "159628.SZ": 0.2
                 }
             }
         """

@@ -87,15 +87,38 @@ class BacktraderBaseTask(BaseTask):
             self.bond_day_hist[symbol] = self.db_bond_rate.get_bond_rate(symbol)
             logger.debug(f"债券 {symbol} 的历史数据共计: {len(self.bond_day_hist[symbol])} 条")
 
-    def make_data(self) -> Dict[str, bt.feeds.DataBase]:
+    def calculate_extra_fields(self, df: pd.DataFrame, extra_fields: List[str] = None) -> pd.DataFrame:
+        """计算额外的数据字段"""
+        if not extra_fields:
+            return df
+            
+        for field in extra_fields:
+            if field.startswith('MA'):
+                # 计算移动平均线
+                try:
+                    window = int(field[2:])  # 提取MA后面的数字作为窗口大小
+                    ma_series = df['close'].rolling(window=window).mean()
+                    # 将NaN值（包括窗口期不足的数据）设置为-1
+                    df[field] = ma_series.fillna(-1)
+                except ValueError as e:
+                    logger.warning(f"无法解析移动平均线周期: {field}, 错误: {e}")
+                    continue
+            # TODO: 在这里添加其他技术指标的计算
+            
+        return df
+
+    def make_data(self, extra_fields: List[str] = None) -> Dict[str, bt.feeds.DataBase]:
         """
         准备回测数据
         
+        Args:
+            extra_fields: 需要额外计算的数据字段列表，例如 ['MA120', 'MA60']，默认为None
+            
         Returns:
             Dict[str, bt.feeds.DataBase]: 数据源字典
         """
         data_feeds = {}
-
+        
         # 处理基金数据
         for fund_code in self.funds_code:
             df = self.funds_nav[fund_code]
@@ -105,6 +128,9 @@ class BacktraderBaseTask(BaseTask):
             df['nav_date'] = pd.to_datetime(df['nav_date'])
             df['dividend'] = df['dividend'].fillna(0)
             
+            # 计算额外字段
+            df = self.calculate_extra_fields(df, extra_fields)
+            
             data = PandasDataExtends(
                 dataname=df,
                 datetime='nav_date',
@@ -113,7 +139,8 @@ class BacktraderBaseTask(BaseTask):
                 low='unit_nav',
                 close='unit_nav',
                 volume=-1,
-                dividend='dividend'
+                dividend='dividend',
+                **{field: field for field in (extra_fields or [])}  # 添加额外字段到数据源
             )
             data_feeds[fund_code] = data
 
@@ -126,6 +153,9 @@ class BacktraderBaseTask(BaseTask):
             df['date'] = pd.to_datetime(df['date'])
             df['dividend'] = 0
             
+            # 计算额外字段
+            df = self.calculate_extra_fields(df, extra_fields)
+            
             data = PandasDataExtends(
                 dataname=df,
                 datetime='date',
@@ -134,7 +164,8 @@ class BacktraderBaseTask(BaseTask):
                 low='low',
                 close='close',
                 volume='volume',
-                dividend='dividend'  # 股票数据可能没有分红信息
+                dividend='dividend',
+                **{field: field for field in (extra_fields or [])}  # 添加额外字段到数据源
             )
             data_feeds[symbol] = data
 
@@ -148,6 +179,9 @@ class BacktraderBaseTask(BaseTask):
             df['dividend'] = 0
             df["volume"] = 0
 
+            # 计算额外字段
+            df = self.calculate_extra_fields(df, extra_fields)
+
             data = PandasDataExtends(
                 dataname=df,
                 datetime='date',
@@ -156,9 +190,11 @@ class BacktraderBaseTask(BaseTask):
                 low='low',
                 close='close',
                 volume='volume',
-                dividend='dividend'
+                dividend='dividend',
+                **{field: field for field in (extra_fields or [])}  # 添加额外字段到数据源
             )
             data_feeds[symbol] = data
+            
         # 处理债券数据
         for symbol in self.bond_types:
             df = self.bond_day_hist[symbol]
@@ -169,6 +205,9 @@ class BacktraderBaseTask(BaseTask):
             df['dividend'] = 0
             df["volume"] = 0
 
+            # 计算额外字段
+            df = self.calculate_extra_fields(df)
+
             data = PandasDataExtends(
                 dataname=df,
                 datetime='date',
@@ -177,10 +216,11 @@ class BacktraderBaseTask(BaseTask):
                 low='rate',
                 close='rate',
                 volume='volume',
-                dividend='dividend'
+                dividend='dividend',
+                **{field: field for field in (extra_fields or [])}  # 添加额外字段到数据源
             )
             data_feeds[symbol] = data
-        
+
         return data_feeds
 
     def make_strategy(self, strategy_params: Dict[str, Any]) -> bt.Strategy:
