@@ -114,154 +114,76 @@ class BondRateDataGenerator(DataGenerator):
         return [basic_table, yearly_table, quarterly_table]
 
     def _get_basic_indicators(self) -> TableData:
-        """获取基础指标表格"""
-        # 计算收益率
-        first_rate = self.bond_data.iloc[0]['rate']
-        last_rate = self.bond_data.iloc[-1]['rate']
-        return_rate = (last_rate - first_rate) / first_rate * 100
+        if self.bond_data is None or self.bond_data.empty:
+            return {
+                'name': '基础指标',
+                'headers': ['指标', '数值'],
+                'data': []
+            }
         
-        # 计算年化收益率
-        days = (self.bond_data.iloc[-1]['date'] - self.bond_data.iloc[0]['date']).days
-        annualized_return = ((1 + return_rate/100) ** (365/days) - 1) * 100 if days > 0 else 0
-        
-        # 计算风险指标
-        returns = self.bond_data['rate'].pct_change(fill_method=None)
-        volatility = returns.std() * (252 ** 0.5) * 100  # 年化波动率
-        
-        return {
-            'name': '基础指标',
-            'headers': ['指标', '数值'],
-            'data': [
-                ['投资收益率', f'{return_rate:+.2f}% ({first_rate:.2f}% -> {last_rate:.2f}%)'],
-                ['年化收益率', f'{annualized_return:+.2f}%'],
-                ['投资最大回撤', self._get_max_drawdown()],
-                ['年化波动率', f'{volatility:.2f}%'],
-            ]
-        }
+        return DataGenerator.calculate_basic_indicators(
+            df=self.bond_data,
+            date_column='date',
+            value_column='rate',
+        )
 
     def _get_yearly_stats(self) -> TableData:
-        """获取年度统计表格"""
-        # 添加年份列
-        df = self.bond_data.copy()
-        df['year'] = df['date'].dt.year   
-        
-        yearly_stats = []
-        for year in sorted(df['year'].unique(), reverse=True):
-            year_data = df[df['year'] == year]
-            
-            # 获取年度起止日期
-            start_date = year_data.iloc[0]['date'].strftime('%Y-%m-%d')
-            end_date = year_data.iloc[-1]['date'].strftime('%Y-%m-%d')
-            
-            # 计算年度收益率
-            start_rate = year_data.iloc[0]['rate']
-            end_rate = year_data.iloc[-1]['rate']
-            return_rate = (end_rate - start_rate) / start_rate * 100
-            
-            # 计算年化收益率
-            days = (year_data.iloc[-1]['date'] - year_data.iloc[0]['date']).days
-            annualized_return = ((1 + return_rate/100) ** (365/days) - 1) * 100 if days > 0 else 0
-            
-            # 计算年度最大回撤
-            drawdown_list = calculate_max_drawdown(
-                year_data['date'],
-                year_data['rate']
-            )
-            max_drawdown = f"{drawdown_list[0]['value']*100:.2f}%" if drawdown_list else 'N/A'
-            
-            # 计算年度波动率
-            returns = year_data['rate'].pct_change(fill_method=None)
-            volatility = returns.std() * (252 ** 0.5) * 100
-            
-            yearly_stats.append([
-                f"{year} ({start_date}~{end_date})",
-                f'{return_rate:+.2f}%',
-                f'{annualized_return:+.2f}%',
-                max_drawdown,
-                f'{volatility:.2f}%'
-            ])
-        
-        return {
-            'name': '年度统计',
-            'headers': ['年份', '收益率', '年化收益率', '最大回撤', '波动率'],
-            'data': yearly_stats
-        }
+        if self.bond_data is None or self.bond_data.empty:
+            return {
+                'name': '年度统计',
+                'headers': ['年份', '收益率', '年化收益率', '最大回撤', '波动率'],
+                'data': []
+            }
+        return DataGenerator.calculate_yearly_stats(
+            df=self.bond_data,
+            date_column='date',
+            value_column='rate',
+        )
 
     def _get_quarterly_stats(self) -> TableData:
-        """获取季度统计表格"""
-        # 添加季度列
-        df = self.bond_data.copy()
-        df['year'] = df['date'].dt.year
-        df['quarter'] = df['date'].dt.quarter
-        
-        quarterly_stats = []
-        for year in sorted(df['year'].unique(), reverse=True):
-            year_data = df[df['year'] == year]
-            for quarter in sorted(year_data['quarter'].unique(), reverse=True):
-                quarter_data = year_data[year_data['quarter'] == quarter]
-                
-                # 获取季度起止日期
-                start_date = quarter_data.iloc[0]['date'].strftime('%Y-%m-%d')
-                end_date = quarter_data.iloc[-1]['date'].strftime('%Y-%m-%d')
-                
-                # 计算季度收益率
-                start_rate = quarter_data.iloc[0]['rate']
-                end_rate = quarter_data.iloc[-1]['rate']
-                return_rate = (end_rate - start_rate) / start_rate * 100
-                
-                # 计算年化收益率
-                days = (quarter_data.iloc[-1]['date'] - quarter_data.iloc[0]['date']).days
-                annualized_return = ((1 + return_rate/100) ** (365/days) - 1) * 100 if days > 0 else 0
-                
-                # 计算季度最大回撤
-                drawdown_list = calculate_max_drawdown(
-                    quarter_data['date'],
-                    quarter_data['rate']
-                )
-                max_drawdown = f"{drawdown_list[0]['value']*100:.2f}%" if drawdown_list else 'N/A'
-                
-                # 计算季度波动率
-                returns = quarter_data['rate'].pct_change(fill_method=None)
-                volatility = returns.std() * (252 ** 0.5) * 100
-                
-                quarterly_stats.append([
-                    f"{year}Q{quarter} ({start_date}~{end_date})",
-                    f'{return_rate:+.2f}%',
-                    f'{annualized_return:+.2f}%',
-                    max_drawdown,
-                    f'{volatility:.2f}%'
-                ])
-        
-        return {
-            'name': '季度统计',
-            'headers': ['季度', '收益率', '年化收益率', '最大回撤', '波动率'],
-            'data': quarterly_stats
-        }
-
-    def _get_max_drawdown(self) -> str:
-        """计算最大回撤"""
-        drawdown_list = calculate_max_drawdown(
-            self.bond_data['date'],
-            self.bond_data['rate']
+        if self.bond_data is None or self.bond_data.empty:
+            return {
+                'name': '季度统计',
+                'headers': ['季度', '收益率', '年化收益率', '最大回撤', '波动率'],
+                'data': []
+            }
+        return DataGenerator.calculate_quarterly_stats(
+            df=self.bond_data,
+            date_column='date',
+            value_column='rate',
         )
-        
-        if drawdown_list and len(drawdown_list) > 0:
-            dd = drawdown_list[0]
-            max_dd = dd['value'] * 100
-            start_date = dd['start_date'].strftime('%Y-%m-%d')
-            end_date = dd['end_date'].strftime('%Y-%m-%d')
-            start_value = dd['start_value']
-            end_value = dd['end_value']
+
+    def get_extra_chart_data(self, data_type: str, normalize: bool = False, **params) -> List[Dict[str, Any]]:
+        """获取额外的图表数据"""
+        if self.bond_data is None or self.bond_data.empty:
+            return []
             
-            # 如果有恢复日期，添加恢复信息
-            recovery_info = ""
-            if dd.get('recovery_date'):
-                days_to_recover = (dd['recovery_date'] - dd['end_date']).days
-                recovery_info = f", 恢复天数: {days_to_recover}天"
-            
-            return f"{max_dd:.2f}% ({start_date}~{end_date}{recovery_info}, {start_value:.2f}%->{end_value:.2f}%)"
-        
-        return 'N/A'
+        if data_type in ['MA5', 'MA20', 'MA60', 'MA120']:
+            period = int(data_type.replace('MA', ''))
+            return self._get_ma_data(period, 'rate', normalize)
+        elif data_type == 'drawdown':
+            return self._get_drawdown_chart_data(normalize)
+        else:
+            raise ValueError(f"Unknown data type: {data_type}")
+
+    def _get_ma_data(self, period: int, value_column: str, normalize: bool = False) -> List[Dict[str, Any]]:
+        """获取移动平均线数据"""
+        return DataGenerator.calculate_ma_data(
+            df=self.bond_data,
+            date_column='date',
+            value_column=value_column,
+            period=period,
+            normalize=normalize
+        )
+
+    def _get_drawdown_chart_data(self, normalize: bool = False) -> List[Dict[str, Any]]:
+        """获取回撤图表数据"""
+        return DataGenerator.calculate_drawdown_chart_data(
+            df=self.bond_data,
+            date_column='date',
+            value_column='rate',
+            normalize=normalize
+        )
 
     def get_value_data(self) -> pd.DataFrame:
         """获取用于计算相关系数的主要数据"""
@@ -272,11 +194,3 @@ class BondRateDataGenerator(DataGenerator):
             'date': self.bond_data['date'],
             'value': self.bond_data['rate']
         })
-
-    def get_extra_chart_data(self, data_type: str, normalize: bool = False, **params) -> List[Dict[str, Any]]:
-        """获取额外的图表数据"""
-        if self.bond_data is None or self.bond_data.empty:
-            return []
-            
-        # 目前只支持基础利率数据
-        return self.get_chart_data(normalize=normalize) 
