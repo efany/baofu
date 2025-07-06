@@ -247,6 +247,23 @@ class StrategyDataGenerator(DataGenerator):
                     'name': f'{product_code}利息',
                     'visible': 'legendonly'
                     })
+        
+        # 添加配对数据
+        if 'pairing' in self.backtest_result:
+            pairing = pd.DataFrame(self.backtest_result['pairing'])
+            pairing['date'] = pd.to_datetime(pairing['date'])
+
+            for pair_key in pairing.keys():
+                if pair_key == 'date':
+                    continue
+                pair_value = pairing[pair_key]
+                chart_data.append({
+                    'x': dates,
+                    'y': pair_value.tolist(),
+                    'type': 'line',
+                    'name': pair_key,
+                    'visible': 'legendonly'
+                })
             
         return chart_data
     

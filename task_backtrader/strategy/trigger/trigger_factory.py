@@ -5,6 +5,7 @@ from task_backtrader.strategy.trigger.base_trigger import BaseTrigger
 from task_backtrader.strategy.trigger.date_trigger import DateTrigger
 from task_backtrader.strategy.trigger.deviation_trigger import DeviationTrigger
 from task_backtrader.strategy.trigger.sorting_trigger import SortingTrigger
+from task_backtrader.strategy.trigger.r_pairing_trigger import RPairingTrigger
 
 class TriggerFactory:
     """触发器工厂类
@@ -41,5 +42,8 @@ class TriggerFactory:
         # 创建偏离触发器
         if 'deviation' in trigger_config:
             triggers.append(DeviationTrigger(params))
+
+        if 'r_pairing' in trigger_config:
+            triggers.append(RPairingTrigger(params))
             
         return triggers 

@@ -64,7 +64,6 @@ class RebalanceStrategy(BaseStrategy):
         self.current_weights = {}  # 记录当前持仓的目标权重
         self.last_rebalance_value = 0  # 记录上次再平衡时的投资组合总价值
         self.mark_balance = 0
-        
         # 初始化触发器
         self.triggers = TriggerFactory.create_triggers(self.params)
         

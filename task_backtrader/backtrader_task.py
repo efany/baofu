@@ -13,6 +13,7 @@ from task_backtrader.backtrader_base_task import BacktraderBaseTask
 from task_backtrader.strategy.buy_and_hold_strategy import BuyAndHoldStrategy
 from task_backtrader.analyzer.trade_list_analyzer import TradeListAnalyzer
 from task_backtrader.analyzer.daily_asset_analyzer import DailyAssetAnalyzer
+from task_backtrader.analyzer.pairing_analyzer import PairingAnalyzer
 from task_backtrader.commissions.zero_commission import ZeroCommission
 from database.mysql_database import MySQLDatabase
 
@@ -48,7 +49,8 @@ class BacktraderTask(BacktraderBaseTask):
         self.initial_cash = self.task_config.get('initial_cash', 1_000_000.0)
 
         # 准备数据
-        self.data_feeds = self.make_data(extra_fields=['MA360'])
+        # self.data_feeds = self.make_data(extra_fields=['MA360'])
+        self.data_feeds = self.make_data()
         
         # 解析data_params
         self.strategy_param = json.loads(self.task_config['strategy'])
@@ -79,6 +81,7 @@ class BacktraderTask(BacktraderBaseTask):
             cerebro.addanalyzer(bt.analyzers.SharpeRatio, _name='sharpe')
             cerebro.addanalyzer(TradeListAnalyzer, _name='trade_list')
             cerebro.addanalyzer(DailyAssetAnalyzer, _name='daily_asset')
+            cerebro.addanalyzer(PairingAnalyzer, _name='pairing')
             
             # 运行回测
             results = cerebro.run()
@@ -87,6 +90,7 @@ class BacktraderTask(BacktraderBaseTask):
             strat = results[0]
             daily_asset = strat.analyzers.daily_asset.get_analysis()
             trade_list = strat.analyzers.trade_list.get_analysis()
+            pairing = strat.analyzers.pairing.get_analysis()
 
             portfolio_value = daily_asset[-1]['total']
             
@@ -113,7 +117,8 @@ class BacktraderTask(BacktraderBaseTask):
                 'return_rate': (portfolio_value - self.initial_cash) / self.initial_cash * 100,
                 'positions': positions,  # 持仓详情
                 'daily_asset': daily_asset,
-                'trades': trade_list
+                'trades': trade_list,
+                'pairing': pairing
             }
             
         except Exception as e:
@@ -164,13 +169,24 @@ def test_rebalance(mysql_db):
                     #     "day": 1,
                     #     "watermark": 0.01
                     # }
+
+                    
+                # "triggers": {
+                #     "sorting": {
+                #         "factor": "MA360",
+                #         "top_n": 4,
+                #         "weights": [0.3, 0.3, 0.2, 0.2],
+                #         "freq": "quarter",
+                #         "day": 1
+                #     }
+                # },
     # 测试配置
     task_config = {
         "name": "rebalance_backtest",
         "description": "再平衡策略回测",
         "data_params": """
             {
-                "stock_symbols": ["159949.SZ", "512550.SS", "159633.SZ", "159628.SZ"]
+                "stock_symbols": ["512480.SS", "515220.SS"]
             }
         """,
         "initial_cash": 1000000,
@@ -180,19 +196,13 @@ def test_rebalance(mysql_db):
                 "open_date": "2025-01-01",
                 "dividend_method": "reinvest",
                 "triggers": {
-                    "sorting": {
-                        "factor": "MA360",
-                        "top_n": 4,
-                        "weights": [0.3, 0.3, 0.2, 0.2],
-                        "freq": "quarter",
-                        "day": 1
+                    "r_pairing": {
+                        "products": ["512480.SS", "515220.SS"]
                     }
                 },
                 "target_weights": {
-                    "159949.SZ": 0.3,
-                    "512550.SS": 0.3,
-                    "159633.SZ": 0.2,
-                    "159628.SZ": 0.2
+                    "512480.SS": 0.5,
+                    "515220.SS": 0.5
                 }
             }
         """
