@@ -114,19 +114,19 @@ class StrategyDataGenerator(DataGenerator):
         """获取策略摘要数据"""
         if self.strategy is None or not self.backtest_result:
             return []
-        
+
         daily_asset = pd.DataFrame(self.backtest_result['daily_asset'])
-        
+
         # 计算收益率
         initial_value = daily_asset.iloc[0]['total']
         final_value = daily_asset.iloc[-1]['total']
         return_rate = (final_value - initial_value) / initial_value * 100
-        
+
         # 获取起止日期
         start_date = daily_asset.iloc[0]['date'].strftime('%Y-%m-%d')
         end_date = daily_asset.iloc[-1]['date'].strftime('%Y-%m-%d')
         date_range = f"{start_date} ~ {end_date}"
-        
+
         return [
             ('策略ID', self.strategy_id),
             ('策略名称', self.strategy['name']),
@@ -317,49 +317,18 @@ class StrategyDataGenerator(DataGenerator):
     def _get_yearly_stats(self) -> TableData:
         """获取年度统计表格"""
         daily_asset = pd.DataFrame(self.backtest_result['daily_asset'])
-        daily_asset['year'] = daily_asset['date'].dt.year
+        if daily_asset is None or daily_asset.empty:
+            return {
+                'name': '年度统计',
+                'headers': ['年份', '收益率', '年化收益率', '最大回撤', '波动率'],
+                'data': []
+            }
         
-        yearly_stats = []
-        for year in sorted(daily_asset['year'].unique(), reverse=True):
-            year_data = daily_asset[daily_asset['year'] == year]
-            
-            # 获取年度起止日期
-            start_date = year_data.iloc[0]['date'].strftime('%Y-%m-%d')
-            end_date = year_data.iloc[-1]['date'].strftime('%Y-%m-%d')
-            
-            # 计算年度收益率
-            start_value = year_data.iloc[0]['total']
-            end_value = year_data.iloc[-1]['total']
-            return_rate = (end_value - start_value) / start_value * 100
-            
-            # 计算年化收益率
-            days = (year_data.iloc[-1]['date'] - year_data.iloc[0]['date']).days
-            annualized_return = ((1 + return_rate/100) ** (365/days) - 1) * 100 if days > 0 else 0
-            
-            # 计算年度最大回撤
-            drawdown_list = calculate_max_drawdown(
-                year_data['date'],
-                year_data['total']
-            )
-            max_drawdown = f"{drawdown_list[0]['value']*100:.2f}%" if drawdown_list else 'N/A'
-            
-            # 计算年度波动率
-            returns = year_data['total'].pct_change()
-            volatility = returns.std() * (252 ** 0.5) * 100
-            
-            yearly_stats.append([
-                f"{year} ({start_date}~{end_date})",
-                f'{return_rate:+.2f}%',
-                f'{annualized_return:+.2f}%',
-                max_drawdown,
-                f'{volatility:.2f}%'
-            ])
-        
-        return {
-            'name': '年度统计',
-            'headers': ['年份', '收益率', '年化收益率', '最大回撤', '波动率'],
-            'data': yearly_stats
-        }
+        return self.calculate_yearly_stats(
+            df=daily_asset,
+            date_column='date',
+            value_column='total'
+        )
     
     def _get_quarterly_stats(self) -> TableData:
         """获取季度统计表格"""

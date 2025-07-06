@@ -31,13 +31,13 @@ class StockDataGenerator(DataGenerator):
     def load(self) -> bool:
         """加载股票数据"""
         self.stock_info = self.db_stocks.get_stock_info(self.stock_code)
-        
+
         # 先获取原始日期范围的数据
         original_data = self.db_stocks_day_hist.get_stock_hist_data(self.stock_code)
         if not original_data.empty:
             original_data['date'] = pd.to_datetime(original_data['date'])
             original_data = original_data.sort_values('date')
-            
+
             # 如果start_date有效，尝试找到前一个有效日期
             if self.start_date is not None:
                 # 将start_date转换为datetime并与数据比较
@@ -66,12 +66,13 @@ class StockDataGenerator(DataGenerator):
         else:
             logger.warning(f"未找到股票数据: {self.stock_code}")
             return False
-        
+
         return True
+
     def get_params_config(self) -> List[ParamConfig]:
         """获取股票参数配置"""
         return []
-    
+
     def update_params(self, params: Dict[str, Any]) -> bool:
         """更新股票参数"""
         return True
@@ -82,7 +83,7 @@ class StockDataGenerator(DataGenerator):
             return []
 
         first_close, last_close, return_rate = calculate_return_rate(self.stock_data, loc_name='close')
-        
+
         # 获取起止日期
         start_date = self.stock_data.iloc[0]['date'].strftime('%Y-%m-%d')
         end_date = self.stock_data.iloc[-1]['date'].strftime('%Y-%m-%d')
@@ -161,15 +162,15 @@ class StockDataGenerator(DataGenerator):
         first_close = self.stock_data.iloc[0]['close']
         last_close = self.stock_data.iloc[-1]['close']
         return_rate = (last_close - first_close) / first_close * 100
-        
+
         # 计算年化收益率
         days = (self.stock_data.iloc[-1]['date'] - self.stock_data.iloc[0]['date']).days
         annualized_return = ((1 + return_rate/100) ** (365/days) - 1) * 100 if days > 0 else 0
-        
+
         # 计算风险指标
         returns = self.stock_data['close'].pct_change()
         volatility = returns.std() * (252 ** 0.5) * 100  # 年化波动率
-        
+
         return {
             'name': '基础指标',
             'headers': ['指标', '数值'],
@@ -183,51 +184,18 @@ class StockDataGenerator(DataGenerator):
 
     def _get_yearly_stats(self) -> TableData:
         """获取年度统计表格"""
-        # 添加年份列
-        df = self.stock_data.copy()
-        df['year'] = df['date'].dt.year   
+        if self.stock_data is None or self.stock_data.empty:
+            return {
+                'name': '年度统计',
+                'headers': ['年份', '收益率', '年化收益率', '最大回撤', '波动率'],
+                'data': []
+            }
         
-        yearly_stats = []
-        for year in sorted(df['year'].unique(), reverse=True):
-            year_data = df[df['year'] == year]
-            
-            # 获取年度起止日期
-            start_date = year_data.iloc[0]['date'].strftime('%Y-%m-%d')
-            end_date = year_data.iloc[-1]['date'].strftime('%Y-%m-%d')
-            
-            # 计算年度收益率
-            start_close = year_data.iloc[0]['close']
-            end_close = year_data.iloc[-1]['close']
-            return_rate = (end_close - start_close) / start_close * 100
-            
-            # 计算年化收益率
-            days = (year_data.iloc[-1]['date'] - year_data.iloc[0]['date']).days
-            annualized_return = ((1 + return_rate/100) ** (365/days) - 1) * 100 if days > 0 else 0
-            
-            # 计算年度最大回撤
-            drawdown_list = calculate_max_drawdown(
-                year_data['date'],
-                year_data['close']
-            )
-            max_drawdown = f"{drawdown_list[0]['value']*100:.2f}%" if drawdown_list else 'N/A'
-            
-            # 计算年度波动率
-            returns = year_data['close'].pct_change()
-            volatility = returns.std() * (252 ** 0.5) * 100
-            
-            yearly_stats.append([
-                f"{year} ({start_date}~{end_date})",
-                f'{return_rate:+.2f}%',
-                f'{annualized_return:+.2f}%',
-                max_drawdown,
-                f'{volatility:.2f}%'
-            ])
-        
-        return {
-            'name': '年度统计',
-            'headers': ['年份', '收益率', '年化收益率', '最大回撤', '波动率'],
-            'data': yearly_stats
-        }
+        return self.calculate_yearly_stats(
+            df=self.stock_data,
+            date_column='date',
+            value_column='close'
+        )
 
     def _get_quarterly_stats(self) -> TableData:
         """获取季度统计表格"""

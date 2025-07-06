@@ -3,6 +3,7 @@ from typing import Dict, List, Optional, Any, Tuple, Literal, TypedDict
 from datetime import date
 import pandas as pd
 import numpy as np
+from task_utils.data_utils import calculate_max_drawdown
 
 # 定义支持的数据类型
 ChartDataType = Literal['MA5', 'MA20', 'MA60', 'MA120', 'drawdown']
@@ -32,6 +33,72 @@ class DataGenerator(ABC):
         self.start_date = start_date
         self.end_date = end_date
         self.is_loaded = False  # 添加数据加载状态标记
+
+    def calculate_yearly_stats(
+        self,
+        df: pd.DataFrame,
+        date_column: str,
+        value_column: str,
+        date_format: str = '%Y-%m-%d'
+    ) -> TableData:
+        """
+        计算年度统计数据
+        
+        Args:
+            df: 包含日期和数值的DataFrame
+            date_column: 日期列名
+            value_column: 数值列名
+            date_format: 日期格式化字符串
+            
+        Returns:
+            TableData: 年度统计表格数据
+        """
+        # 确保日期列是datetime类型
+        df = df.copy()
+        df[date_column] = pd.to_datetime(df[date_column])
+        df['year'] = df[date_column].dt.year
+        
+        yearly_stats = []
+        for year in sorted(df['year'].unique(), reverse=True):
+            year_data = df[df['year'] == year]
+            
+            # 获取年度起止日期
+            start_date = year_data.iloc[0][date_column].strftime(date_format)
+            end_date = year_data.iloc[-1][date_column].strftime(date_format)
+            
+            # 计算年度收益率
+            start_value = year_data.iloc[0][value_column]
+            end_value = year_data.iloc[-1][value_column]
+            return_rate = (end_value - start_value) / start_value * 100
+            
+            # 计算年化收益率
+            days = (year_data.iloc[-1][date_column] - year_data.iloc[0][date_column]).days
+            annualized_return = ((1 + return_rate/100) ** (365/days) - 1) * 100 if days > 0 else 0
+            
+            # 计算年度最大回撤
+            drawdown_list = calculate_max_drawdown(
+                year_data[date_column],
+                year_data[value_column]
+            )
+            max_drawdown = f"{drawdown_list[0]['value']*100:.2f}%" if drawdown_list else 'N/A'
+            
+            # 计算年度波动率
+            returns = year_data[value_column].pct_change()
+            volatility = returns.std() * (252 ** 0.5) * 100
+            
+            yearly_stats.append([
+                f"{year} ({start_date}~{end_date})",
+                f'{return_rate:+.2f}%',
+                f'{annualized_return:+.2f}%',
+                max_drawdown,
+                f'{volatility:.2f}%'
+            ])
+        
+        return {
+            'name': '年度统计',
+            'headers': ['年份', '收益率', '年化收益率', '最大回撤', '波动率'],
+            'data': yearly_stats
+        }
 
     @abstractmethod
     def load(self) -> bool:

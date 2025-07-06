@@ -152,51 +152,18 @@ class ForexDataGenerator(DataGenerator):
 
     def _get_yearly_stats(self) -> TableData:
         """获取年度统计表格"""
-        # 添加年份列
-        df = self.forex_data.copy()
-        df['year'] = df['date'].dt.year   
+        if self.forex_data is None or self.forex_data.empty:
+            return {
+                'name': '年度统计',
+                'headers': ['年份', '收益率', '年化收益率', '最大回撤', '波动率'],
+                'data': []
+            }
         
-        yearly_stats = []
-        for year in sorted(df['year'].unique(), reverse=True):
-            year_data = df[df['year'] == year]
-            
-            # 获取年度起止日期
-            start_date = year_data.iloc[0]['date'].strftime('%Y-%m-%d')
-            end_date = year_data.iloc[-1]['date'].strftime('%Y-%m-%d')
-            
-            # 计算年度收益率
-            start_close = year_data.iloc[0]['close']
-            end_close = year_data.iloc[-1]['close']
-            return_rate = (end_close - start_close) / start_close * 100
-            
-            # 计算年化收益率
-            days = (year_data.iloc[-1]['date'] - year_data.iloc[0]['date']).days
-            annualized_return = ((1 + return_rate/100) ** (365/days) - 1) * 100 if days > 0 else 0
-            
-            # 计算年度最大回撤
-            drawdown_list = calculate_max_drawdown(
-                year_data['date'],
-                year_data['close']
-            )
-            max_drawdown = f"{drawdown_list[0]['value']*100:.2f}%" if drawdown_list else 'N/A'
-            
-            # 计算年度波动率
-            returns = year_data['close'].pct_change()
-            volatility = returns.std() * (252 ** 0.5) * 100
-            
-            yearly_stats.append([
-                f"{year} ({start_date}~{end_date})",
-                f'{return_rate:+.2f}%',
-                f'{annualized_return:+.2f}%',
-                max_drawdown,
-                f'{volatility:.2f}%'
-            ])
-        
-        return {
-            'name': '年度统计',
-            'headers': ['年份', '收益率', '年化收益率', '最大回撤', '波动率'],
-            'data': yearly_stats
-        }
+        return self.calculate_yearly_stats(
+            df=self.forex_data,
+            date_column='date',
+            value_column='close'
+        )
 
     def _get_quarterly_stats(self) -> TableData:
         """获取季度统计表格"""
