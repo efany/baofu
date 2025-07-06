@@ -7,6 +7,7 @@ from database.db_bond_rate import DBBondRate
 from database.mysql_database import MySQLDatabase
 from .data_generator import DataGenerator, TableData, ParamConfig
 from task_utils.data_utils import calculate_return_rate, calculate_max_drawdown
+from .data_calculator import DataCalculator
 
 class BondRateDataGenerator(DataGenerator):
     """债券利率数据生成器"""
@@ -121,7 +122,7 @@ class BondRateDataGenerator(DataGenerator):
                 'data': []
             }
         
-        return DataGenerator.calculate_basic_indicators(
+        return DataCalculator.calculate_basic_indicators(
             df=self.bond_data,
             date_column='date',
             value_column='rate',
@@ -134,7 +135,7 @@ class BondRateDataGenerator(DataGenerator):
                 'headers': ['年份', '收益率', '年化收益率', '最大回撤', '波动率'],
                 'data': []
             }
-        return DataGenerator.calculate_yearly_stats(
+        return DataCalculator.calculate_yearly_stats(
             df=self.bond_data,
             date_column='date',
             value_column='rate',
@@ -147,7 +148,7 @@ class BondRateDataGenerator(DataGenerator):
                 'headers': ['季度', '收益率', '年化收益率', '最大回撤', '波动率'],
                 'data': []
             }
-        return DataGenerator.calculate_quarterly_stats(
+        return DataCalculator.calculate_quarterly_stats(
             df=self.bond_data,
             date_column='date',
             value_column='rate',
@@ -168,7 +169,7 @@ class BondRateDataGenerator(DataGenerator):
 
     def _get_ma_data(self, period: int, value_column: str, normalize: bool = False) -> List[Dict[str, Any]]:
         """获取移动平均线数据"""
-        return DataGenerator.calculate_ma_data(
+        return DataCalculator.calculate_ma_data(
             df=self.bond_data,
             date_column='date',
             value_column=value_column,
@@ -178,7 +179,7 @@ class BondRateDataGenerator(DataGenerator):
 
     def _get_drawdown_chart_data(self, normalize: bool = False) -> List[Dict[str, Any]]:
         """获取回撤图表数据"""
-        return DataGenerator.calculate_drawdown_chart_data(
+        return DataCalculator.calculate_drawdown_chart_data(
             df=self.bond_data,
             date_column='date',
             value_column='rate',

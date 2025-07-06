@@ -8,6 +8,7 @@ from database.db_strategys import DBStrategys
 from task_utils.data_utils import calculate_max_drawdown
 from task_backtrader.backtrader_task import BacktraderTask
 import json
+from .data_calculator import DataCalculator
 
 class StrategyDataGenerator(DataGenerator):
     """策略数据生成器"""
@@ -296,7 +297,7 @@ class StrategyDataGenerator(DataGenerator):
                 'data': []
             }
         
-        return DataGenerator.calculate_basic_indicators(
+        return DataCalculator.calculate_basic_indicators(
             df=daily_asset,
             date_column='date',
             value_column='total',
@@ -313,7 +314,7 @@ class StrategyDataGenerator(DataGenerator):
                 'data': []
             }
         
-        return DataGenerator.calculate_yearly_stats(
+        return DataCalculator.calculate_yearly_stats(
             df=daily_asset,
             date_column='date',
             value_column='total'
@@ -329,7 +330,7 @@ class StrategyDataGenerator(DataGenerator):
                 'data': []
             }
         
-        return DataGenerator.calculate_quarterly_stats(
+        return DataCalculator.calculate_quarterly_stats(
             df=daily_asset,
             date_column='date',
             value_column='total'
@@ -352,78 +353,22 @@ class StrategyDataGenerator(DataGenerator):
 
     def _get_ma_data(self, period: int, daily_asset: pd.DataFrame, normalize: bool = False) -> List[Dict[str, Any]]:
         """获取移动平均线数据"""
-        dates = daily_asset['date'].tolist()
-        ma_data = []
-        
-        # 计算总资产的移动平均线
-        values = daily_asset['total']
-        if normalize:
-            values = self.normalize_series(values)
-            
-        ma = values.rolling(window=period).mean()
-        ma_data.append({
-            'x': dates,
-            'y': ma.tolist(),
-            'type': 'line',
-            'name': f'MA{period}',
-            'visible': True,
-            'line': {'dash': 'dot'}
-        })
-        
-        return ma_data
+        return DataCalculator.calculate_ma_data(
+            df=daily_asset,
+            date_column='date',
+            value_column='total',
+            period=period,
+            normalize=normalize
+        )
 
     def _get_drawdown_data(self, daily_asset: pd.DataFrame, normalize: bool = False) -> List[Dict[str, Any]]:
         """获取回撤数据"""
-        values = daily_asset['total']
-        if normalize:
-            values = self.normalize_series(values)
-            
-        drawdown_list = calculate_max_drawdown(
-            daily_asset['date'],
-            values
+        return DataCalculator.calculate_drawdown_chart_data(
+            df=daily_asset,
+            date_column='date',
+            value_column='total',
+            normalize=normalize
         )
-        
-        data = []
-        # 绘制回撤区域
-        for i in range(len(drawdown_list)):
-            if pd.notna(drawdown_list[i]):
-                dd = drawdown_list[i]
-                drawdown_days = (dd['end_date'] - dd['start_date']).days
-                recovery_days = (dd['recovery_date'] - dd['end_date']).days if dd.get('recovery_date') else None
-                
-                text = f'回撤: {dd["value"]*100:.4f}%({drawdown_days} days)' 
-                if recovery_days:
-                    text = f'{text}，修复：{recovery_days} days'
-                    
-                data.append({
-                    'type': 'scatter',
-                    'x': [dd['start_date'], dd['end_date'], dd['end_date'], dd['start_date'], dd['start_date']],
-                    'y': [dd['start_value'], dd['start_value'], dd['end_value'], dd['end_value'], dd['start_value']],
-                    'fill': 'toself',
-                    'fillcolor': 'rgba(255, 0, 0, 0.2)',
-                    'line': {'width': 0},
-                    'mode': 'lines+text',
-                    'text': [text],
-                    'textposition': 'top right',
-                    'textfont': {'size': 12, 'color': 'red'},
-                    'name': f'TOP{i+1} 回撤',
-                    'showlegend': True
-                })
-                
-                if recovery_days:
-                    data.append({
-                        'type': 'scatter',
-                        'x': [dd['end_date'], dd['recovery_date'], dd['recovery_date'], dd['end_date'], dd['end_date']],
-                        'y': [dd['end_value'], dd['end_value'], dd['start_value'], dd['start_value'], dd['end_value']],
-                        'fill': 'toself',
-                        'fillcolor': 'rgba(0, 255, 0, 0.2)',
-                        'line': {'width': 0},
-                        'mode': 'lines+text',
-                        'textfont': {'size': 12, 'color': 'red'},
-                        'name': f'TOP{i+1} 回撤修复',
-                        'showlegend': True
-                    })
-        return data
     
     def _get_trade_table(self):
         """获取交易记录表格"""

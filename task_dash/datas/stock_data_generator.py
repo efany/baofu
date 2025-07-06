@@ -8,6 +8,7 @@ from database.db_stocks import DBStocks
 from database.mysql_database import MySQLDatabase
 from .data_generator import DataGenerator, TableData, ParamConfig
 from task_utils.data_utils import calculate_adjusted_nav, calculate_return_rate, calculate_max_drawdown
+from .data_calculator import DataCalculator
 
 class StockDataGenerator(DataGenerator):
     """股票数据生成器"""
@@ -164,8 +165,8 @@ class StockDataGenerator(DataGenerator):
                 'headers': ['指标', '数值'],
                 'data': []
             }
-
-        return DataGenerator.calculate_basic_indicators(
+        
+        return DataCalculator.calculate_basic_indicators(
             df=self.stock_data,
             date_column='date',
             value_column='close',
@@ -181,7 +182,7 @@ class StockDataGenerator(DataGenerator):
                 'data': []
             }
         
-        return DataGenerator.calculate_yearly_stats(
+        return DataCalculator.calculate_yearly_stats(
             df=self.stock_data,
             date_column='date',
             value_column='close'
@@ -196,7 +197,7 @@ class StockDataGenerator(DataGenerator):
                 'data': []
             }
         
-        return DataGenerator.calculate_quarterly_stats(
+        return DataCalculator.calculate_quarterly_stats(
             df=self.stock_data,
             date_column='date',
             value_column='close'
@@ -217,7 +218,7 @@ class StockDataGenerator(DataGenerator):
 
     def _get_ma_data(self, period: int, value_column: str, normalize: bool = False) -> List[Dict[str, Any]]:
         """获取移动平均线数据"""
-        return DataGenerator.calculate_ma_data(
+        return DataCalculator.calculate_ma_data(
             df=self.stock_data,
             date_column='date',
             value_column=value_column,
@@ -227,7 +228,7 @@ class StockDataGenerator(DataGenerator):
 
     def _get_drawdown_chart_data(self, normalize: bool = False) -> List[Dict[str, Any]]:
         """获取回撤图表数据"""
-        return DataGenerator.calculate_drawdown_chart_data(
+        return DataCalculator.calculate_drawdown_chart_data(
             df=self.stock_data,
             date_column='date',
             value_column='close',

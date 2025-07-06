@@ -7,6 +7,7 @@ from database.db_funds_nav import DBFundsNav
 from database.mysql_database import MySQLDatabase
 from task_utils.data_utils import calculate_adjusted_nav, calculate_return_rate, calculate_max_drawdown
 from loguru import logger
+from .data_calculator import DataCalculator
 
 class FundDataGenerator(DataGenerator):
     """基金数据生成器"""
@@ -144,7 +145,7 @@ class FundDataGenerator(DataGenerator):
                 'data': []
             }
         
-        return DataGenerator.calculate_basic_indicators(
+        return DataCalculator.calculate_basic_indicators(
             df=self.fund_nav,
             date_column='nav_date',
             value_column='adjusted_nav',
@@ -161,7 +162,7 @@ class FundDataGenerator(DataGenerator):
                 'data': []
             }
         
-        return DataGenerator.calculate_yearly_stats(
+        return DataCalculator.calculate_yearly_stats(
             df=self.fund_nav,
             date_column='nav_date',
             value_column='adjusted_nav'
@@ -176,7 +177,7 @@ class FundDataGenerator(DataGenerator):
                 'data': []
             }
         
-        return DataGenerator.calculate_quarterly_stats(
+        return DataCalculator.calculate_quarterly_stats(
             df=self.fund_nav,
             date_column='nav_date',
             value_column='adjusted_nav'
@@ -197,7 +198,7 @@ class FundDataGenerator(DataGenerator):
 
     def _get_ma_data(self, period: int, value_column: str, normalize: bool = False) -> List[Dict[str, Any]]:
         """获取移动平均线数据"""
-        return DataGenerator.calculate_ma_data(
+        return DataCalculator.calculate_ma_data(
             df=self.fund_nav,
             date_column='nav_date',
             value_column=value_column,
@@ -207,7 +208,7 @@ class FundDataGenerator(DataGenerator):
 
     def _get_drawdown_data(self, value_column: str, normalize: bool = False) -> List[Dict[str, Any]]:
         """获取回撤数据"""
-        return DataGenerator.calculate_drawdown_chart_data(
+        return DataCalculator.calculate_drawdown_chart_data(
             df=self.fund_nav,
             date_column='nav_date',
             value_column=value_column,
