@@ -128,7 +128,7 @@ class StrategyDataGenerator(DataGenerator):
         date_range = f"{start_date} ~ {end_date}"
 
         return [
-            ('策略ID', self.strategy_id),
+            ('策略ID', self.strategy_id), 
             ('策略名称', self.strategy['name']),
             ('策略描述', self.strategy['description']),
             ('统计区间', date_range),
@@ -289,30 +289,19 @@ class StrategyDataGenerator(DataGenerator):
     def _get_basic_indicators(self) -> TableData:
         """获取基础指标表格"""
         daily_asset = pd.DataFrame(self.backtest_result['daily_asset'])
+        if daily_asset is None or daily_asset.empty:
+            return {
+                'name': '基础指标',
+                'headers': ['指标', '数值'],
+                'data': []
+            }
         
-        # 计算收益率
-        initial_value = daily_asset.iloc[0]['total']
-        final_value = daily_asset.iloc[-1]['total']
-        return_rate = (final_value - initial_value) / initial_value * 100
-        
-        # 计算年化收益率
-        days = (daily_asset.iloc[-1]['date'] - daily_asset.iloc[0]['date']).days
-        annualized_return = ((1 + return_rate/100) ** (365/days) - 1) * 100 if days > 0 else 0
-        
-        # 计算风险指标
-        returns = daily_asset['total'].pct_change()
-        volatility = returns.std() * (252 ** 0.5) * 100  # 年化波动率
-        
-        return {
-            'name': '基础指标',
-            'headers': ['指标', '数值'],
-            'data': [
-                ['投资收益率', f'{return_rate:+.2f}% (¥{initial_value:,.2f} -> ¥{final_value:,.2f})'],
-                ['年化收益率', f'{annualized_return:+.2f}%'],
-                ['投资最大回撤', self._get_max_drawdown()],
-                ['年化波动率', f'{volatility:.2f}%']
-            ]
-        }
+        return DataGenerator.calculate_basic_indicators(
+            df=daily_asset,
+            date_column='date',
+            value_column='total',
+            value_format='.2f'
+        )
     
     def _get_yearly_stats(self) -> TableData:
         """获取年度统计表格"""
@@ -324,7 +313,7 @@ class StrategyDataGenerator(DataGenerator):
                 'data': []
             }
         
-        return self.calculate_yearly_stats(
+        return DataGenerator.calculate_yearly_stats(
             df=daily_asset,
             date_column='date',
             value_column='total'
@@ -333,78 +322,18 @@ class StrategyDataGenerator(DataGenerator):
     def _get_quarterly_stats(self) -> TableData:
         """获取季度统计表格"""
         daily_asset = pd.DataFrame(self.backtest_result['daily_asset'])
-        daily_asset['year'] = daily_asset['date'].dt.year
-        daily_asset['quarter'] = daily_asset['date'].dt.quarter
+        if daily_asset is None or daily_asset.empty:
+            return {
+                'name': '季度统计',
+                'headers': ['季度', '收益率', '年化收益率', '最大回撤', '波动率'],
+                'data': []
+            }
         
-        quarterly_stats = []
-        for year in sorted(daily_asset['year'].unique(), reverse=True):
-            year_data = daily_asset[daily_asset['year'] == year]
-            for quarter in sorted(year_data['quarter'].unique(), reverse=True):
-                quarter_data = year_data[year_data['quarter'] == quarter]
-                
-                # 获取季度起止日期
-                start_date = quarter_data.iloc[0]['date'].strftime('%Y-%m-%d')
-                end_date = quarter_data.iloc[-1]['date'].strftime('%Y-%m-%d')
-                
-                # 计算季度收益率
-                start_value = quarter_data.iloc[0]['total']
-                end_value = quarter_data.iloc[-1]['total']
-                return_rate = (end_value - start_value) / start_value * 100
-                
-                # 计算年化收益率
-                days = (quarter_data.iloc[-1]['date'] - quarter_data.iloc[0]['date']).days
-                annualized_return = ((1 + return_rate/100) ** (365/days) - 1) * 100 if days > 0 else 0
-                
-                # 计算季度最大回撤
-                drawdown_list = calculate_max_drawdown(
-                    quarter_data['date'],
-                    quarter_data['total']
-                )
-                max_drawdown = f"{drawdown_list[0]['value']*100:.2f}%" if drawdown_list else 'N/A'
-                
-                # 计算季度波动率
-                returns = quarter_data['total'].pct_change()
-                volatility = returns.std() * (252 ** 0.5) * 100
-                
-                quarterly_stats.append([
-                    f"{year}Q{quarter} ({start_date}~{end_date})",
-                    f'{return_rate:+.2f}%',
-                    f'{annualized_return:+.2f}%',
-                    max_drawdown,
-                    f'{volatility:.2f}%'
-                ])
-        
-        return {
-            'name': '季度统计',
-            'headers': ['季度', '收益率', '年化收益率', '最大回撤', '波动率'],
-            'data': quarterly_stats
-        }
-    
-    def _get_max_drawdown(self) -> str:
-        """计算最大回撤"""
-        daily_asset = pd.DataFrame(self.backtest_result['daily_asset'])
-        drawdown_list = calculate_max_drawdown(
-            daily_asset['date'],
-            daily_asset['total']
+        return DataGenerator.calculate_quarterly_stats(
+            df=daily_asset,
+            date_column='date',
+            value_column='total'
         )
-        
-        if drawdown_list and len(drawdown_list) > 0:
-            dd = drawdown_list[0]
-            max_dd = dd['value'] * 100
-            start_date = dd['start_date'].strftime('%Y-%m-%d')
-            end_date = dd['end_date'].strftime('%Y-%m-%d')
-            start_value = dd['start_value']
-            end_value = dd['end_value']
-            
-            # 如果有恢复日期，添加恢复信息
-            recovery_info = ""
-            if dd.get('recovery_date'):
-                days_to_recover = (dd['recovery_date'] - dd['end_date']).days
-                recovery_info = f", 恢复天数: {days_to_recover}天"
-            
-            return f"{max_dd:.2f}% ({start_date}~{end_date}{recovery_info}, ¥{start_value:,.2f}->¥{end_value:,.2f})"
-        
-        return 'N/A'
     
     def get_extra_chart_data(self, data_type: ChartDataType, normalize: bool = False, **params) -> List[Dict[str, Any]]:
         """获取额外的图表数据"""
@@ -512,12 +441,6 @@ class StrategyDataGenerator(DataGenerator):
                 'headers': ['日期', '类型', '产品', '数量', '价格', '金额', '备注'],
                 'data': []
             }
-        
-        # 过滤日期范围
-        # if self.start_date:
-        #     trades = trades[trades['date'] >= self.start_date]
-        # if self.end_date:
-        #     trades = trades[trades['date'] <= self.end_date]
         
         # 转换为表格数据
         trade_data = []
