@@ -5,7 +5,6 @@ from loguru import logger
 from .data_generator import DataGenerator, TableData, ChartDataType, ParamConfig
 from database.mysql_database import MySQLDatabase
 from database.db_strategys import DBStrategys
-from task_utils.data_utils import calculate_max_drawdown
 from task_backtrader.backtrader_task import BacktraderTask
 import json
 from .data_calculator import DataCalculator
@@ -18,43 +17,50 @@ class StrategyDataGenerator(DataGenerator):
         self.strategy_id = strategy_id
         self.db_strategys = DBStrategys(mysql_db)
         self.mysql_db = mysql_db
+        
         self.backtest_result = None
         self.strategys = self.db_strategys.get_strategy(self.strategy_id)
-        self.parameter_configs = []
-        self.params = {}
+        self.data = None
+
         if not self.strategys.empty:
             self.strategy = self.strategys.iloc[0]
         else:
             self.strategy = None
         
         if self.strategy is not None:
-            parameters = json.loads(self.strategy['parameters'])
-            if not parameters:
-                return []
-            parameters = parameters['parameters']
-            for parameter in parameters:
-                if parameter['type'] == 'float':
-                    param = ParamConfig(
-                        type=parameter['type'],
-                        name=parameter['name'],
-                        label=parameter['label'],
-                        value=float(parameter['value']),
-                        min=float(parameter['min']),
-                        max=float(parameter['max']),
-                        step=float(parameter['step'])
-                    )
-                    self.params[parameter['name']] = parameter['value']
-                    self.parameter_configs.append(param)
-                elif parameter['type'] == 'select':
-                    param = ParamConfig(
-                        type=parameter['type'],
-                        name=parameter['name'],
-                        label=parameter['label'],
-                        value=parameter['value'],
-                        options=parameter['options']
-                    )
-                    self.params[parameter['name']] = parameter['value']
-                    self.parameter_configs.append(param)
+            self.parse_params(self.strategy['parameters'])
+            
+
+    def parse_params(self, params_str: str) -> bool:
+        """解析策略参数"""
+        parameter_json = json.loads(params_str)
+        if not parameter_json:
+            return []
+        parameter_json = parameter_json['parameters']
+        
+        for parameter in parameter_json:
+            if parameter['type'] == 'float':
+                param = ParamConfig(
+                    type=parameter['type'],
+                    name=parameter['name'],
+                    label=parameter['label'],
+                    value=float(parameter['value']),
+                    min=float(parameter['min']),
+                    max=float(parameter['max']),
+                    step=float(parameter['step'])
+                )
+                self.params[parameter['name']] = parameter['value']
+                self.parameter_configs.append(param)
+            elif parameter['type'] == 'select':
+                param = ParamConfig(
+                    type=parameter['type'],
+                    name=parameter['name'],
+                    label=parameter['label'],
+                    value=parameter['value'],
+                    options=parameter['options']
+                )
+                self.params[parameter['name']] = parameter['value']
+                self.parameter_configs.append(param)
     
     def load(self) -> bool:
         """加载策略数据"""
@@ -71,12 +77,11 @@ class StrategyDataGenerator(DataGenerator):
         
         # 获取策略参数
         try:
-            # 替换日期占位符
-            strategy_info['strategy'] = strategy_info['strategy'] \
-                .replace("<open_date>", self.start_date.strftime("%Y-%m-%d") if self.start_date else "") \
-                .replace("<close_date>", self.end_date.strftime("%Y-%m-%d") if self.end_date else "")
-
             for param_name, param_value in self.params.items():
+                logger.info(f"param_name: {param_name}, param_value: {param_value}")
+                if param_name == 'start_date' or param_name == 'end_date':
+                    param_name = 'open_date' if param_name == 'start_date' else 'close_date'
+                    param_value = param_value.strftime("%Y-%m-%d") if param_value is not None else ""
                 strategy_info['strategy'] = strategy_info['strategy'] \
                     .replace(f"<{param_name}>", str(param_value))
             
@@ -90,8 +95,7 @@ class StrategyDataGenerator(DataGenerator):
                 if 'daily_asset' in self.backtest_result:
                     daily_asset = pd.DataFrame(self.backtest_result['daily_asset'])
                     daily_asset['date'] = pd.to_datetime(daily_asset['date'])
-                    # 过滤日期范围
-                    self.backtest_result['daily_asset'] = daily_asset.to_dict('records')
+                    self.data = daily_asset
                 return True
             else:
                 return False
@@ -99,33 +103,20 @@ class StrategyDataGenerator(DataGenerator):
         except Exception as e:
             logger.error(f"加载策略数据失败: {str(e)}")
             return False
-        
-    def get_params_config(self) -> List[ParamConfig]:
-        """获取策略的可调节参数配置"""
-        return self.parameter_configs
-    
-    def update_params(self, params: Dict[str, Any]) -> bool:
-        """更新策略的参数设置"""
-        for param_name, param_value in params.items():
-            if param_name in self.params:
-                self.params[param_name] = param_value
-        return True
     
     def get_summary_data(self) -> List[Tuple[str, Any]]:
         """获取策略摘要数据"""
-        if self.strategy is None or not self.backtest_result:
+        if self.data is None or self.data.empty:
             return []
 
-        daily_asset = pd.DataFrame(self.backtest_result['daily_asset'])
-
         # 计算收益率
-        initial_value = daily_asset.iloc[0]['total']
-        final_value = daily_asset.iloc[-1]['total']
+        initial_value = self.data.iloc[0]['total']
+        final_value = self.data.iloc[-1]['total']
         return_rate = (final_value - initial_value) / initial_value * 100
 
         # 获取起止日期
-        start_date = daily_asset.iloc[0]['date'].strftime('%Y-%m-%d')
-        end_date = daily_asset.iloc[-1]['date'].strftime('%Y-%m-%d')
+        start_date = self.data.iloc[0]['date'].strftime('%Y-%m-%d')
+        end_date = self.data.iloc[-1]['date'].strftime('%Y-%m-%d')
         date_range = f"{start_date} ~ {end_date}"
 
         return [
@@ -270,7 +261,7 @@ class StrategyDataGenerator(DataGenerator):
     
     def get_extra_datas(self) -> List[TableData]:
         """获取策略额外数据"""
-        if not self.backtest_result:
+        if self.data is None or self.data.empty:
             return []
         
         # 交易记录表格
@@ -289,8 +280,7 @@ class StrategyDataGenerator(DataGenerator):
     
     def _get_basic_indicators(self) -> TableData:
         """获取基础指标表格"""
-        daily_asset = pd.DataFrame(self.backtest_result['daily_asset'])
-        if daily_asset is None or daily_asset.empty:
+        if self.data is None or self.data.empty:
             return {
                 'name': '基础指标',
                 'headers': ['指标', '数值'],
@@ -298,7 +288,7 @@ class StrategyDataGenerator(DataGenerator):
             }
         
         return DataCalculator.calculate_basic_indicators(
-            df=daily_asset,
+            df=self.data,
             date_column='date',
             value_column='total',
             value_format='.2f'
@@ -306,8 +296,7 @@ class StrategyDataGenerator(DataGenerator):
     
     def _get_yearly_stats(self) -> TableData:
         """获取年度统计表格"""
-        daily_asset = pd.DataFrame(self.backtest_result['daily_asset'])
-        if daily_asset is None or daily_asset.empty:
+        if self.data is None or self.data.empty:
             return {
                 'name': '年度统计',
                 'headers': ['年份', '收益率', '年化收益率', '最大回撤', '波动率'],
@@ -315,15 +304,14 @@ class StrategyDataGenerator(DataGenerator):
             }
         
         return DataCalculator.calculate_yearly_stats(
-            df=daily_asset,
+            df=self.data,
             date_column='date',
             value_column='total'
         )
     
     def _get_quarterly_stats(self) -> TableData:
         """获取季度统计表格"""
-        daily_asset = pd.DataFrame(self.backtest_result['daily_asset'])
-        if daily_asset is None or daily_asset.empty:
+        if self.data is None or self.data.empty:
             return {
                 'name': '季度统计',
                 'headers': ['季度', '收益率', '年化收益率', '最大回撤', '波动率'],
@@ -331,23 +319,21 @@ class StrategyDataGenerator(DataGenerator):
             }
         
         return DataCalculator.calculate_quarterly_stats(
-            df=daily_asset,
+            df=self.data,
             date_column='date',
             value_column='total'
         )
     
     def get_extra_chart_data(self, data_type: ChartDataType, normalize: bool = False, **params) -> List[Dict[str, Any]]:
         """获取额外的图表数据"""
-        if not self.backtest_result:
+        if self.data is None or self.data.empty:
             return []
             
-        daily_asset = pd.DataFrame(self.backtest_result['daily_asset'])
-        
         if data_type in ['MA5', 'MA20', 'MA60', 'MA120']:
             period = int(data_type.replace('MA', ''))
-            return self._get_ma_data(period, daily_asset, normalize)
+            return self._get_ma_data(period, self.data, normalize)
         elif data_type == 'drawdown':
-            return self._get_drawdown_data(daily_asset, normalize)
+            return self._get_drawdown_data(self.data, normalize)
         else:
             raise ValueError(f"Unknown data type: {data_type}")
 
@@ -375,16 +361,14 @@ class StrategyDataGenerator(DataGenerator):
         if not self.backtest_result or 'trades' not in self.backtest_result:
             return {
                 'name': '交易记录',
-                'headers': ['日期', '类型', '产品', '数量', '价格', '金额', '备注'],
-                'data': []
+                'pd_data': pd.DataFrame(columns=['日期', '类型', '产品', '数量', '价格', '金额', '备注'])
             }
         
         trades = pd.DataFrame(self.backtest_result['trades'])
         if trades.empty:
             return {
                 'name': '交易记录',
-                'headers': ['日期', '类型', '产品', '数量', '价格', '金额', '备注'],
-                'data': []
+                'pd_data': pd.DataFrame(columns=['日期', '类型', '产品', '数量', '价格', '金额', '备注'])
             }
         
         # 转换为表格数据
@@ -403,17 +387,15 @@ class StrategyDataGenerator(DataGenerator):
         
         return {
             'name': '交易记录',
-            'headers': ['日期', '类型', '产品', '数量', '价格', '金额', '备注'],
-            'data': trade_data
+            'pd_data': pd.DataFrame(trade_data, columns=['日期', '类型', '产品', '数量', '价格', '金额', '备注'])
         }
 
     def get_value_data(self) -> pd.DataFrame:
         """获取策略总资产数据"""
-        if not self.backtest_result or 'daily_asset' not in self.backtest_result:
+        if self.data is None or self.data.empty:
             return pd.DataFrame()
-        
-        daily_asset = pd.DataFrame(self.backtest_result['daily_asset'])
+
         return pd.DataFrame({
-            'date': daily_asset['date'],
-            'value': daily_asset['total']
+            'date': self.data['date'],
+            'value': self.data['total']
         }) 

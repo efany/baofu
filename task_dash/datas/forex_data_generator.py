@@ -6,7 +6,7 @@ from loguru import logger
 from database.db_forex_day_hist import DBForexDayHist
 from database.mysql_database import MySQLDatabase
 from .data_generator import DataGenerator, TableData, ParamConfig
-from task_utils.data_utils import calculate_return_rate, calculate_max_drawdown
+from task_utils.data_utils import calculate_return_rate
 from .data_calculator import DataCalculator
 
 class ForexDataGenerator(DataGenerator):
@@ -25,41 +25,37 @@ class ForexDataGenerator(DataGenerator):
         super().__init__(start_date, end_date)
         self.forex_code = forex_code
         self.db_forex_hist = DBForexDayHist(mysql_db)
-        self.forex_data = None
+        self.data = None
     
     def load(self) -> bool:
         """加载外汇数据"""
-        self.forex_data = self.db_forex_hist.get_extend_forex_hist_data(self.forex_code, self.start_date, self.end_date)
-        if not self.forex_data.empty:
-            self.forex_data['date'] = pd.to_datetime(self.forex_data['date'])
-            self.forex_data = self.forex_data.sort_values('date')
-            logger.info(f"外汇数据加载完成: {self.forex_code}  {self.start_date}  {self.end_date} , 共{len(self.forex_data)}条数据")
+        start_date = self.params['start_date'] if 'start_date' in self.params else None
+        end_date = self.params['end_date'] if 'end_date' in self.params else None
+
+        self.data = self.db_forex_hist.get_extend_forex_hist_data(self.forex_code, start_date, end_date)
+        
+        if not self.data.empty:
+            self.data['date'] = pd.to_datetime(self.data['date'])
+            self.data = self.data.sort_values('date')
+            logger.info(f"外汇数据加载完成: {self.forex_code}  {start_date}  {end_date} , 共{len(self.data)}条数据")
         else:
             logger.warning(f"未找到外汇数据: {self.forex_code}")
             return False
         
         return True
 
-    def get_params_config(self) -> List[ParamConfig]:
-        """获取外汇参数配置"""
-        return []
-    
-    def update_params(self, params: Dict[str, Any]) -> bool:
-        """更新外汇参数"""
-        return True
-
     def get_summary_data(self) -> List[Tuple[str, Any]]:
         """获取外汇摘要数据"""
-        if self.forex_data is None or self.forex_data.empty:
+        if self.data is None or self.data.empty:
             return []
 
-        first_close, last_close, return_rate = calculate_return_rate(self.forex_data, loc_name='close')
+        first_close, last_close, return_rate = calculate_return_rate(self.data, loc_name='close')
         
         # 获取起止日期
-        start_date = self.forex_data.iloc[0]['date'].strftime('%Y-%m-%d')
-        end_date = self.forex_data.iloc[-1]['date'].strftime('%Y-%m-%d')
+        start_date = self.data.iloc[0]['date'].strftime('%Y-%m-%d')
+        end_date = self.data.iloc[-1]['date'].strftime('%Y-%m-%d')
         date_range = f"{start_date} ~ {end_date}"
-        
+
         return [
             ('外汇代码', self.forex_code),
             ('统计区间', date_range),
@@ -77,25 +73,25 @@ class ForexDataGenerator(DataGenerator):
         Returns:
             List[Dict[str, Any]]: 图表数据列表
         """
-        if self.forex_data is None or self.forex_data.empty:
+        if self.data is None or self.data.empty:
             return []
 
-        dates = self.forex_data['date'].tolist()
+        dates = self.data['date'].tolist()
         chart_data = []
 
         if chart_type == 0:  # K线图
             chart_data.append({
                 'x': dates,
-                'open': self.forex_data['open'].tolist(),
-                'high': self.forex_data['high'].tolist(),
-                'low': self.forex_data['low'].tolist(),
-                'close': self.forex_data['close'].tolist(),
+                'open': self.data['open'].tolist(),
+                'high': self.data['high'].tolist(),
+                'low': self.data['low'].tolist(),
+                'close': self.data['close'].tolist(),
                 'type': 'candlestick',
                 'name': self.forex_code,
                 'visible': True
             })
         else:  # 折线图
-            values = self.forex_data['close']
+            values = self.data['close']
             if normalize:
                 values = self.normalize_series(values)
                 
@@ -111,7 +107,7 @@ class ForexDataGenerator(DataGenerator):
 
     def get_extra_datas(self) -> List[TableData]:
         """获取外汇额外数据"""
-        if self.forex_data is None or self.forex_data.empty:
+        if self.data is None or self.data.empty:
             return []
         
         # 基础指标表格
@@ -127,7 +123,7 @@ class ForexDataGenerator(DataGenerator):
 
     def _get_basic_indicators(self) -> TableData:
         """获取基础指标表格"""
-        if self.forex_data is None or self.forex_data.empty:
+        if self.data is None or self.data.empty:
             return {
                 'name': '基础指标',
                 'headers': ['指标', '数值'],
@@ -135,7 +131,7 @@ class ForexDataGenerator(DataGenerator):
             }
         
         return DataCalculator.calculate_basic_indicators(
-            df=self.forex_data,
+            df=self.data,
             date_column='date',
             value_column='close',
             value_format='.2f'
@@ -143,7 +139,7 @@ class ForexDataGenerator(DataGenerator):
         
     def _get_yearly_stats(self) -> TableData:
         """获取年度统计表格"""
-        if self.forex_data is None or self.forex_data.empty:
+        if self.data is None or self.data.empty:
             return {
                 'name': '年度统计',
                 'headers': ['年份', '收益率', '年化收益率', '最大回撤', '波动率'],
@@ -151,14 +147,14 @@ class ForexDataGenerator(DataGenerator):
             }
         
         return DataCalculator.calculate_yearly_stats(
-            df=self.forex_data,
+            df=self.data,
             date_column='date',
             value_column='close'
         )
 
     def _get_quarterly_stats(self) -> TableData:
         """获取季度统计表格"""
-        if self.forex_data is None or self.forex_data.empty:
+        if self.data is None or self.data.empty:
             return {
                 'name': '季度统计',
                 'headers': ['季度', '收益率', '年化收益率', '最大回撤', '波动率'],
@@ -166,14 +162,14 @@ class ForexDataGenerator(DataGenerator):
             }
         
         return DataCalculator.calculate_quarterly_stats(
-            df=self.forex_data,
+            df=self.data,
             date_column='date',
             value_column='close'
         )
 
     def get_extra_chart_data(self, data_type: str, normalize: bool = False, **params) -> List[Dict[str, Any]]:
         """获取额外的图表数据"""
-        if self.forex_data is None or self.forex_data.empty:
+        if self.data is None or self.data.empty:
             return []
             
         if data_type in ['MA5', 'MA20', 'MA60', 'MA120']:
@@ -187,7 +183,7 @@ class ForexDataGenerator(DataGenerator):
     def _get_ma_data(self, period: int, value_column: str, normalize: bool = False) -> List[Dict[str, Any]]:
         """获取移动平均线数据"""
         return DataCalculator.calculate_ma_data(
-            df=self.forex_data,
+            df=self.data,
             date_column='date',
             value_column=value_column,
             period=period,
@@ -197,7 +193,7 @@ class ForexDataGenerator(DataGenerator):
     def _get_drawdown_chart_data(self, normalize: bool = False) -> List[Dict[str, Any]]:
         """获取回撤图表数据"""
         return DataCalculator.calculate_drawdown_chart_data(
-            df=self.forex_data,
+            df=self.data,
             date_column='date',
             value_column='close',
             normalize=normalize
@@ -205,12 +201,12 @@ class ForexDataGenerator(DataGenerator):
 
     def get_value_data(self) -> pd.DataFrame:
         """获取用于计算相关系数的主要数据"""
-        if self.forex_data is None or self.forex_data.empty:
+        if self.data is None or self.data.empty:
             return pd.DataFrame()
         
         return pd.DataFrame({
-            'date': self.forex_data['date'],
-            'value': self.forex_data['close']
+            'date': self.data['date'],
+            'value': self.data['close']
         })
 
 

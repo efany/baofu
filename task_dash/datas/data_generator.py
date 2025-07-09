@@ -3,7 +3,6 @@ from typing import Dict, List, Optional, Any, Tuple, Literal, TypedDict
 from datetime import date
 import pandas as pd
 import numpy as np
-from task_utils.data_utils import calculate_max_drawdown
 from .data_calculator import DataCalculator
 
 # 定义支持的数据类型
@@ -24,16 +23,19 @@ class ParamConfig(TypedDict):
 class TableData(TypedDict):
     """表格数据类型定义"""
     name: str  # 表格名称
-    headers: List[str]  # 表头
-    data: List[List[Any]]  # 表格数据
+    pd_data: pd.DataFrame  # 表格数据
 
 class DataGenerator(ABC):
     """数据生成器基类，负责生成各类型数据用于页面展示"""
 
     def __init__(self, start_date: Optional[date] = None, end_date: Optional[date] = None):
-        self.start_date = start_date
-        self.end_date = end_date
         self.is_loaded = False  # 添加数据加载状态标记
+
+        self.params = {}
+        self.params['start_date'] = start_date
+        self.params['end_date'] = end_date
+        
+        self.parameter_configs = []
 
     def normalize_series(self, series: pd.Series) -> pd.Series:
         """归一化数据序列"""
@@ -49,7 +51,6 @@ class DataGenerator(ABC):
         """
         pass
 
-    @abstractmethod
     def get_params_config(self) -> List[ParamConfig]:
         """
         获取可调节的参数配置
@@ -57,9 +58,8 @@ class DataGenerator(ABC):
         Returns:
             List[ParamConfig]: 参数配置列表，每个元素描述一个可调节的参数
         """
-        pass
+        return self.parameter_configs
 
-    @abstractmethod
     def update_params(self, params: Dict[str, Any]) -> bool:
         """
         更新参数值
@@ -69,8 +69,12 @@ class DataGenerator(ABC):
             
         Returns:
             bool: 更新是否成功
-        """
-        pass
+        """        """更新策略的参数设置"""
+        for param_name, param_value in params.items():
+            if param_name in self.params:
+                self.params[param_name] = param_value
+                return True
+        return False
 
     @abstractmethod
     def get_summary_data(self) -> List[Tuple[str, Any]]:

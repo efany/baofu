@@ -63,8 +63,51 @@ def create_summary_table(table_data):
         'backgroundColor': '#f9f9f9',
     }) 
 
+def create_table_from_pd(table_data: TableData) -> html.Div:
+    """创建表格组件"""
+    return html.Div([
+        html.H4(table_data['name'], style={
+            'margin': '10px 0',
+            'padding': '5px 10px',
+            'backgroundColor': '#f0f0f0',
+            'borderRadius': '4px'
+        }),
+        html.Table([
+            html.Thead(
+                html.Tr([html.Th(col, style={
+                            'padding': '8px',
+                            'backgroundColor': '#e0e0e0',
+                            'border': '1px solid #ddd',
+                            'textAlign': 'center'
+                        }) for col in table_data['pd_data'].columns])
+            ),
+            html.Tbody(
+                [html.Tr([html.Td(cell) for cell in row], style={
+                            'padding': '8px',
+                            'border': '1px solid #ddd',
+                            'textAlign': 'center'
+                        }) for row in table_data['pd_data'].values]
+            )
+        ], style={
+            'width': '100%',
+            'borderCollapse': 'collapse',
+            'marginBottom': '20px',
+            'backgroundColor': 'white',
+            'boxShadow': '0 1px 3px rgba(0,0,0,0.2)'
+        })
+    ], style={
+        'marginBottom': '20px',
+        'padding': '10px',
+        'backgroundColor': '#f9f9f9',
+        'borderRadius': '5px',
+        'border': '1px solid #ddd'
+    })
+
 def create_table(table_data: TableData) -> html.Div:
     """创建表格组件"""
+    if 'pd_data' in table_data and table_data['pd_data'] is not None:
+        return create_table_from_pd(table_data)
+    
     return html.Div([
         html.H4(table_data['name'], style={
             'margin': '10px 0',

@@ -1,6 +1,7 @@
 from typing import Dict, List, Any, Tuple
 import pandas as pd
 from task_utils.data_utils import calculate_max_drawdown
+from loguru import logger
 
 class DataCalculator:
     """数据计算工具类，提供各种金融数据计算功能"""
@@ -36,10 +37,10 @@ class DataCalculator:
             Dict[str, Any]: 基础指标表格数据
         """
         if df is None or df.empty:
+            pd_data = pd.DataFrame(columns=['指标', '数值'])
             return {
                 'name': '基础指标',
-                'headers': ['指标', '数值'],
-                'data': []
+                'pd_data': pd_data
             }
 
         # 确保日期列是datetime类型
@@ -78,10 +79,10 @@ class DataCalculator:
         if extra_indicators:
             indicators.extend(extra_indicators)
         
+        pd_data = pd.DataFrame(indicators, columns=['指标', '数值'])
         return {
             'name': '基础指标',
-            'headers': ['指标', '数值'],
-            'data': indicators
+            'pd_data': pd_data
         }
 
     @staticmethod
@@ -99,8 +100,8 @@ class DataCalculator:
         """
         drawdown_list = calculate_max_drawdown(df[date_column], df[value_column])
         
-        if drawdown_list and len(drawdown_list) > 0:
-            dd = drawdown_list[0]
+        if drawdown_list is not None and not drawdown_list.empty:
+            dd = drawdown_list.iloc[0]
             max_dd = dd['value'] * 100
             start_date = dd['start_date'].strftime('%Y-%m-%d')
             end_date = dd['end_date'].strftime('%Y-%m-%d')
@@ -109,8 +110,9 @@ class DataCalculator:
             
             # 如果有恢复日期，添加恢复信息
             recovery_info = ""
-            if dd.get('recovery_date'):
+            if dd['recovery_date'] is not None and dd['recovery_date'] is not pd.NaT:
                 days_to_recover = (dd['recovery_date'] - dd['end_date']).days
+                logger.info(f"recovery_date: {dd['recovery_date']}, end_date: {dd['end_date']}, days_to_recover: {days_to_recover}")
                 recovery_info = f", 恢复天数: {days_to_recover}天"
             
             return f"{max_dd:.2f}% ({start_date}~{end_date}{recovery_info}, {start_value:.4f}->{end_value:.4f})"
@@ -139,8 +141,7 @@ class DataCalculator:
         if df is None or df.empty:
             return {
                 'name': '年度统计',
-                'headers': ['年份', '收益率', '年化收益率', '最大回撤', '波动率'],
-                'data': []
+                'pd_data': pd.DataFrame(columns=['年份', '收益率', '年化收益率', '最大回撤', '波动率'])
             }
 
         # 确保日期列是datetime类型
@@ -184,7 +185,7 @@ class DataCalculator:
                 year_data[date_column],
                 year_data[value_column]
             )
-            max_drawdown = f"{drawdown_list[0]['value']*100:.2f}%" if drawdown_list else 'N/A'
+            max_drawdown = f"{drawdown_list.iloc[0]['value']*100:.2f}%" if drawdown_list is not None and not drawdown_list.empty else 'N/A'
             
             # 计算年度波动率
             returns = year_data[value_column].pct_change()
@@ -200,8 +201,7 @@ class DataCalculator:
         
         return {
             'name': '年度统计',
-            'headers': ['年份', '收益率', '年化收益率', '最大回撤', '波动率'],
-            'data': yearly_stats
+            'pd_data': pd.DataFrame(yearly_stats, columns=['年份', '收益率', '年化收益率', '最大回撤', '波动率'])
         }
 
     @staticmethod
@@ -226,8 +226,7 @@ class DataCalculator:
         if df is None or df.empty:
             return {
                 'name': '季度统计',
-                'headers': ['季度', '收益率', '年化收益率', '最大回撤', '波动率'],
-                'data': []
+                'pd_data': pd.DataFrame(columns=['季度', '收益率', '年化收益率', '最大回撤', '波动率'])
             }
 
         # 确保日期列是datetime类型
@@ -278,7 +277,7 @@ class DataCalculator:
                 quarter_data[date_column],
                 quarter_data[value_column]
             )
-            max_drawdown = f"{drawdown_list[0]['value']*100:.2f}%" if drawdown_list else 'N/A'
+            max_drawdown = f"{drawdown_list.iloc[0]['value']*100:.2f}%" if drawdown_list is not None and not drawdown_list.empty else 'N/A'
             
             # 计算季度波动率
             returns = quarter_data[value_column].pct_change()
@@ -294,8 +293,7 @@ class DataCalculator:
         
         return {
             'name': '季度统计',
-            'headers': ['季度', '收益率', '年化收益率', '最大回撤', '波动率'],
-            'data': quarterly_stats
+            'pd_data': pd.DataFrame(quarterly_stats, columns=['季度', '收益率', '年化收益率', '最大回撤', '波动率'])
         }
 
     @staticmethod
@@ -342,6 +340,28 @@ class DataCalculator:
         return ma_data
 
     @staticmethod
+    def calculate_drawdown_data(
+        df: pd.DataFrame,
+        date_column: str,
+        value_column: str,
+        normalize: bool = False
+    ) -> pd.DataFrame:
+        """
+        计算回撤数据
+        """
+        if df is None or df.empty:
+            return []
+            
+        values = df[value_column]
+        if normalize:
+            values = DataCalculator.normalize_series(values)
+            
+        dates = df[date_column]
+        drawdown_list = calculate_max_drawdown(dates, values)
+
+        return drawdown_list
+
+    @staticmethod
     def calculate_drawdown_chart_data(
         df: pd.DataFrame,
         date_column: str,
@@ -360,28 +380,22 @@ class DataCalculator:
         Returns:
             List[Dict[str, Any]]: 回撤图表数据
         """
-        if df is None or df.empty:
+        drawdown_list = DataCalculator.calculate_drawdown_data(df, date_column, value_column, normalize)
+        if drawdown_list is None or drawdown_list.empty:
             return []
-            
-        values = df[value_column]
-        if normalize:
-            values = DataCalculator.normalize_series(values)
-            
-        dates = df[date_column]
-        drawdown_list = calculate_max_drawdown(dates, values)
         
         data = []
         # 绘制回撤区域
         for i in range(len(drawdown_list)):
-            if pd.notna(drawdown_list[i]):
-                dd = drawdown_list[i]
+            dd = drawdown_list.iloc[i]
+            if pd.notna(dd['value']):
                 drawdown_days = (dd['end_date'] - dd['start_date']).days
-                recovery_days = (dd['recovery_date'] - dd['end_date']).days if dd.get('recovery_date') else None
+                recovery_days = (dd['recovery_date'] - dd['end_date']).days if dd['recovery_date'] is not None and dd['recovery_date'] is not pd.NaT else None
                 
                 text = f'回撤: {dd["value"]*100:.4f}%({drawdown_days} days)' 
                 if recovery_days:
                     text = f'{text}，修复：{recovery_days} days'
-                    
+
                 start_date = dd['start_date']
                 end_date = dd['end_date']
                 data.append({

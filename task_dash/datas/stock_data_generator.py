@@ -7,7 +7,7 @@ from database.db_stocks_day_hist import DBStocksDayHist
 from database.db_stocks import DBStocks
 from database.mysql_database import MySQLDatabase
 from .data_generator import DataGenerator, TableData, ParamConfig
-from task_utils.data_utils import calculate_adjusted_nav, calculate_return_rate, calculate_max_drawdown
+from task_utils.data_utils import calculate_adjusted_nav, calculate_return_rate
 from .data_calculator import DataCalculator
 
 class StockDataGenerator(DataGenerator):
@@ -27,10 +27,13 @@ class StockDataGenerator(DataGenerator):
         self.stock_code = stock_code
         self.db_stocks = DBStocks(mysql_db)
         self.db_stocks_day_hist = DBStocksDayHist(mysql_db)
-        self.stock_data = None
+        self.data = None
     
     def load(self) -> bool:
         """加载股票数据"""
+        start_date = self.params['start_date'] if 'start_date' in self.params else None
+        end_date = self.params['end_date'] if 'end_date' in self.params else None
+
         self.stock_info = self.db_stocks.get_stock_info(self.stock_code)
 
         # 先获取原始日期范围的数据
@@ -40,9 +43,9 @@ class StockDataGenerator(DataGenerator):
             original_data = original_data.sort_values('date')
 
             # 如果start_date有效，尝试找到前一个有效日期
-            if self.start_date is not None:
+            if start_date is not None:
                 # 将start_date转换为datetime并与数据比较
-                start_datetime = pd.to_datetime(self.start_date)
+                start_datetime = pd.to_datetime(start_date)
                 
                 # 找到所有早于start_date的日期
                 earlier_dates = original_data[original_data['date'] < start_datetime]
@@ -50,44 +53,36 @@ class StockDataGenerator(DataGenerator):
                 if not earlier_dates.empty:
                     # 找到最接近start_date的前一个日期
                     previous_date = earlier_dates['date'].max()
-                    logger.info(f"找到前一个有效数据日期: {self.start_date} -> {previous_date.date()}")
-                    self.start_date = previous_date.date()
+                    logger.info(f"找到前一个有效数据日期: {start_date} -> {previous_date.date()}")
+                    start_date = previous_date.date()
                 else:
-                    logger.warning(f"没有找到早于 {self.start_date} 的 {self.stock_code} 有效数据日期")
+                    logger.warning(f"没有找到早于 {start_date} 的 {self.stock_code} 有效数据日期")
         else:    
             logger.warning(f"没有找到股票数据: {self.stock_code}")
             return False
 
         # 使用调整后的日期范围获取数据
-        self.stock_data = self.db_stocks_day_hist.get_stock_hist_data(self.stock_code, self.start_date, self.end_date)
-        if not self.stock_data.empty:
-            self.stock_data['date'] = pd.to_datetime(self.stock_data['date'])
-            self.stock_data = self.stock_data.sort_values('date')
-            logger.info(f"股票数据加载完成: {self.stock_code}  {self.start_date}  {self.end_date} , 共{len(self.stock_data)}条数据")
+        self.data = self.db_stocks_day_hist.get_stock_hist_data(self.stock_code, start_date, end_date)
+        if not self.data.empty:
+            self.data['date'] = pd.to_datetime(self.data['date'])
+            self.data = self.data.sort_values('date')
+            logger.info(f"股票数据加载完成: {self.stock_code}  {start_date}  {end_date} , 共{len(self.data)}条数据")
         else:
             logger.warning(f"未找到股票数据: {self.stock_code}")
             return False
 
         return True
 
-    def get_params_config(self) -> List[ParamConfig]:
-        """获取股票参数配置"""
-        return []
-
-    def update_params(self, params: Dict[str, Any]) -> bool:
-        """更新股票参数"""
-        return True
-
     def get_summary_data(self) -> List[Tuple[str, Any]]:
         """获取股票摘要数据"""
-        if self.stock_data is None or self.stock_data.empty:
+        if self.data is None or self.data.empty:
             return []
 
-        first_close, last_close, return_rate = calculate_return_rate(self.stock_data, loc_name='close')
+        first_close, last_close, return_rate = calculate_return_rate(self.data, loc_name='close')
 
         # 获取起止日期
-        start_date = self.stock_data.iloc[0]['date'].strftime('%Y-%m-%d')
-        end_date = self.stock_data.iloc[-1]['date'].strftime('%Y-%m-%d')
+        start_date = self.data.iloc[0]['date'].strftime('%Y-%m-%d')
+        end_date = self.data.iloc[-1]['date'].strftime('%Y-%m-%d')
         date_range = f"{start_date} ~ {end_date}"
         
         return [
@@ -99,14 +94,14 @@ class StockDataGenerator(DataGenerator):
 
     def get_chart_data(self, normalize: bool = False, chart_type: int = 0) -> List[Dict[str, Any]]:
         """获取股票图表数据，显示为K线图"""
-        if self.stock_data is None or self.stock_data.empty:
+        if self.data is None or self.data.empty:
             return []
         
         # 准备数据
-        open_price = self.stock_data['open']
-        high_price = self.stock_data['high']
-        low_price = self.stock_data['low']
-        close_price = self.stock_data['close']
+        open_price = self.data['open']
+        high_price = self.data['high']
+        low_price = self.data['low']
+        close_price = self.data['close']
         
         if normalize:
             open_price = self.normalize_series(open_price)
@@ -115,7 +110,7 @@ class StockDataGenerator(DataGenerator):
             close_price = self.normalize_series(close_price)
         
         # 将日期转换为中文格式
-        dates = self.stock_data['date'].tolist()
+        dates = self.data['date'].tolist()
         if chart_type == 0:
             return [
                 {
@@ -143,7 +138,7 @@ class StockDataGenerator(DataGenerator):
     
     def get_extra_datas(self) -> List[TableData]:
         """获取股票额外数据"""
-        if self.stock_data is None or self.stock_data.empty:
+        if self.data is None or self.data.empty:
             return []
         
         # 基础指标表格
@@ -159,7 +154,7 @@ class StockDataGenerator(DataGenerator):
 
     def _get_basic_indicators(self) -> TableData:
         """获取基础指标表格"""
-        if self.stock_data is None or self.stock_data.empty:
+        if self.data is None or self.data.empty:
             return {
                 'name': '基础指标',
                 'headers': ['指标', '数值'],
@@ -167,7 +162,7 @@ class StockDataGenerator(DataGenerator):
             }
         
         return DataCalculator.calculate_basic_indicators(
-            df=self.stock_data,
+            df=self.data,
             date_column='date',
             value_column='close',
             value_format='.2f'
@@ -175,7 +170,7 @@ class StockDataGenerator(DataGenerator):
 
     def _get_yearly_stats(self) -> TableData:
         """获取年度统计表格"""
-        if self.stock_data is None or self.stock_data.empty:
+        if self.data is None or self.data.empty:
             return {
                 'name': '年度统计',
                 'headers': ['年份', '收益率', '年化收益率', '最大回撤', '波动率'],
@@ -183,14 +178,14 @@ class StockDataGenerator(DataGenerator):
             }
         
         return DataCalculator.calculate_yearly_stats(
-            df=self.stock_data,
+            df=self.data,
             date_column='date',
             value_column='close'
         )
 
     def _get_quarterly_stats(self) -> TableData:
         """获取季度统计表格"""
-        if self.stock_data is None or self.stock_data.empty:
+        if self.data is None or self.data.empty:
             return {
                 'name': '季度统计',
                 'headers': ['季度', '收益率', '年化收益率', '最大回撤', '波动率'],
@@ -198,14 +193,14 @@ class StockDataGenerator(DataGenerator):
             }
         
         return DataCalculator.calculate_quarterly_stats(
-            df=self.stock_data,
+            df=self.data,
             date_column='date',
             value_column='close'
         )
 
     def get_extra_chart_data(self, data_type: str, normalize: bool = False, **params) -> List[Dict[str, Any]]:
         """获取额外的图表数据"""
-        if self.stock_data is None or self.stock_data.empty:
+        if self.data is None or self.data.empty:
             return []
 
         if data_type in ['MA5', 'MA20', 'MA60', 'MA120']:
@@ -219,7 +214,7 @@ class StockDataGenerator(DataGenerator):
     def _get_ma_data(self, period: int, value_column: str, normalize: bool = False) -> List[Dict[str, Any]]:
         """获取移动平均线数据"""
         return DataCalculator.calculate_ma_data(
-            df=self.stock_data,
+            df=self.data,
             date_column='date',
             value_column=value_column,
             period=period,
@@ -229,7 +224,7 @@ class StockDataGenerator(DataGenerator):
     def _get_drawdown_chart_data(self, normalize: bool = False) -> List[Dict[str, Any]]:
         """获取回撤图表数据"""
         return DataCalculator.calculate_drawdown_chart_data(
-            df=self.stock_data,
+            df=self.data,
             date_column='date',
             value_column='close',
             normalize=normalize
@@ -237,10 +232,10 @@ class StockDataGenerator(DataGenerator):
 
     def get_value_data(self) -> pd.DataFrame:
         """获取股票收盘价数据"""
-        if self.stock_data is None or self.stock_data.empty:
+        if self.data is None or self.data.empty:
             return pd.DataFrame()
         
         return pd.DataFrame({
-            'date': self.stock_data['date'],
-            'value': self.stock_data['close']
+            'date': self.data['date'],
+            'value': self.data['close']
         })

@@ -25,39 +25,34 @@ class BondRateDataGenerator(DataGenerator):
         super().__init__(start_date, end_date)
         self.bond_type = bond_type
         self.db_bond_rate = DBBondRate(mysql_db)
-        self.bond_data = None
+        self.data = None
     
     def load(self) -> bool:
         """加载债券利率数据"""
-        self.bond_data = self.db_bond_rate.get_bond_rate(self.bond_type, self.start_date, self.end_date)
-        if not self.bond_data.empty:
-            self.bond_data['date'] = pd.to_datetime(self.bond_data['date'])
-            self.bond_data = self.bond_data.sort_values('date')
-            logger.info(f"债券利率数据加载完成: {self.bond_type}  {self.start_date}  {self.end_date} , 共{len(self.bond_data)}条数据")
+        start_date = self.params['start_date'] if 'start_date' in self.params else None
+        end_date = self.params['end_date'] if 'end_date' in self.params else None
+
+        self.data = self.db_bond_rate.get_bond_rate(self.bond_type, start_date, end_date)
+        if not self.data.empty:
+            self.data['date'] = pd.to_datetime(self.data['date'])
+            self.data = self.data.sort_values('date')
+            logger.info(f"债券利率数据加载完成: {self.bond_type}  {start_date}  {end_date} , 共{len(self.data)}条数据")
         else:
             logger.warning(f"未找到债券利率数据: {self.bond_type}")
             return False
         
         return True
 
-    def get_params_config(self) -> List[ParamConfig]:
-        """获取债券利率参数配置"""
-        return []
-    
-    def update_params(self, params: Dict[str, Any]) -> bool:
-        """更新债券利率参数"""
-        return True
-
     def get_summary_data(self) -> List[Tuple[str, Any]]:
         """获取债券利率摘要数据"""
-        if self.bond_data is None or self.bond_data.empty:
+        if self.data is None or self.data.empty:
             return []
 
-        first_rate, last_rate, return_rate = calculate_return_rate(self.bond_data, loc_name='rate')
+        first_rate, last_rate, return_rate = calculate_return_rate(self.data, loc_name='rate')
         
         # 获取起止日期
-        start_date = self.bond_data.iloc[0]['date'].strftime('%Y-%m-%d')
-        end_date = self.bond_data.iloc[-1]['date'].strftime('%Y-%m-%d')
+        start_date = self.data.iloc[0]['date'].strftime('%Y-%m-%d')
+        end_date = self.data.iloc[-1]['date'].strftime('%Y-%m-%d')
         date_range = f"{start_date} ~ {end_date}"
         
         return [
@@ -77,11 +72,11 @@ class BondRateDataGenerator(DataGenerator):
         Returns:
             List[Dict[str, Any]]: 图表数据列表
         """
-        if self.bond_data is None or self.bond_data.empty:
+        if self.data is None or self.data.empty:
             return []
 
-        dates = self.bond_data['date'].tolist()
-        rates = self.bond_data['rate'].tolist()
+        dates = self.data['date'].tolist()
+        rates = self.data['rate'].tolist()
         
         if normalize:
             rates = self.normalize_series(pd.Series(rates)).tolist()
@@ -100,7 +95,7 @@ class BondRateDataGenerator(DataGenerator):
 
     def get_extra_datas(self) -> List[TableData]:
         """获取债券利率额外数据"""
-        if self.bond_data is None or self.bond_data.empty:
+        if self.data is None or self.data.empty:
             return []
         
         # 基础指标表格
@@ -115,7 +110,7 @@ class BondRateDataGenerator(DataGenerator):
         return [basic_table, yearly_table, quarterly_table]
 
     def _get_basic_indicators(self) -> TableData:
-        if self.bond_data is None or self.bond_data.empty:
+        if self.data is None or self.data.empty:
             return {
                 'name': '基础指标',
                 'headers': ['指标', '数值'],
@@ -123,40 +118,40 @@ class BondRateDataGenerator(DataGenerator):
             }
         
         return DataCalculator.calculate_basic_indicators(
-            df=self.bond_data,
+            df=self.data,
             date_column='date',
             value_column='rate',
         )
 
     def _get_yearly_stats(self) -> TableData:
-        if self.bond_data is None or self.bond_data.empty:
+        if self.data is None or self.data.empty:
             return {
                 'name': '年度统计',
                 'headers': ['年份', '收益率', '年化收益率', '最大回撤', '波动率'],
                 'data': []
             }
         return DataCalculator.calculate_yearly_stats(
-            df=self.bond_data,
+            df=self.data,
             date_column='date',
             value_column='rate',
         )
 
     def _get_quarterly_stats(self) -> TableData:
-        if self.bond_data is None or self.bond_data.empty:
+        if self.data is None or self.data.empty:
             return {
                 'name': '季度统计',
                 'headers': ['季度', '收益率', '年化收益率', '最大回撤', '波动率'],
                 'data': []
             }
         return DataCalculator.calculate_quarterly_stats(
-            df=self.bond_data,
+            df=self.data,
             date_column='date',
             value_column='rate',
         )
 
     def get_extra_chart_data(self, data_type: str, normalize: bool = False, **params) -> List[Dict[str, Any]]:
         """获取额外的图表数据"""
-        if self.bond_data is None or self.bond_data.empty:
+        if self.data is None or self.data.empty:
             return []
             
         if data_type in ['MA5', 'MA20', 'MA60', 'MA120']:
@@ -170,7 +165,7 @@ class BondRateDataGenerator(DataGenerator):
     def _get_ma_data(self, period: int, value_column: str, normalize: bool = False) -> List[Dict[str, Any]]:
         """获取移动平均线数据"""
         return DataCalculator.calculate_ma_data(
-            df=self.bond_data,
+            df=self.data,
             date_column='date',
             value_column=value_column,
             period=period,
@@ -180,7 +175,7 @@ class BondRateDataGenerator(DataGenerator):
     def _get_drawdown_chart_data(self, normalize: bool = False) -> List[Dict[str, Any]]:
         """获取回撤图表数据"""
         return DataCalculator.calculate_drawdown_chart_data(
-            df=self.bond_data,
+            df=self.data,
             date_column='date',
             value_column='rate',
             normalize=normalize
@@ -188,10 +183,10 @@ class BondRateDataGenerator(DataGenerator):
 
     def get_value_data(self) -> pd.DataFrame:
         """获取用于计算相关系数的主要数据"""
-        if self.bond_data is None or self.bond_data.empty:
+        if self.data is None or self.data.empty:
             return pd.DataFrame()
         
         return pd.DataFrame({
-            'date': self.bond_data['date'],
-            'value': self.bond_data['rate']
+            'date': self.data['date'],
+            'value': self.data['rate']
         })

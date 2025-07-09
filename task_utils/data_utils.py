@@ -47,7 +47,7 @@ def calculate_adjusted_nav(fund_nav, start_date=None, end_date=None):
         # 计算修正净值
         fund_nav.at[fund_nav.index[i], 'adjusted_nav'] = current_nav * adjustment_factor
 
-def calculate_max_drawdown(date_series:pd.Series, value_series:pd.Series, start_date=None, end_date=None):
+def calculate_max_drawdown(date_series:pd.Series, value_series:pd.Series, start_date=None, end_date=None) -> pd.DataFrame:
     """
     计算前三大回撤
     :param date_series: pd.Series，日期数据
@@ -66,7 +66,7 @@ def calculate_max_drawdown(date_series:pd.Series, value_series:pd.Series, start_
 
     # 如果数据为空，返回默认值
     if len(date_series_filtered) == 0 or len(value_series_filtered) == 0 or len(date_series_filtered) != len(value_series_filtered):
-        return [(0, None, None), (0, None, None), (0, None, None)]
+        return pd.DataFrame(columns=['value', 'start_date', 'start_value', 'end_date', 'end_value', 'recovery_date'])
 
     # 找到所有回撤
     drawdowns = []
@@ -122,12 +122,12 @@ def calculate_max_drawdown(date_series:pd.Series, value_series:pd.Series, start_
             'end_value': peak_value,
             'recovery_date': recovery_date
         })
-    
+
     # 按回撤值排序并取前三个
     sorted_drawdowns = sorted(drawdowns, key=lambda x: x['value'], reverse=True)[:3]
     
     # 转换为百分比并返回
-    return sorted_drawdowns
+    return pd.DataFrame(sorted_drawdowns)
 
 if __name__ == '__main__':
     sys.path.append(os.path.join(os.path.dirname(__file__), '..'))

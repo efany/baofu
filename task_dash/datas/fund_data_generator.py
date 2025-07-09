@@ -5,7 +5,7 @@ from .data_generator import DataGenerator, TableData, ChartDataType, ParamConfig
 from database.db_funds import DBFunds
 from database.db_funds_nav import DBFundsNav
 from database.mysql_database import MySQLDatabase
-from task_utils.data_utils import calculate_adjusted_nav, calculate_return_rate, calculate_max_drawdown
+from task_utils.data_utils import calculate_adjusted_nav, calculate_return_rate
 from loguru import logger
 from .data_calculator import DataCalculator
 
@@ -19,69 +19,75 @@ class FundDataGenerator(DataGenerator):
         self.db_funds = DBFunds(mysql_db)
         self.fund_info = None
         self.fund_nav = None
+
+        self.data = None
     
     def load(self) -> bool:
         """加载基金数据"""
+        start_date = self.params['start_date'] if 'start_date' in self.params else None
+        end_date = self.params['end_date'] if 'end_date' in self.params else None
+
         self.fund_info = self.db_funds.get_fund_info(self.fund_code)
         self.fund_nav = self.db_funds_nav.get_fund_nav(self.fund_code)
 
-        if self.start_date and not self.fund_nav.empty:
+        if start_date and not self.fund_nav.empty:
             # 修正数据start_date到前一个有效日期
-            prev_date = self.fund_nav[self.fund_nav['nav_date'] < self.start_date]['nav_date'].max()
+            prev_date = self.fund_nav[self.fund_nav['nav_date'] < start_date]['nav_date'].max()
             if pd.notna(prev_date):
-                self.start_date = prev_date
+                start_date = prev_date
 
-        if self.start_date:
-            self.fund_nav = self.fund_nav[self.fund_nav['nav_date'] >= self.start_date]
-        if self.end_date:
-            self.fund_nav = self.fund_nav[self.fund_nav['nav_date'] <= self.end_date]
+        if start_date:
+            self.fund_nav = self.fund_nav[self.fund_nav['nav_date'] >= start_date]
+        if end_date:
+            self.fund_nav = self.fund_nav[self.fund_nav['nav_date'] <= end_date]
         if not self.fund_nav.empty:
             self.fund_nav['nav_date'] = pd.to_datetime(self.fund_nav['nav_date'])
+        
+        # Create data DataFrame with fund_nav data
+        if not self.fund_nav.empty and self.fund_info is not None and not self.fund_info.empty:
+            self.data = self.fund_nav.copy()
+            # Add fund info columns
+            self.data['name'] = self.fund_info.iloc[0]['name']
+            self.data['management'] = self.fund_info.iloc[0]['management']
+        else:
+            self.data = None
 
-        calculate_adjusted_nav(self.fund_nav, self.start_date, self.end_date)
+        calculate_adjusted_nav(self.data, start_date, end_date)
 
-        logger.info(f"基金数据加载完成: {self.fund_code}  {self.start_date}  {self.end_date} , 共{len(self.fund_nav)}条数据")
-        return True
-
-    def get_params_config(self) -> List[ParamConfig]:
-        """获取基金参数配置"""
-        return []
-    
-    def update_params(self, params: Dict[str, Any]) -> bool:
-        """更新基金参数"""
+        logger.info(f"基金数据加载完成: {self.fund_code}  {start_date}  {end_date} , 共{len(self.data)}条数据")
         return True
     
     def get_summary_data(self) -> List[Tuple[str, Any]]:
         """获取基金摘要数据"""
-        if self.fund_info is None or self.fund_info.empty:
+        if self.data is None or self.data.empty:
             return []
 
-        first_nav, last_nav, return_rate = calculate_return_rate(self.fund_nav, loc_name='adjusted_nav')
+        first_nav, last_nav, return_rate = calculate_return_rate(self.data, loc_name='adjusted_nav')
         
         # 获取起止日期
-        start_date = self.fund_nav.iloc[0]['nav_date'].strftime('%Y-%m-%d')
-        end_date = self.fund_nav.iloc[-1]['nav_date'].strftime('%Y-%m-%d')
+        start_date = self.data.iloc[0]['nav_date'].strftime('%Y-%m-%d')
+        end_date = self.data.iloc[-1]['nav_date'].strftime('%Y-%m-%d')
         date_range = f"{start_date} ~ {end_date}"
         
         return [
             ('基金代码', self.fund_code),
-            ('基金名称', self.fund_info.iloc[0]['name']),
-            ('基金公司', self.fund_info.iloc[0]['management']),
+            ('基金名称', self.data.iloc[0]['name']),
+            ('基金公司', self.data.iloc[0]['management']),
             ('统计区间', date_range),
             ('区间收益率', f"{return_rate:+.2f}% ({first_nav:.4f} -> {last_nav:.4f})")
         ]
 
     def get_chart_data(self, normalize: bool = False) -> List[Dict[str, Any]]:
         """获取基金图表数据"""
-        if self.fund_nav is None or self.fund_nav.empty:
+        if self.data is None or self.data.empty:
             return []
         
-        dates = self.fund_nav['nav_date'].tolist()
+        dates = self.data['nav_date'].tolist()
         
         # 准备数据，确保数据类型
-        adjusted_nav = pd.to_numeric(self.fund_nav['adjusted_nav'], errors='coerce')
-        accum_nav = pd.to_numeric(self.fund_nav['accum_nav'], errors='coerce')
-        unit_nav = pd.to_numeric(self.fund_nav['unit_nav'], errors='coerce')
+        adjusted_nav = pd.to_numeric(self.data['adjusted_nav'], errors='coerce')
+        accum_nav = pd.to_numeric(self.data['accum_nav'], errors='coerce')
+        unit_nav = pd.to_numeric(self.data['unit_nav'], errors='coerce')
         
         # 如果需要归一化处理
         if normalize:
@@ -111,7 +117,7 @@ class FundDataGenerator(DataGenerator):
             },
             {
                 'x': dates,
-                'y': self.fund_nav['dividend'],
+                'y': self.data['dividend'],
                 'type': 'scatter',
                 'name': '分红',
                 'visible': 'legendonly',
@@ -122,7 +128,7 @@ class FundDataGenerator(DataGenerator):
     
     def get_extra_datas(self) -> List[TableData]:
         """获取基金额外数据"""
-        if self.fund_nav is None or self.fund_nav.empty:
+        if self.data is None or self.data.empty:
             return []
         
         # 基础指标表格
@@ -138,7 +144,7 @@ class FundDataGenerator(DataGenerator):
 
     def _get_basic_indicators(self) -> TableData:
         """获取基础指标表格"""
-        if self.fund_nav is None or self.fund_nav.empty:
+        if self.data is None or self.data.empty:
             return {
                 'name': '基础指标',
                 'headers': ['指标', '数值'],
@@ -146,7 +152,7 @@ class FundDataGenerator(DataGenerator):
             }
         
         return DataCalculator.calculate_basic_indicators(
-            df=self.fund_nav,
+            df=self.data,
             date_column='nav_date',
             value_column='adjusted_nav',
             value_format='.2f'
@@ -155,7 +161,7 @@ class FundDataGenerator(DataGenerator):
 
     def _get_yearly_stats(self) -> TableData:
         """获取年度统计表格"""
-        if self.fund_nav is None or self.fund_nav.empty:
+        if self.data is None or self.data.empty:
             return {
                 'name': '年度统计',
                 'headers': ['年份', '收益率', '年化收益率', '最大回撤', '波动率'],
@@ -163,14 +169,14 @@ class FundDataGenerator(DataGenerator):
             }
         
         return DataCalculator.calculate_yearly_stats(
-            df=self.fund_nav,
+            df=self.data,
             date_column='nav_date',
             value_column='adjusted_nav'
         )
 
     def _get_quarterly_stats(self) -> TableData:
         """获取季度统计表格"""
-        if self.fund_nav is None or self.fund_nav.empty:
+        if self.data is None or self.data.empty:
             return {
                 'name': '季度统计',
                 'headers': ['季度', '收益率', '年化收益率', '最大回撤', '波动率'],
@@ -178,14 +184,14 @@ class FundDataGenerator(DataGenerator):
             }
         
         return DataCalculator.calculate_quarterly_stats(
-            df=self.fund_nav,
+            df=self.data,
             date_column='nav_date',
             value_column='adjusted_nav'
         )
     
     def get_extra_chart_data(self, data_type: ChartDataType, normalize: bool = False, **params) -> List[Dict[str, Any]]:
         """获取额外的图表数据"""
-        if self.fund_nav is None or self.fund_nav.empty:
+        if self.data is None or self.data.empty:
             return []
             
         if data_type in ['MA5', 'MA20', 'MA60', 'MA120']:
@@ -199,7 +205,7 @@ class FundDataGenerator(DataGenerator):
     def _get_ma_data(self, period: int, value_column: str, normalize: bool = False) -> List[Dict[str, Any]]:
         """获取移动平均线数据"""
         return DataCalculator.calculate_ma_data(
-            df=self.fund_nav,
+            df=self.data,
             date_column='nav_date',
             value_column=value_column,
             period=period,
@@ -209,7 +215,7 @@ class FundDataGenerator(DataGenerator):
     def _get_drawdown_data(self, value_column: str, normalize: bool = False) -> List[Dict[str, Any]]:
         """获取回撤数据"""
         return DataCalculator.calculate_drawdown_chart_data(
-            df=self.fund_nav,
+            df=self.data,
             date_column='nav_date',
             value_column=value_column,
             normalize=normalize
@@ -217,10 +223,10 @@ class FundDataGenerator(DataGenerator):
 
     def get_value_data(self) -> pd.DataFrame:
         """获取基金净值数据"""
-        if self.fund_nav is None or self.fund_nav.empty:
+        if self.data is None or self.data.empty:
             return pd.DataFrame()
         
         return pd.DataFrame({
-            'date': self.fund_nav['nav_date'],
-            'value': self.fund_nav['adjusted_nav']
+            'date': self.data['nav_date'],
+            'value': self.data['adjusted_nav']
         })
