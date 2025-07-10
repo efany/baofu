@@ -110,44 +110,13 @@ class BondRateDataGenerator(DataGenerator):
         return [basic_table, yearly_table, quarterly_table]
 
     def _get_basic_indicators(self) -> TableData:
-        if self.data is None or self.data.empty:
-            return {
-                'name': '基础指标',
-                'headers': ['指标', '数值'],
-                'data': []
-            }
-        
-        return DataCalculator.calculate_basic_indicators(
-            df=self.data,
-            date_column='date',
-            value_column='rate',
-        )
+        return super()._get_basic_indicators('date', 'rate')
 
     def _get_yearly_stats(self) -> TableData:
-        if self.data is None or self.data.empty:
-            return {
-                'name': '年度统计',
-                'headers': ['年份', '收益率', '年化收益率', '最大回撤', '波动率'],
-                'data': []
-            }
-        return DataCalculator.calculate_yearly_stats(
-            df=self.data,
-            date_column='date',
-            value_column='rate',
-        )
+        return super()._get_yearly_stats('date', 'rate')
 
     def _get_quarterly_stats(self) -> TableData:
-        if self.data is None or self.data.empty:
-            return {
-                'name': '季度统计',
-                'headers': ['季度', '收益率', '年化收益率', '最大回撤', '波动率'],
-                'data': []
-            }
-        return DataCalculator.calculate_quarterly_stats(
-            df=self.data,
-            date_column='date',
-            value_column='rate',
-        )
+        return super()._get_quarterly_stats('date', 'rate')
 
     def get_extra_chart_data(self, data_type: str, normalize: bool = False, **params) -> List[Dict[str, Any]]:
         """获取额外的图表数据"""
@@ -156,30 +125,12 @@ class BondRateDataGenerator(DataGenerator):
             
         if data_type in ['MA5', 'MA20', 'MA60', 'MA120']:
             period = int(data_type.replace('MA', ''))
-            return self._get_ma_data(period, 'rate', normalize)
+            return self._get_ma_data(period, 'date', 'rate', normalize)
         elif data_type == 'drawdown':
-            return self._get_drawdown_chart_data(normalize)
+            return self._get_drawdown_data('date', 'rate', normalize)
         else:
             raise ValueError(f"Unknown data type: {data_type}")
 
-    def _get_ma_data(self, period: int, value_column: str, normalize: bool = False) -> List[Dict[str, Any]]:
-        """获取移动平均线数据"""
-        return DataCalculator.calculate_ma_data(
-            df=self.data,
-            date_column='date',
-            value_column=value_column,
-            period=period,
-            normalize=normalize
-        )
-
-    def _get_drawdown_chart_data(self, normalize: bool = False) -> List[Dict[str, Any]]:
-        """获取回撤图表数据"""
-        return DataCalculator.calculate_drawdown_chart_data(
-            df=self.data,
-            date_column='date',
-            value_column='rate',
-            normalize=normalize
-        )
 
     def get_value_data(self) -> pd.DataFrame:
         """获取用于计算相关系数的主要数据"""

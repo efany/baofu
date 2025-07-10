@@ -30,6 +30,7 @@ class DataGenerator(ABC):
 
     def __init__(self, start_date: Optional[date] = None, end_date: Optional[date] = None):
         self.is_loaded = False  # 添加数据加载状态标记
+        self.data = None  # 存储数据的属性
 
         self.params = {}
         self.params['start_date'] = start_date
@@ -40,6 +41,71 @@ class DataGenerator(ABC):
     def normalize_series(self, series: pd.Series) -> pd.Series:
         """归一化数据序列"""
         return DataCalculator.normalize_series(series)
+
+    def _get_basic_indicators(self, date_column: str, value_column: str, value_format: str = '.2f') -> TableData:
+        """获取基础指标表格 - 通用实现"""
+        if self.data is None or self.data.empty:
+            return {
+                'name': '基础指标',
+                'headers': ['指标', '数值'],
+                'data': []
+            }
+        
+        return DataCalculator.calculate_basic_indicators(
+            df=self.data,
+            date_column=date_column,
+            value_column=value_column,
+            value_format=value_format
+        )
+
+    def _get_yearly_stats(self, date_column: str, value_column: str) -> TableData:
+        """获取年度统计表格 - 通用实现"""
+        if self.data is None or self.data.empty:
+            return {
+                'name': '年度统计',
+                'headers': ['年份', '收益率', '年化收益率', '最大回撤', '波动率'],
+                'data': []
+            }
+        
+        return DataCalculator.calculate_yearly_stats(
+            df=self.data,
+            date_column=date_column,
+            value_column=value_column
+        )
+
+    def _get_quarterly_stats(self, date_column: str, value_column: str) -> TableData:
+        """获取季度统计表格 - 通用实现"""
+        if self.data is None or self.data.empty:
+            return {
+                'name': '季度统计',
+                'headers': ['季度', '收益率', '年化收益率', '最大回撤', '波动率'],
+                'data': []
+            }
+        
+        return DataCalculator.calculate_quarterly_stats(
+            df=self.data,
+            date_column=date_column,
+            value_column=value_column
+        )
+
+    def _get_ma_data(self, period: int, date_column: str, value_column: str, normalize: bool = False) -> List[Dict[str, Any]]:
+        """获取移动平均线数据 - 通用实现"""
+        return DataCalculator.calculate_ma_data(
+            df=self.data,
+            date_column=date_column,
+            value_column=value_column,
+            period=period,
+            normalize=normalize
+        )
+
+    def _get_drawdown_data(self, date_column: str, value_column: str, normalize: bool = False) -> List[Dict[str, Any]]:
+        """获取回撤数据 - 通用实现"""
+        return DataCalculator.calculate_drawdown_chart_data(
+            df=self.data,
+            date_column=date_column,
+            value_column=value_column,
+            normalize=normalize
+        )
 
     @abstractmethod
     def load(self) -> bool:
