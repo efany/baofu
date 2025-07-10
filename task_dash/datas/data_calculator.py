@@ -427,4 +427,46 @@ class DataCalculator:
                         'name': f'TOP{i+1} 回撤修复',
                         'showlegend': True
                     })
-        return data 
+        return data
+
+    @staticmethod
+    def calculate_correlation_matrix(
+        data_dict: Dict[str, pd.DataFrame], 
+        method: str = 'pearson',
+        data_processing: str = 'returns'
+    ) -> pd.DataFrame:
+        """计算相关性矩阵"""
+        if not data_dict:
+            return pd.DataFrame()
+        
+        # 合并所有数据
+        merged_df = None
+        for product_id, df in data_dict.items():
+            if df.empty:
+                continue
+                
+            df_copy = df.copy()
+            df_copy['date'] = pd.to_datetime(df_copy['date'])
+            df_copy = df_copy.sort_values('date')
+            
+            # 数据处理
+            if data_processing == 'returns':
+                df_copy['value'] = df_copy['value'].pct_change()
+            elif data_processing == 'normalized':
+                df_copy['value'] = df_copy['value'] / df_copy['value'].iloc[0]
+            
+            df_copy = df_copy.rename(columns={'value': product_id})
+            
+            if merged_df is None:
+                merged_df = df_copy[['date', product_id]]
+            else:
+                merged_df = pd.merge(merged_df, df_copy[['date', product_id]], on='date', how='outer')
+        
+        if merged_df is None:
+            return pd.DataFrame()
+        
+        # 计算相关性矩阵
+        correlation_data = merged_df.drop('date', axis=1)
+        correlation_matrix = correlation_data.corr(method=method)
+        
+        return correlation_matrix 

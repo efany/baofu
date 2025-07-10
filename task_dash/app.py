@@ -24,6 +24,9 @@ from task_dash.callback.products_compare_callbacks import register_products_comp
 from task_dash.pages.products_manage import create_product_management
 from task_dash.callback.products_manage_callbacks import register_product_manage_callbacks
 
+from task_dash.pages.correlation_analysis import create_correlation_analysis_page
+from task_dash.callback.correlation_analysis_callbacks import register_correlation_analysis_callbacks
+
 # 初始化Dash应用
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP], suppress_callback_exceptions=True)
 
@@ -65,6 +68,8 @@ def display_page(pathname):
         return create_products_compare_page(mysql_db)
     elif pathname == '/products_manage':
         return create_product_management(mysql_db)
+    elif pathname == '/correlation_analysis':
+        return create_correlation_analysis_page(mysql_db)
     else:
         return html.H1("404: Not Found")
 
@@ -79,6 +84,9 @@ register_products_compare_callbacks(app, mysql_db)
 
 # 注册产品管理相关的回调
 register_product_manage_callbacks(app, mysql_db)
+
+# 注册相关性分析相关的回调
+register_correlation_analysis_callbacks(app, mysql_db)
 
 if __name__ == '__main__':
     try:

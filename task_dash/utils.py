@@ -35,7 +35,7 @@ def get_stock_name(symbol: str) -> str:
     
     Args:
         symbol: 股票代码，例如 '159949.SZ'
-        
+
     Returns:
         str: 股票的中文简称，如果没有找到则返回股票代码
     """
