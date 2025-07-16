@@ -34,7 +34,7 @@ app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP], suppress_
 
 # 创建数据库连接池
 mysql_db = MySQLDatabase(
-    host='127.0.0.1',
+    host='113.44.90.2',
     user='baofu',
     password='TYeKmJPfw2b7kxGK',
     database='baofu',
@@ -95,7 +95,7 @@ register_correlation_analysis_callbacks(app, mysql_db)
 if __name__ == '__main__':
     try:
         # 设置host为0.0.0.0以便在服务器上可访问
-        app.run_server(debug=True, host='0.0.0.0', port=8050)  # 使用8050端口
+        app.run(debug=True, host='127.0.0.1', port=8050)  # 使用8050端口
     finally:
         # 关闭数据库连接池
         mysql_db.close_pool() 
