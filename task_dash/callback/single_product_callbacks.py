@@ -2,6 +2,7 @@ import sys
 import os
 import dash
 from dash import html, dcc
+import dash_bootstrap_components as dbc
 from dash.dependencies import Input, Output, State
 import plotly.graph_objs as go
 import pandas as pd
@@ -21,136 +22,101 @@ from task_dash.datas.data_generator import TableData
 
 def create_summary_table(table_data):
     """创建摘要表格"""
-    children = []
-    for label, value in table_data:
-        children.append(
-            html.Div([
-                # 标签
-                html.Span(label, style={
-                    'color': '#666',
-                    'fontWeight': 'bold',
-                    'padding': '4px 8px',
-                    'backgroundColor': '#e0e0e0',
-                    'borderRadius': '4px',
-                    'marginRight': '8px',
-                    'display': 'inline-block',
-                    'minWidth': '80px',
-                    'textAlign': 'right'
-                }),
-                # 值
-                html.Span(value, style={
-                    'color': '#333',
-                    'padding': '4px 8px',
-                    'backgroundColor': '#f0f0f0',
-                    'borderRadius': '4px',
-                    'display': 'inline-block',
-                    'flex': '1',
-                    'fontWeight': '500'
-                })
-            ], style={
-                'display': 'inline-block',
-                'marginRight': '10px',
-                'padding': '5px',
-                'border': '1px solid #ddd',  # 添加边框
-                'borderRadius': '3px',  # 添加圆角
-                'backgroundColor': '#f5f5f5',  # 添加背景色
-            })
+    if not table_data:
+        return dbc.Alert("暂无摘要数据", color="info")
+    
+    # 将数据分组，每行3个指标
+    rows = []
+    current_row = []
+    
+    for i, (label, value) in enumerate(table_data):
+        current_row.append(
+            dbc.Col([
+                dbc.Card([
+                    dbc.CardBody([
+                        html.H6(label, className="card-subtitle mb-2 text-muted"),
+                        html.H4(value, className="card-title mb-0", 
+                               style={'color': '#2c3e50', 'fontWeight': 'bold'})
+                    ], className="text-center")
+                ], className="h-100")
+            ], width=4)
         )
-    return html.Div(children, style={
-        'padding': '2px',
-        'border': '1px solid #ddd',
-        'borderRadius': '5px',
-        'backgroundColor': '#f9f9f9',
-    }) 
+        
+        if (i + 1) % 3 == 0 or i == len(table_data) - 1:
+            rows.append(dbc.Row(current_row, className="mb-3"))
+            current_row = []
+    
+    return dbc.Card([
+        dbc.CardHeader([
+            html.H4("产品摘要", className="mb-0", style={'color': '#34495e'})
+        ]),
+        dbc.CardBody(rows)
+    ], className="mb-4") 
 
-def create_table_from_pd(table_data: TableData) -> html.Div:
+def create_table_from_pd(table_data: TableData) -> dbc.Card:
     """创建表格组件"""
-    return html.Div([
-        html.H4(table_data['name'], style={
-            'margin': '10px 0',
-            'padding': '5px 10px',
-            'backgroundColor': '#f0f0f0',
-            'borderRadius': '4px'
-        }),
-        html.Table([
-            html.Thead(
-                html.Tr([html.Th(col, style={
-                            'padding': '8px',
-                            'backgroundColor': '#e0e0e0',
-                            'border': '1px solid #ddd',
-                            'textAlign': 'center'
-                        }) for col in table_data['pd_data'].columns])
-            ),
-            html.Tbody(
-                [html.Tr([html.Td(cell) for cell in row], style={
-                            'padding': '8px',
-                            'border': '1px solid #ddd',
-                            'textAlign': 'center'
-                        }) for row in table_data['pd_data'].values]
-            )
-        ], style={
-            'width': '100%',
-            'borderCollapse': 'collapse',
-            'marginBottom': '20px',
-            'backgroundColor': 'white',
-            'boxShadow': '0 1px 3px rgba(0,0,0,0.2)'
-        })
-    ], style={
-        'marginBottom': '20px',
-        'padding': '10px',
-        'backgroundColor': '#f9f9f9',
-        'borderRadius': '5px',
-        'border': '1px solid #ddd'
-    })
+    if table_data['pd_data'].empty:
+        return dbc.Card([
+            dbc.CardHeader(html.H5(table_data['name'], className="mb-0")),
+            dbc.CardBody([
+                dbc.Alert("暂无数据", color="info")
+            ])
+        ], className="mb-3")
+    
+    # 创建表头
+    headers = [html.Th(col, className="text-center") for col in table_data['pd_data'].columns]
+    
+    # 创建表格数据
+    rows = []
+    for _, row in table_data['pd_data'].iterrows():
+        cells = [html.Td(str(cell), className="text-center") for cell in row]
+        rows.append(html.Tr(cells))
+    
+    table = dbc.Table([
+        html.Thead(html.Tr(headers), className="table-dark"),
+        html.Tbody(rows)
+    ], striped=True, bordered=True, hover=True, responsive=True, size="sm")
+    
+    return dbc.Card([
+        dbc.CardHeader([
+            html.H5(table_data['name'], className="mb-0", style={'color': '#34495e'})
+        ]),
+        dbc.CardBody([table])
+    ], className="mb-3")
 
-def create_table(table_data: TableData) -> html.Div:
+def create_table(table_data: TableData) -> dbc.Card:
     """创建表格组件"""
     if 'pd_data' in table_data and table_data['pd_data'] is not None:
         return create_table_from_pd(table_data)
     
-    return html.Div([
-        html.H4(table_data['name'], style={
-            'margin': '10px 0',
-            'padding': '5px 10px',
-            'backgroundColor': '#f0f0f0',
-            'borderRadius': '4px'
-        }),
-        html.Table([
-            # 表头
-            html.Thead(
-                html.Tr([
-                    html.Th(col, style={
-                        'padding': '8px',
-                        'backgroundColor': '#e0e0e0',
-                        'border': '1px solid #ddd',
-                        'textAlign': 'center'
-                    }) for col in table_data['headers']
-                ])
-            ),
-            # 数据行
-            html.Tbody([
-                html.Tr([
-                    html.Td(cell, style={
-                        'padding': '8px',
-                        'border': '1px solid #ddd',
-                        'textAlign': 'center'
-                    }) for cell in row
-                ]) for row in table_data['data']
+    if not table_data.get('data') or not table_data.get('headers'):
+        return dbc.Card([
+            dbc.CardHeader(html.H5(table_data['name'], className="mb-0")),
+            dbc.CardBody([
+                dbc.Alert("暂无数据", color="info")
             ])
-        ], style={
-            'width': '100%',
-            'borderCollapse': 'collapse',
-            'marginBottom': '20px',
-            'backgroundColor': 'white',
-            'boxShadow': '0 1px 3px rgba(0,0,0,0.2)'
-        })
-    ], style={
-        'marginBottom': '20px',
-        'padding': '10px',
-        'backgroundColor': '#f9f9f9',
-        'borderRadius': '5px',
-        'border': '1px solid #ddd'
-    })
+        ], className="mb-3")
+    
+    # 创建表头
+    headers = [html.Th(col, className="text-center") for col in table_data['headers']]
+    
+    # 创建表格数据
+    rows = []
+    for row in table_data['data']:
+        cells = [html.Td(str(cell), className="text-center") for cell in row]
+        rows.append(html.Tr(cells))
+    
+    table = dbc.Table([
+        html.Thead(html.Tr(headers), className="table-dark"),
+        html.Tbody(rows)
+    ], striped=True, bordered=True, hover=True, responsive=True, size="sm")
+    
+    return dbc.Card([
+        dbc.CardHeader([
+            html.H5(table_data['name'], className="mb-0", style={'color': '#34495e'})
+        ]),
+        dbc.CardBody([table])
+    ], className="mb-3")
 
 def register_single_product_callbacks(app, mysql_db):
     # 添加类型切换的回调
@@ -294,14 +260,15 @@ def register_single_product_callbacks(app, mysql_db):
         [Output('start-date-picker', 'date'),
          Output('end-date-picker', 'date'),
          Output('start-date-picker', 'disabled'),
-         Output('end-date-picker', 'disabled')],
+         Output('end-date-picker', 'disabled'),
+         Output('custom-date-row', 'style')],
         [Input('time-range-dropdown', 'value')]
     )
     def update_date_pickers(time_range):
         """更新时间控件的状态和值"""
         if time_range == 'custom':
-            # 如果是自定义时间范围，启用时间控件
-            return None, None, False, False
+            # 如果是自定义时间范围，启用时间控件并显示
+            return None, None, False, False, {'display': 'block'}
         
         # 获取日期范围
         start_date, end_date = get_date_range(time_range)
@@ -310,28 +277,32 @@ def register_single_product_callbacks(app, mysql_db):
         start_str = start_date.strftime('%Y-%m-%d') if start_date else None
         end_str = end_date.strftime('%Y-%m-%d') if end_date else None
         
-        # 非自定义时间范围时禁用时间控件
-        return start_str, end_str, True, True
+        # 非自定义时间范围时禁用时间控件并隐藏
+        return start_str, end_str, True, True, {'display': 'none'}
 
     @app.callback(
         [Output('product-value-graph', 'figure'),
-         Output('product-summary-table', 'children'),
-         Output('product-tables-left-column', 'children'),
-         Output('product-tables-right-column', 'children')],
+         Output('product-summary-section', 'children'),
+         Output('product-summary-section', 'style'),
+         Output('single-product-chart-section', 'style'),
+         Output('single-product-tables-section', 'children'),
+         Output('single-product-tables-section', 'style')],
         [Input('query-button', 'n_clicks')],
         [State('type-dropdown', 'value'),
          State('product-dropdown', 'value'),
          State('line-options', 'value'),
          State('time-range-dropdown', 'value'),
-         State('start-date-picker', 'date'),  # 添加开始时间状态
-         State('end-date-picker', 'date'),    # 添加结束时间状态
+         State('start-date-picker', 'date'),
+         State('end-date-picker', 'date'),
          State('params-config-container', 'children')]
     )
     def update_product_display(n_clicks, data_type, selected_data, line_options, time_range, 
                              start_date_str, end_date_str, params_config):
         """更新数据展示"""
-        if not n_clicks:  # 初始加载时不触发更新
-            raise dash.exceptions.PreventUpdate
+        if not n_clicks or not selected_data:  # 初始加载时或未选择产品时不触发更新
+            return (go.Figure(), 
+                   dbc.Alert("请选择产品并点击开始分析", color="info"),
+                   {'display': 'none'}, {'display': 'none'}, [], {'display': 'none'})
         
         try:
             # 获取日期范围
@@ -376,7 +347,9 @@ def register_single_product_callbacks(app, mysql_db):
                 generator.update_params(params)
 
             if not generator.load():
-                return go.Figure(), html.Div("数据加载失败", style={'color': 'red'}), [], []
+                error_alert = dbc.Alert("数据加载失败，请检查产品选择和时间范围", color="danger")
+                return (go.Figure(), error_alert, {'display': 'block'}, 
+                       {'display': 'none'}, [], {'display': 'none'})
 
             # 获取数据
             summary_data = generator.get_summary_data()
@@ -384,7 +357,9 @@ def register_single_product_callbacks(app, mysql_db):
             extra_datas = generator.get_extra_datas()
 
             if not chart_data:
-                return go.Figure(), html.Div("未找到数据", style={'color': 'red'}), [], []
+                error_alert = dbc.Alert("未找到数据，请检查产品选择和时间范围", color="warning")
+                return (go.Figure(), error_alert, {'display': 'block'}, 
+                       {'display': 'none'}, [], {'display': 'none'})
             
             # 处理图表数据
             for option in line_options:
@@ -423,17 +398,23 @@ def register_single_product_callbacks(app, mysql_db):
             # 创建摘要表格
             summary_table = create_summary_table(summary_data)
             
-            # 将额外数据表格分配到两列
-            left_tables = []
-            right_tables = []
-            for i, table_data in enumerate(extra_datas):
-                if i % 2 == 0:
-                    left_tables.append(create_table(table_data))
-                else:
-                    right_tables.append(create_table(table_data))
+            # 创建详细数据表格区域
+            tables = [create_table(table_data) for table_data in extra_datas]
             
-            return figure, summary_table, left_tables, right_tables
+            # 将表格分为两列显示
+            left_tables = tables[::2]  # 偶数索引的表格
+            right_tables = tables[1::2]  # 奇数索引的表格
+            
+            tables_section = dbc.Row([
+                dbc.Col(left_tables, width=6),
+                dbc.Col(right_tables, width=6)
+            ]) if tables else dbc.Alert("暂无详细数据", color="info")
+            
+            return (figure, summary_table, {'display': 'block'}, 
+                   {'display': 'block'}, tables_section, {'display': 'block'})
             
         except Exception as e:
-            print(f"Error in update_product_display: {str(e)}")
-            return go.Figure(), html.Div(f"发生错误: {str(e)}", style={'color': 'red'}), [], [] 
+            logger.error(f"Error in update_product_display: {str(e)}")
+            error_alert = dbc.Alert(f"分析过程中发生错误: {str(e)}", color="danger")
+            return (go.Figure(), error_alert, {'display': 'block'}, 
+                   {'display': 'none'}, [], {'display': 'none'}) 

@@ -27,6 +27,8 @@ from task_dash.callback.products_manage_callbacks import register_product_manage
 from task_dash.pages.correlation_analysis import create_correlation_analysis_page
 from task_dash.callback.correlation_analysis_callbacks import register_correlation_analysis_callbacks
 
+from task_dash.pages.data_sources_simple import create_data_sources_management
+
 # 初始化Dash应用
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP], suppress_callback_exceptions=True)
 
@@ -70,6 +72,8 @@ def display_page(pathname):
         return create_product_management(mysql_db)
     elif pathname == '/correlation_analysis':
         return create_correlation_analysis_page(mysql_db)
+    elif pathname == '/data_sources_manage':
+        return create_data_sources_management()
     else:
         return html.H1("404: Not Found")
 

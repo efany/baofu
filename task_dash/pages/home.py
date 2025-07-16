@@ -13,5 +13,6 @@ layout = html.Div([
         dbc.Button("基金管理", href="/products_manage", style={"margin": "10px"}),
         dbc.Button("策略管理", href="/strategy_manage", style={"margin": "10px"}),
         dbc.Button("相关性分析", href="/correlation_analysis", style={"margin": "10px"}),
+        dbc.Button("数据源管理", href="/data_sources_manage", style={"margin": "10px"}),
     ])
 ]) 

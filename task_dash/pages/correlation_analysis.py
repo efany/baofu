@@ -334,6 +334,10 @@ def calculate_rolling_correlation(data_dict: Dict[str, pd.DataFrame], benchmark_
     if benchmark_id not in data_dict or data_dict[benchmark_id].empty:
         return pd.DataFrame()
     
+    # 确保window_size是有效的正整数
+    if window_size is None or window_size <= 0:
+        window_size = 60  # 使用默认值
+    
     benchmark_df = data_dict[benchmark_id].copy()
     
     # 数据处理

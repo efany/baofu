@@ -25,6 +25,31 @@ def register_product_manage_callbacks(app, mysql_db):
         mysql_db: MySQL数据库连接
     """
     
+    # 统计卡片点击跳转回调
+    @app.callback(
+        Output("url", "pathname"),
+        [Input("stat-card-fund", "n_clicks"),
+         Input("stat-card-stock", "n_clicks"),
+         Input("stat-card-forex", "n_clicks")],
+        prevent_initial_call=True
+    )
+    def navigate_from_stat_cards(fund_clicks, stock_clicks, forex_clicks):
+        """响应统计卡片点击事件，跳转到对应的单产品页面"""
+        ctx = dash.callback_context
+        if not ctx.triggered:
+            return dash.no_update
+        
+        button_id = ctx.triggered[0]["prop_id"].split(".")[0]
+        
+        if button_id == "stat-card-fund" and fund_clicks:
+            return "/single_fund"
+        elif button_id == "stat-card-stock" and stock_clicks:
+            return "/single_stock"
+        elif button_id == "stat-card-forex" and forex_clicks:
+            return "/single_forex"
+        
+        return dash.no_update
+    
     # 更新产品列表标题
     @app.callback(
         Output("product-list-title", "children"),
