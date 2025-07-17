@@ -193,7 +193,7 @@ def create_strategy_form_modal():
     id="strategy-modal", 
     is_open=False, 
     size="xl",  # 使用超大模态框
-    backdrop=True,
+    backdrop="static",  # 防止意外关闭
     keyboard=True,
     className="strategy-modal"
     )

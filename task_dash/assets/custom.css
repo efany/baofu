@@ -107,7 +107,8 @@
     margin-bottom: 10px;
 }
 
-/* 模态框样式 */
+/* 模态框样式 - 注释掉以避免与Bootstrap模态框冲突 */
+/*
 .modal {
     position: fixed;
     top: 0;
@@ -116,6 +117,11 @@
     height: 100%;
     background: rgba(0,0,0,0.5);
     z-index: 1000;
+    pointer-events: none;
+}
+
+.modal.show {
+    pointer-events: auto;
 }
 
 .modal-content {
@@ -127,8 +133,12 @@
     max-width: 600px;
     max-height: 80vh;
     overflow-y: auto;
+    pointer-events: auto;
 }
+*/
 
+/* 注释掉可能冲突的模态框样式 */
+/*
 .modal-header {
     display: flex;
     justify-content: space-between;
@@ -163,6 +173,7 @@
     border-top: 1px solid #dee2e6;
     text-align: right;
 }
+*/
 
 /* 表单样式 */
 .form-group {
@@ -488,6 +499,23 @@
 .strategy-modal .modal-body {
     max-height: 70vh;
     overflow-y: auto;
+}
+
+/* 确保策略模态框可以正常交互 */
+.strategy-modal {
+    z-index: 1060 !important;
+}
+
+.strategy-modal .modal-dialog {
+    pointer-events: auto;
+}
+
+.strategy-modal .modal-content {
+    pointer-events: auto;
+}
+
+.strategy-modal .modal-backdrop {
+    z-index: 1055 !important;
 }
 
 .strategy-tabs .nav-tabs {
