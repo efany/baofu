@@ -25,6 +25,44 @@ def register_product_manage_callbacks(app, mysql_db):
         mysql_db: MySQL数据库连接
     """
     
+    # 导航栏切换回调
+    @app.callback(
+        [Output('products-content-area', 'children'),
+         Output('nav-products-overview', 'active'),
+         Output('nav-products-fund', 'active'),
+         Output('nav-products-stock', 'active'),
+         Output('nav-products-forex', 'active')],
+        [Input('nav-products-overview', 'n_clicks'),
+         Input('nav-products-fund', 'n_clicks'),
+         Input('nav-products-stock', 'n_clicks'),
+         Input('nav-products-forex', 'n_clicks')],
+        prevent_initial_call=True
+    )
+    def update_products_content(overview_clicks, fund_clicks, stock_clicks, forex_clicks):
+        """更新产品管理内容区域"""
+        ctx = dash.callback_context
+        if not ctx.triggered:
+            from task_dash.pages.products_manage import create_products_overview_content
+            return (create_products_overview_content(mysql_db), True, False, False, False)
+        
+        button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+        
+        if button_id == 'nav-products-overview':
+            from task_dash.pages.products_manage import create_products_overview_content
+            return (create_products_overview_content(mysql_db), True, False, False, False)
+        elif button_id == 'nav-products-fund':
+            from task_dash.pages.products_manage import create_products_fund_content
+            return (create_products_fund_content(mysql_db), False, True, False, False)
+        elif button_id == 'nav-products-stock':
+            from task_dash.pages.products_manage import create_products_stock_content
+            return (create_products_stock_content(mysql_db), False, False, True, False)
+        elif button_id == 'nav-products-forex':
+            from task_dash.pages.products_manage import create_products_forex_content
+            return (create_products_forex_content(mysql_db), False, False, False, True)
+        
+        from task_dash.pages.products_manage import create_products_overview_content
+        return (create_products_overview_content(mysql_db), True, False, False, False)
+    
     # 统计卡片点击跳转回调
     @app.callback(
         Output("url", "pathname"),
