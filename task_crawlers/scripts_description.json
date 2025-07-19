@@ -1,0 +1,46 @@
+{
+  "scripts": {
+    "eastmoney_fund_info_task.py": {
+      "class_name": "EastmoneyTask",
+      "description": "从东方财富网爬取基金基本信息",
+      "data_type": "fund",
+      "is_active": true
+    },
+    "eastmoney_fund_nav_task.py": {
+      "class_name": "EastMoneyFundNavTask", 
+      "description": "从东方财富网爬取基金历史净值数据",
+      "data_type": "fund",
+      "is_active": true
+    },
+    "yfinance_stock_info_task.py": {
+      "class_name": "YFinanceStockInfoTask",
+      "description": "使用yfinance获取股票基本信息",
+      "data_type": "stock",
+      "is_active": true
+    },
+    "yfinance_stock_history_task.py": {
+      "class_name": "YFinanceStockHistoryTask",
+      "description": "使用yfinance获取股票历史价格数据",
+      "data_type": "stock",
+      "is_active": false
+    },
+    "akshare_bond_rate_history_task.py": {
+      "class_name": "AKShareBondRateHistoryTask",
+      "description": "使用AkShare获取债券收益率历史数据",
+      "data_type": "bond_rate",
+      "is_active": true
+    },
+    "akshare_forex_history_task.py": {
+      "class_name": "AKShareETFForexTask",
+      "description": "使用AkShare获取外汇汇率历史数据",
+      "data_type": "forex",
+      "is_active": true
+    },
+    "akshare_etf_history_task.py": {
+      "class_name": "AKShareETFHistoryTask",
+      "description": "使用AkShare获取ETF历史交易数据",
+      "data_type": "etf",
+      "is_active": true
+    }
+  }
+}

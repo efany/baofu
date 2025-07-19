@@ -27,7 +27,7 @@ from task_dash.callback.products_manage_callbacks import register_product_manage
 from task_dash.pages.correlation_analysis import create_correlation_analysis_page
 from task_dash.callback.correlation_analysis_callbacks import register_correlation_analysis_callbacks
 
-from task_dash.pages.data_sources_simple import create_data_sources_management
+from task_dash.pages.data_sources_manage import layout as data_sources_layout
 
 # 初始化Dash应用
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP], suppress_callback_exceptions=True)
@@ -73,7 +73,7 @@ def display_page(pathname):
     elif pathname == '/correlation_analysis':
         return create_correlation_analysis_page(mysql_db)
     elif pathname == '/data_sources_manage':
-        return create_data_sources_management()
+        return data_sources_layout()
     else:
         return html.H1("404: Not Found")
 
@@ -95,7 +95,7 @@ register_correlation_analysis_callbacks(app, mysql_db)
 if __name__ == '__main__':
     try:
         # 设置host为0.0.0.0以便在服务器上可访问
-        app.run(debug=True, host='127.0.0.1', port=8050)  # 使用8050端口
+        app.run(debug=True, host='127.0.0.1', port=8051)  # 使用8050端口
     finally:
         # 关闭数据库连接池
         mysql_db.close_pool() 
