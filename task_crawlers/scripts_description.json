@@ -15,13 +15,13 @@
     "yfinance_stock_info_task.py": {
       "class_name": "YFinanceStockInfoTask",
       "description": "使用yfinance获取股票基本信息",
-      "data_type": "stock",
+      "data_type": "etf",
       "is_active": true
     },
     "yfinance_stock_history_task.py": {
       "class_name": "YFinanceStockHistoryTask",
       "description": "使用yfinance获取股票历史价格数据",
-      "data_type": "stock",
+      "data_type": "etf",
       "is_active": false
     },
     "akshare_bond_rate_history_task.py": {
