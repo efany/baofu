@@ -168,6 +168,95 @@ class DBStocksDayHist:
             
         return self.mysql_db.execute_query(sql, tuple(params)) is not None
 
+    def get_latest_hist_date(self, symbol: str) -> Optional[str]:
+        """
+        获取指定股票的最新历史数据日期
+        
+        Args:
+            symbol: 股票代码
+            
+        Returns:
+            Optional[str]: 最新历史数据日期 (YYYY-MM-DD)，如果没有数据返回None
+        """
+        sql = """
+            SELECT MAX(date) as latest_date
+            FROM stocks_day_hist_data
+            WHERE symbol = %s
+        """
+        results = self.mysql_db.execute_query(sql, (symbol,))
+        if not results or not results[0] or results[0]['latest_date'] is None:
+            return None
+        
+        latest_date = results[0]['latest_date']
+        # 处理不同的日期格式
+        if hasattr(latest_date, 'strftime'):
+            return latest_date.strftime('%Y-%m-%d')
+        else:
+            return str(latest_date)
+
+    def get_all_stocks_latest_hist_date(self) -> Dict[str, Optional[str]]:
+        """
+        获取所有股票的最新历史数据日期
+        
+        Returns:
+            Dict[str, Optional[str]]: 股票代码到最新历史数据日期的映射
+        """
+        sql = """
+            SELECT symbol, MAX(date) as latest_date
+            FROM stocks_day_hist_data
+            GROUP BY symbol
+        """
+        results = self.mysql_db.execute_query(sql)
+        if not results:
+            return {}
+        
+        latest_dates = {}
+        for result in results:
+            symbol = result['symbol']
+            latest_date = result['latest_date']
+            
+            if latest_date is None:
+                latest_dates[symbol] = None
+            elif hasattr(latest_date, 'strftime'):
+                latest_dates[symbol] = latest_date.strftime('%Y-%m-%d')
+            else:
+                latest_dates[symbol] = str(latest_date)
+        
+        return latest_dates
+
+    def get_stocks_hist_summary(self, symbols: List[str] = None) -> pd.DataFrame:
+        """
+        获取股票历史数据摘要（包含最新日期、数据条数等）
+        
+        Args:
+            symbols: 可选，指定股票代码列表，如果为None则获取所有股票
+            
+        Returns:
+            pd.DataFrame: 股票历史数据摘要DataFrame，包含symbol, latest_date, record_count
+        """
+        base_sql = """
+            SELECT 
+                symbol,
+                MAX(date) as latest_date,
+                COUNT(*) as record_count,
+                MIN(date) as earliest_date
+            FROM stocks_day_hist_data
+        """
+        
+        if symbols:
+            placeholders = ", ".join(["%s"] * len(symbols))
+            sql = f"{base_sql} WHERE symbol IN ({placeholders}) GROUP BY symbol"
+            params = symbols
+        else:
+            sql = f"{base_sql} GROUP BY symbol"
+            params = []
+        
+        results = self.mysql_db.execute_query(sql, params)
+        if not results:
+            return pd.DataFrame(columns=['symbol', 'latest_date', 'record_count', 'earliest_date'])
+        
+        return pd.DataFrame(results)
+
 
 if __name__ == "__main__":
     # 初始化数据库连接

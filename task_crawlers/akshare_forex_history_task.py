@@ -107,7 +107,7 @@ class AKShareETFForexTask(BaseTask):
         })
         
         # 转换日期格式
-        df['date'] = pd.to_datetime(df['date'])
+        df['date'] = pd.to_datetime(df['date']).dt.strftime('%Y-%m-%d')
         
         # 转换数值类型
         numeric_columns = ['open', 'close', 'high', 'low', 'change_pct']

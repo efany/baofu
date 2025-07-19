@@ -16,7 +16,7 @@ from database.db_funds import DBFunds
 class UpdateFundsTask(BaseTask):
     """更新基金信息和净值数据的任务"""
     
-    def __init__(self, task_config: Dict[str, Any]):
+    def __init__(self, task_config: Dict[str, Any], mysql_db):
         """
         初始化任务
 
@@ -28,12 +28,7 @@ class UpdateFundsTask(BaseTask):
                 - update_all: 可选，是否更新所有已有基金，默认为False
                 - start_date: 可选，净值数据的开始日期，格式：'YYYY-MM-DD'
         """
-        self.mysql_db = MySQLDatabase(
-            host='127.0.0.1',
-            user='baofu',
-            password='TYeKmJPfw2b7kxGK',
-            database='baofu'
-        )
+        self.mysql_db = mysql_db
         self.db_funds = DBFunds(self.mysql_db)
         super().__init__(task_config)
 

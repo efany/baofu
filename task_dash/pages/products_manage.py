@@ -100,10 +100,6 @@ def create_products_fund_content(mysql_db):
             # 操作按钮
             html.Div([
                 dbc.Button([
-                    html.I(className="fas fa-plus me-2"),
-                    "添加基金"
-                ], id="add-fund-btn", color="primary", className="me-2"),
-                dbc.Button([
                     html.I(className="fas fa-sync me-2"),
                     "更新数据"
                 ], id="update-fund-btn", color="success", className="me-2"),
@@ -117,20 +113,29 @@ def create_products_fund_content(mysql_db):
             dbc.Card([
                 dbc.CardBody([
                     html.H5("添加新基金", className="mb-3"),
-                    dbc.InputGroup([
-                        dbc.Input(
-                            id="new-fund-code",
-                            type="text",
-                            placeholder="输入基金代码，多个代码用逗号分隔"
-                        ),
-                        dbc.Button("添加", id="add-fund-submit", color="primary")
-                    ])
+                    dbc.Row([
+                        dbc.Col([
+                            dbc.Input(
+                                id="new-fund-code",
+                                type="text",
+                                placeholder="输入基金代码，例如：000001 或 000001,000002,000003"
+                            )
+                        ], width=8),
+                        dbc.Col([
+                            dbc.Button([
+                                html.I(className="fas fa-plus me-2"),
+                                "添加基金"
+                            ], id="add-fund-submit", color="primary", className="w-100")
+                        ], width=4)
+                    ]),
+                    html.Small("支持单个基金代码或多个代码（用逗号分隔）", className="text-muted mt-2 d-block"),
+                    html.Div(id="add-fund-status", className="mt-2")
                 ])
             ], className="mb-3"),
             
             # 基金列表
             html.Div(id="fund-list-container", children=[
-                create_fund_list_display(funds_df)
+                create_fund_list_display(funds_df, mysql_db)
             ])
         ], className="p-4")
         
@@ -162,10 +167,6 @@ def create_products_stock_content(mysql_db):
             # 操作按钮
             html.Div([
                 dbc.Button([
-                    html.I(className="fas fa-plus me-2"),
-                    "添加股票"
-                ], id="add-stock-btn", color="primary", className="me-2"),
-                dbc.Button([
                     html.I(className="fas fa-sync me-2"),
                     "更新数据"
                 ], id="update-stock-btn", color="success", className="me-2"),
@@ -179,20 +180,29 @@ def create_products_stock_content(mysql_db):
             dbc.Card([
                 dbc.CardBody([
                     html.H5("添加新股票", className="mb-3"),
-                    dbc.InputGroup([
-                        dbc.Input(
-                            id="new-stock-code",
-                            type="text",
-                            placeholder="输入股票代码，多个代码用逗号分隔"
-                        ),
-                        dbc.Button("添加", id="add-stock-submit", color="primary")
-                    ])
+                    dbc.Row([
+                        dbc.Col([
+                            dbc.Input(
+                                id="new-stock-code",
+                                type="text",
+                                placeholder="输入股票代码，例如：AAPL 或 AAPL,MSFT,GOOGL"
+                            )
+                        ], width=8),
+                        dbc.Col([
+                            dbc.Button([
+                                html.I(className="fas fa-plus me-2"),
+                                "添加股票"
+                            ], id="add-stock-submit", color="primary", className="w-100")
+                        ], width=4)
+                    ]),
+                    html.Small("支持单个股票代码或多个代码（用逗号分隔）", className="text-muted mt-2 d-block"),
+                    html.Div(id="add-stock-status", className="mt-2")
                 ])
             ], className="mb-3"),
             
             # 股票列表
             html.Div(id="stock-list-container", children=[
-                create_stock_list_display(stocks_df)
+                create_stock_list_display(stocks_df, mysql_db)
             ])
         ], className="p-4")
         
@@ -231,10 +241,6 @@ def create_products_forex_content(mysql_db):
             # 操作按钮
             html.Div([
                 dbc.Button([
-                    html.I(className="fas fa-plus me-2"),
-                    "添加外汇"
-                ], id="add-forex-btn", color="primary", className="me-2"),
-                dbc.Button([
                     html.I(className="fas fa-sync me-2"),
                     "更新数据"
                 ], id="update-forex-btn", color="success", className="me-2"),
@@ -248,20 +254,29 @@ def create_products_forex_content(mysql_db):
             dbc.Card([
                 dbc.CardBody([
                     html.H5("添加新外汇", className="mb-3"),
-                    dbc.InputGroup([
-                        dbc.Input(
-                            id="new-forex-code",
-                            type="text",
-                            placeholder="输入外汇代码，多个代码用逗号分隔"
-                        ),
-                        dbc.Button("添加", id="add-forex-submit", color="primary")
-                    ])
+                    dbc.Row([
+                        dbc.Col([
+                            dbc.Input(
+                                id="new-forex-code",
+                                type="text",
+                                placeholder="输入外汇代码，例如：USDCNY 或 USDCNY,EURUSD,GBPUSD"
+                            )
+                        ], width=8),
+                        dbc.Col([
+                            dbc.Button([
+                                html.I(className="fas fa-plus me-2"),
+                                "添加外汇"
+                            ], id="add-forex-submit", color="primary", className="w-100")
+                        ], width=4)
+                    ]),
+                    html.Small("支持单个外汇代码或多个代码（用逗号分隔）", className="text-muted mt-2 d-block"),
+                    html.Div(id="add-forex-status", className="mt-2")
                 ])
             ], className="mb-3"),
             
             # 外汇列表
-            html.Div([
-                create_forex_list_display(forex_data)
+            html.Div(id="forex-list-container", children=[
+                create_forex_list_display(forex_data, mysql_db)
             ])
         ], className="p-4")
         
@@ -273,163 +288,334 @@ def create_products_forex_content(mysql_db):
             ], color="danger", className="text-center")
         ], className="p-4")
 
-def create_fund_list_display(funds_df):
+def create_fund_list_display(funds_df, mysql_db=None):
     """创建基金列表显示"""
     if funds_df.empty:
         return dbc.Alert("暂无基金数据", color="info", className="text-center")
     
+    # 获取所有基金的最新净值日期
+    latest_nav_dates = {}
+    if mysql_db:
+        try:
+            from database.db_funds_nav import DBFundsNav
+            db_nav = DBFundsNav(mysql_db)
+            latest_nav_dates = db_nav.get_all_funds_latest_nav_date()
+        except Exception as e:
+            logger.error(f"获取最新净值日期失败: {e}")
+    
     # 准备表格数据
     display_data = []
     for index, row in funds_df.iterrows():
+        fund_code = row['ts_code'] if 'ts_code' in row else (row['fund_code'] if 'fund_code' in row else '-')
+        
+        # 从净值表获取最新数据时间
+        latest_nav_date = latest_nav_dates.get(fund_code, '-') if latest_nav_dates else '-'
+        if latest_nav_date is None:
+            latest_nav_date = '-'
+        
         display_data.append({
-            '基金代码': row['ts_code'] if 'ts_code' in row else (row['fund_code'] if 'fund_code' in row else '-'),
+            '基金代码': fund_code,
             '基金名称': row['name'] if 'name' in row else (row['fund_name'] if 'fund_name' in row else '-'),
             '基金公司': row['management'] if 'management' in row else (row['fund_company'] if 'fund_company' in row else '-'),
             '基金类型': row['fund_type'] if 'fund_type' in row else '-',
-            '成立日期': row['establishment_date'].strftime('%Y-%m-%d') if 'establishment_date' in row and pd.notna(row['establishment_date']) else '-'
+            '成立日期': row['establishment_date'].strftime('%Y-%m-%d') if 'establishment_date' in row and pd.notna(row['establishment_date']) else '-',
+            '最新数据时间': latest_nav_date
         })
     
-    return dash_table.DataTable(
-        id='fund-list-table',
-        data=display_data,
-        columns=[
-            {'name': '基金代码', 'id': '基金代码'},
-            {'name': '基金名称', 'id': '基金名称'},
-            {'name': '基金公司', 'id': '基金公司'},
-            {'name': '基金类型', 'id': '基金类型'},
-            {'name': '成立日期', 'id': '成立日期'}
-        ],
-        style_cell={
-            'textAlign': 'left',
-            'padding': '12px',
-            'fontFamily': 'Arial, sans-serif',
-            'fontSize': '14px'
-        },
-        style_header={
-            'backgroundColor': '#f8f9fa',
-            'fontWeight': 'bold',
-            'color': '#495057'
-        },
-        style_data_conditional=[
-            {
-                'if': {'row_index': 'odd'},
-                'backgroundColor': '#f8f9fa'
-            }
-        ],
-        page_size=15,
-        sort_action='native',
-        filter_action='native'
-    )
+    return html.Div([
+        # 批量操作按钮
+        html.Div([
+            dbc.Button([
+                html.I(className="fas fa-check-square me-2"),
+                "全选"
+            ], id="select-all-funds", color="secondary", size="sm", className="me-2"),
+            dbc.Button([
+                html.I(className="fas fa-square me-2"),
+                "取消全选"
+            ], id="deselect-all-funds", color="secondary", size="sm", className="me-2"),
+            html.Span(f"共 {len(display_data)} 只基金", className="text-muted ms-3")
+        ], className="mb-3"),
+        
+        # 基金表格
+        dash_table.DataTable(
+            id='fund-list-table',
+            data=display_data,
+            columns=[
+                {'name': '基金代码', 'id': '基金代码'},
+                {'name': '基金名称', 'id': '基金名称'},
+                {'name': '基金公司', 'id': '基金公司'},
+                {'name': '基金类型', 'id': '基金类型'},
+                {'name': '成立日期', 'id': '成立日期'},
+                {'name': '最新数据时间', 'id': '最新数据时间'}
+            ],
+            style_cell={
+                'textAlign': 'left',
+                'padding': '12px',
+                'fontFamily': 'Arial, sans-serif',
+                'fontSize': '14px'
+            },
+            style_header={
+                'backgroundColor': '#f8f9fa',
+                'fontWeight': 'bold',
+                'color': '#495057'
+            },
+            style_data_conditional=[
+                {
+                    'if': {'row_index': 'odd'},
+                    'backgroundColor': '#f8f9fa'
+                },
+                # 数据时间为空或较旧时的样式
+                {
+                    'if': {
+                        'filter_query': '{最新数据时间} = -',
+                        'column_id': '最新数据时间'
+                    },
+                    'backgroundColor': '#f8d7da',
+                    'color': '#721c24'
+                }
+            ],
+            page_size=15,
+            sort_action='native',
+            filter_action='native',
+            row_selectable='multi',
+            selected_rows=[]
+        ),
+        
+        # 选中状态显示
+        html.Div(id="fund-selection-status", className="mt-2 text-muted"),
+        
+        # 隐藏的div存储选中的基金代码
+        html.Div(id="selected-fund-codes", style={"display": "none"})
+    ])
 
-def create_stock_list_display(stocks_df):
+def create_stock_list_display(stocks_df, mysql_db=None):
     """创建股票列表显示"""
     if stocks_df.empty:
         return dbc.Alert("暂无股票数据", color="info", className="text-center")
     
+    # 获取所有股票的最新历史数据日期
+    latest_hist_dates = {}
+    if mysql_db:
+        try:
+            from database.db_stocks_day_hist import DBStocksDayHist
+            db_hist = DBStocksDayHist(mysql_db)
+            latest_hist_dates = db_hist.get_all_stocks_latest_hist_date()
+        except Exception as e:
+            logger.error(f"获取最新历史数据日期失败: {e}")
+    
     # 准备表格数据
     display_data = []
     for index, row in stocks_df.iterrows():
+        symbol = row['symbol'] if 'symbol' in row else (row['stock_code'] if 'stock_code' in row else '-')
+        
+        # 从历史数据表获取最新数据时间
+        latest_hist_date = latest_hist_dates.get(symbol, '-') if latest_hist_dates else '-'
+        if latest_hist_date is None:
+            latest_hist_date = '-'
+        
         display_data.append({
-            '股票代码': row['symbol'] if 'symbol' in row else (row['stock_code'] if 'stock_code' in row else '-'),
+            '股票代码': symbol,
             '股票名称': row['name'] if 'name' in row else (row['stock_name'] if 'stock_name' in row else '-'),
             '货币': row['currency'] if 'currency' in row else '-',
             '交易所': row['exchange'] if 'exchange' in row else '-',
-            '所属市场': row['market'] if 'market' in row else '-'
+            '所属市场': row['market'] if 'market' in row else '-',
+            '最新数据时间': latest_hist_date
         })
     
-    return dash_table.DataTable(
-        id='stock-list-table',
-        data=display_data,
-        columns=[
-            {'name': '股票代码', 'id': '股票代码'},
-            {'name': '股票名称', 'id': '股票名称'},
-            {'name': '货币', 'id': '货币'},
-            {'name': '交易所', 'id': '交易所'},
-            {'name': '所属市场', 'id': '所属市场'}
-        ],
-        style_cell={
-            'textAlign': 'left',
-            'padding': '12px',
-            'fontFamily': 'Arial, sans-serif',
-            'fontSize': '14px'
-        },
-        style_header={
-            'backgroundColor': '#f8f9fa',
-            'fontWeight': 'bold',
-            'color': '#495057'
-        },
-        style_data_conditional=[
-            {
-                'if': {'row_index': 'odd'},
-                'backgroundColor': '#f8f9fa'
-            }
-        ],
-        page_size=15,
-        sort_action='native',
-        filter_action='native'
-    )
+    return html.Div([
+        # 批量操作按钮
+        html.Div([
+            dbc.Button([
+                html.I(className="fas fa-check-square me-2"),
+                "全选"
+            ], id="select-all-stocks", color="secondary", size="sm", className="me-2"),
+            dbc.Button([
+                html.I(className="fas fa-square me-2"),
+                "取消全选"
+            ], id="deselect-all-stocks", color="secondary", size="sm", className="me-2"),
+            html.Span(f"共 {len(display_data)} 只股票", className="text-muted ms-3")
+        ], className="mb-3"),
+        
+        # 股票表格
+        dash_table.DataTable(
+            id='stock-list-table',
+            data=display_data,
+            columns=[
+                {'name': '股票代码', 'id': '股票代码'},
+                {'name': '股票名称', 'id': '股票名称'},
+                {'name': '货币', 'id': '货币'},
+                {'name': '交易所', 'id': '交易所'},
+                {'name': '所属市场', 'id': '所属市场'},
+                {'name': '最新数据时间', 'id': '最新数据时间'}
+            ],
+            style_cell={
+                'textAlign': 'left',
+                'padding': '12px',
+                'fontFamily': 'Arial, sans-serif',
+                'fontSize': '14px',
+                'whiteSpace': 'normal',
+                'height': 'auto'
+            },
+            style_header={
+                'backgroundColor': '#f8f9fa',
+                'fontWeight': 'bold',
+                'color': '#495057',
+                'textAlign': 'center'
+            },
+            style_data_conditional=[
+                {
+                    'if': {'row_index': 'odd'},
+                    'backgroundColor': '#f8f9fa'
+                },
+                # 数据时间为空或较旧时的样式
+                {
+                    'if': {
+                        'filter_query': '{最新数据时间} = -',
+                        'column_id': '最新数据时间'
+                    },
+                    'backgroundColor': '#f8d7da',
+                    'color': '#721c24'
+                }
+            ],
+            style_table={
+                'overflowX': 'auto'
+            },
+            page_size=15,
+            sort_action='native',
+            filter_action='native',
+            row_selectable='multi',
+            selected_rows=[]
+        ),
+        
+        # 选中状态显示
+        html.Div(id="stock-selection-status", className="mt-2 text-muted"),
+        
+        # 隐藏的div存储选中的股票代码
+        html.Div(id="selected-stock-codes", style={"display": "none"})
+    ])
 
-def create_forex_list_display(forex_data):
+def create_forex_list_display(forex_data, mysql_db=None):
     """创建外汇列表显示"""
-    # 处理不同的数据类型
+    # 处理不同的数据类型，统一转换为符号列表
+    symbols = []
     if isinstance(forex_data, pd.DataFrame):
         if forex_data.empty:
             return dbc.Alert("暂无外汇数据", color="info", className="text-center")
-        
-        # 准备表格数据
-        display_data = []
-        for index, row in forex_data.iterrows():
-            display_data.append({
-                '外汇代码': row['symbol'] if 'symbol' in row else '-',
-                '货币对': row['symbol'] if 'symbol' in row else '-',
-                '状态': '活跃' if 'symbol' in row else '未知'
-            })
-    
+        symbols = forex_data['symbol'].tolist() if 'symbol' in forex_data.columns else []
     elif isinstance(forex_data, list):
         if not forex_data:
             return dbc.Alert("暂无外汇数据", color="info", className="text-center")
-        
-        # 准备表格数据
-        display_data = []
-        for symbol in forex_data:
-            display_data.append({
-                '外汇代码': symbol,
-                '货币对': symbol,
-                '状态': '活跃'
-            })
-    
+        symbols = forex_data
     else:
         return dbc.Alert("外汇数据格式错误", color="warning", className="text-center")
     
-    return dash_table.DataTable(
-        id='forex-list-table',
-        data=display_data,
-        columns=[
-            {'name': '外汇代码', 'id': '外汇代码'},
-            {'name': '货币对', 'id': '货币对'},
-            {'name': '状态', 'id': '状态'}
-        ],
-        style_cell={
-            'textAlign': 'left',
-            'padding': '12px',
-            'fontFamily': 'Arial, sans-serif',
-            'fontSize': '14px'
-        },
-        style_header={
-            'backgroundColor': '#f8f9fa',
-            'fontWeight': 'bold',
-            'color': '#495057'
-        },
-        style_data_conditional=[
-            {
-                'if': {'row_index': 'odd'},
-                'backgroundColor': '#f8f9fa'
-            }
-        ],
-        page_size=15,
-        sort_action='native',
-        filter_action='native'
-    )
+    if not symbols:
+        return dbc.Alert("暂无外汇数据", color="info", className="text-center")
+    
+    # 获取所有外汇的最新历史数据日期
+    latest_hist_dates = {}
+    if mysql_db:
+        try:
+            from database.db_forex_day_hist import DBForexDayHist
+            db_hist = DBForexDayHist(mysql_db)
+            latest_hist_dates = db_hist.get_all_forex_latest_hist_date()
+        except Exception as e:
+            logger.error(f"获取最新历史数据日期失败: {e}")
+    
+    # 准备表格数据
+    display_data = []
+    for symbol in symbols:
+        # 从历史数据表获取最新数据时间
+        latest_hist_date = latest_hist_dates.get(symbol, '-') if latest_hist_dates else '-'
+        if latest_hist_date is None:
+            latest_hist_date = '-'
+        
+        # 解析货币对信息
+        if len(symbol) == 6:
+            base_currency = symbol[:3]
+            quote_currency = symbol[3:]
+            currency_pair = f"{base_currency}/{quote_currency}"
+        else:
+            currency_pair = symbol
+        
+        display_data.append({
+            '外汇代码': symbol,
+            '货币对': currency_pair,
+            '基准货币': base_currency if len(symbol) == 6 else '-',
+            '计价货币': quote_currency if len(symbol) == 6 else '-',
+            '最新数据时间': latest_hist_date
+        })
+    
+    return html.Div([
+        # 批量操作按钮
+        html.Div([
+            dbc.Button([
+                html.I(className="fas fa-check-square me-2"),
+                "全选"
+            ], id="select-all-forex", color="secondary", size="sm", className="me-2"),
+            dbc.Button([
+                html.I(className="fas fa-square me-2"),
+                "取消全选"
+            ], id="deselect-all-forex", color="secondary", size="sm", className="me-2"),
+            html.Span(f"共 {len(display_data)} 个外汇对", className="text-muted ms-3")
+        ], className="mb-3"),
+        
+        # 外汇表格
+        dash_table.DataTable(
+            id='forex-list-table',
+            data=display_data,
+            columns=[
+                {'name': '外汇代码', 'id': '外汇代码'},
+                {'name': '货币对', 'id': '货币对'},
+                {'name': '基准货币', 'id': '基准货币'},
+                {'name': '计价货币', 'id': '计价货币'},
+                {'name': '最新数据时间', 'id': '最新数据时间'}
+            ],
+            style_cell={
+                'textAlign': 'left',
+                'padding': '12px',
+                'fontFamily': 'Arial, sans-serif',
+                'fontSize': '14px',
+                'whiteSpace': 'normal',
+                'height': 'auto'
+            },
+            style_header={
+                'backgroundColor': '#f8f9fa',
+                'fontWeight': 'bold',
+                'color': '#495057',
+                'textAlign': 'center'
+            },
+            style_data_conditional=[
+                {
+                    'if': {'row_index': 'odd'},
+                    'backgroundColor': '#f8f9fa'
+                },
+                # 数据时间为空或较旧时的样式
+                {
+                    'if': {
+                        'filter_query': '{最新数据时间} = -',
+                        'column_id': '最新数据时间'
+                    },
+                    'backgroundColor': '#f8d7da',
+                    'color': '#721c24'
+                }
+            ],
+            style_table={
+                'overflowX': 'auto'
+            },
+            page_size=15,
+            sort_action='native',
+            filter_action='native',
+            row_selectable='multi',
+            selected_rows=[]
+        ),
+        
+        # 选中状态显示
+        html.Div(id="forex-selection-status", className="mt-2 text-muted"),
+        
+        # 隐藏的div存储选中的外汇代码
+        html.Div(id="selected-forex-codes", style={"display": "none"})
+    ])
 
 
 def create_stat_card(title, value, color, icon, product_type=None):

@@ -25,6 +25,515 @@ def register_product_manage_callbacks(app, mysql_db):
         mysql_db: MySQL数据库连接
     """
     
+    # 基金管理tab - 添加新基金回调
+    @app.callback(
+        [Output('add-fund-status', 'children'),
+         Output('fund-list-container', 'children'),
+         Output('new-fund-code', 'value')],
+        Input('add-fund-submit', 'n_clicks'),
+        State('new-fund-code', 'value'),
+        prevent_initial_call=True
+    )
+    def add_new_fund(n_clicks, fund_code):
+        """添加新基金"""
+        if not n_clicks or not fund_code:
+            return "", dash.no_update, dash.no_update
+        
+        try:
+            # 处理输入的代码，支持多个代码，去除空格
+            fund_codes = [code.strip() for code in fund_code.split(",") if code.strip()]
+            
+            if not fund_codes:
+                return dbc.Alert("请输入有效的基金代码", color="warning", dismissable=True), dash.no_update, dash.no_update
+            
+            logger.info(f"开始添加新基金: {fund_codes}")
+            
+            # 创建更新基金任务
+            task_config = {
+                "name": "add_new_funds",
+                "description": "添加新基金并更新数据",
+                "fund_codes": fund_codes,
+                "update_all": False
+            }
+            
+            from task_data.update_funds_task import UpdateFundsTask
+            task = UpdateFundsTask(task_config, mysql_db)
+            task.execute()
+            
+            if task.is_success:
+                # 添加成功，更新基金列表
+                db_funds = DBFunds(mysql_db)
+                funds_df = db_funds.get_all_funds()
+                from task_dash.pages.products_manage import create_fund_list_display
+                new_fund_list = create_fund_list_display(funds_df, mysql_db)
+                
+                success_msg = f"成功添加 {len(fund_codes)} 只基金: {', '.join(fund_codes)}"
+                return dbc.Alert(success_msg, color="success", dismissable=True), new_fund_list, ""
+            else:
+                error_msg = f"添加失败: {task.error}"
+                return dbc.Alert(error_msg, color="danger", dismissable=True), dash.no_update, dash.no_update
+                
+        except Exception as e:
+            error_msg = f"添加基金过程中发生错误: {str(e)}"
+            logger.error(error_msg)
+            return dbc.Alert(error_msg, color="danger", dismissable=True), dash.no_update, dash.no_update
+    
+    # 基金列表多选功能回调
+    @app.callback(
+        [Output('fund-list-table', 'selected_rows'),
+         Output('fund-selection-status', 'children'),
+         Output('selected-fund-codes', 'children')],
+        [Input('select-all-funds', 'n_clicks'),
+         Input('deselect-all-funds', 'n_clicks'),
+         Input('fund-list-table', 'selected_rows')],
+        [State('fund-list-table', 'data')],
+        prevent_initial_call=True
+    )
+    def handle_fund_selection(select_all_clicks, deselect_all_clicks, selected_rows, table_data):
+        """处理基金选择操作"""
+        ctx = dash.callback_context
+        if not ctx.triggered:
+            return [], "", "[]"
+        
+        trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
+        
+        # 处理全选
+        if trigger_id == 'select-all-funds' and select_all_clicks:
+            all_rows = list(range(len(table_data))) if table_data else []
+            selected_codes = [table_data[i]['基金代码'] for i in all_rows if table_data]
+            status_text = f"已选择 {len(all_rows)} 只基金"
+            return all_rows, status_text, json.dumps(selected_codes)
+        
+        # 处理取消全选
+        if trigger_id == 'deselect-all-funds' and deselect_all_clicks:
+            return [], "已取消选择", "[]"
+        
+        # 处理手动选择
+        if trigger_id == 'fund-list-table' and selected_rows is not None:
+            selected_codes = [table_data[i]['基金代码'] for i in selected_rows if i < len(table_data)]
+            if len(selected_rows) == 0:
+                status_text = "未选择基金"
+            elif len(selected_rows) == 1:
+                status_text = f"已选择 1 只基金: {selected_codes[0]}"
+            else:
+                status_text = f"已选择 {len(selected_rows)} 只基金"
+            return selected_rows, status_text, json.dumps(selected_codes)
+        
+        return selected_rows or [], "", "[]"
+    
+    # 股票列表多选功能回调
+    @app.callback(
+        [Output('stock-list-table', 'selected_rows'),
+         Output('stock-selection-status', 'children'),
+         Output('selected-stock-codes', 'children')],
+        [Input('select-all-stocks', 'n_clicks'),
+         Input('deselect-all-stocks', 'n_clicks'),
+         Input('stock-list-table', 'selected_rows')],
+        [State('stock-list-table', 'data')],
+        prevent_initial_call=True
+    )
+    def handle_stock_selection(select_all_clicks, deselect_all_clicks, selected_rows, table_data):
+        """处理股票选择操作"""
+        ctx = dash.callback_context
+        if not ctx.triggered:
+            return [], "", "[]"
+        
+        trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
+        
+        # 处理全选
+        if trigger_id == 'select-all-stocks' and select_all_clicks:
+            all_rows = list(range(len(table_data))) if table_data else []
+            selected_codes = [table_data[i]['股票代码'] for i in all_rows if table_data]
+            status_text = f"已选择 {len(all_rows)} 只股票"
+            return all_rows, status_text, json.dumps(selected_codes)
+        
+        # 处理取消全选
+        if trigger_id == 'deselect-all-stocks' and deselect_all_clicks:
+            return [], "已取消选择", "[]"
+        
+        # 处理手动选择
+        if trigger_id == 'stock-list-table' and selected_rows is not None:
+            selected_codes = [table_data[i]['股票代码'] for i in selected_rows if i < len(table_data)]
+            if len(selected_rows) == 0:
+                status_text = "未选择股票"
+            elif len(selected_rows) == 1:
+                status_text = f"已选择 1 只股票: {selected_codes[0]}"
+            else:
+                status_text = f"已选择 {len(selected_rows)} 只股票"
+            return selected_rows, status_text, json.dumps(selected_codes)
+        
+        return selected_rows or [], "", "[]"
+    
+    # 股票数据更新按钮回调
+    @app.callback(
+        Output('stock-list-container', 'children', allow_duplicate=True),
+        Input('update-stock-btn', 'n_clicks'),
+        State('selected-stock-codes', 'children'),
+        prevent_initial_call=True
+    )
+    def update_selected_stocks(n_clicks, selected_codes_json):
+        """更新选中的股票数据"""
+        if not n_clicks:
+            return dash.no_update
+        
+        try:
+            selected_codes = json.loads(selected_codes_json) if selected_codes_json else []
+            
+            if not selected_codes:
+                # 如果没有选中股票，显示提示信息
+                return html.Div([
+                    dbc.Alert("请先选择要更新的股票", color="warning", dismissable=True, className="mb-3"),
+                    dash.no_update
+                ])
+            
+            logger.info(f"开始更新选中的股票: {selected_codes}")
+            
+            # 创建更新股票任务
+            task_config = {
+                "name": "update_selected_stocks",
+                "description": "更新选中的股票数据",
+                "stock_symbols": selected_codes,
+                # "proxy": "http://127.0.0.1:7890",
+                "update_info": True,
+                "update_hist": True
+            }
+            
+            from task_data.update_stocks_task import UpdateStocksTask
+            task = UpdateStocksTask(mysql_db, task_config)
+            task.execute()
+            
+            # 刷新股票列表
+            db_stocks = DBStocks(mysql_db)
+            stocks_df = db_stocks.get_all_stocks()
+            from task_dash.pages.products_manage import create_stock_list_display
+            updated_stock_list = create_stock_list_display(stocks_df, mysql_db)
+            
+            if task.is_success:
+                logger.success(f"成功更新 {len(selected_codes)} 只股票")
+                # 在列表前添加成功提示
+                return html.Div([
+                    dbc.Alert(f"成功更新 {len(selected_codes)} 只股票: {', '.join(selected_codes)}", 
+                             color="success", dismissable=True, className="mb-3"),
+                    updated_stock_list
+                ])
+            else:
+                logger.error(f"更新股票失败: {task.error}")
+                # 在列表前添加错误提示
+                return html.Div([
+                    dbc.Alert(f"更新失败: {task.error}", 
+                             color="danger", dismissable=True, className="mb-3"),
+                    updated_stock_list
+                ])
+                
+        except Exception as e:
+            error_msg = f"更新股票过程中发生错误: {str(e)}"
+            logger.error(error_msg)
+            # 保持原有列表，只显示错误信息
+            db_stocks = DBStocks(mysql_db)
+            stocks_df = db_stocks.get_all_stocks()
+            from task_dash.pages.products_manage import create_stock_list_display
+            stock_list = create_stock_list_display(stocks_df, mysql_db)
+            
+            return html.Div([
+                dbc.Alert(error_msg, color="danger", dismissable=True, className="mb-3"),
+                stock_list
+            ])
+    
+    # 股票管理tab - 添加新股票回调
+    @app.callback(
+        [Output('add-stock-status', 'children'),
+         Output('stock-list-container', 'children', allow_duplicate=True),
+         Output('new-stock-code', 'value')],
+        Input('add-stock-submit', 'n_clicks'),
+        State('new-stock-code', 'value'),
+        prevent_initial_call=True
+    )
+    def add_new_stock(n_clicks, stock_code):
+        """添加新股票"""
+        if not n_clicks or not stock_code:
+            return "", dash.no_update, dash.no_update
+        
+        try:
+            # 处理输入的代码，支持多个代码，去除空格
+            stock_codes = [code.strip() for code in stock_code.split(",") if code.strip()]
+            
+            if not stock_codes:
+                return dbc.Alert("请输入有效的股票代码", color="warning", dismissable=True), dash.no_update, dash.no_update
+            
+            logger.info(f"开始添加新股票: {stock_codes}")
+            
+            # 创建更新股票任务
+            task_config = {
+                "name": "add_new_stocks",
+                "description": "添加新股票并更新数据",
+                "stock_symbols": stock_codes,
+                # "proxy": "http://127.0.0.1:7890",
+                "update_info": True,
+                "update_hist": True
+            }
+            
+            from task_data.update_stocks_task import UpdateStocksTask
+            task = UpdateStocksTask(mysql_db, task_config)
+            task.execute()
+            
+            if task.is_success:
+                # 添加成功，更新股票列表
+                db_stocks = DBStocks(mysql_db)
+                stocks_df = db_stocks.get_all_stocks()
+                from task_dash.pages.products_manage import create_stock_list_display
+                new_stock_list = create_stock_list_display(stocks_df, mysql_db)
+                
+                success_msg = f"成功添加 {len(stock_codes)} 只股票: {', '.join(stock_codes)}"
+                return dbc.Alert(success_msg, color="success", dismissable=True), new_stock_list, ""
+            else:
+                error_msg = f"添加失败: {task.error}"
+                return dbc.Alert(error_msg, color="danger", dismissable=True), dash.no_update, dash.no_update
+                
+        except Exception as e:
+            error_msg = f"添加股票过程中发生错误: {str(e)}"
+            logger.error(error_msg)
+            return dbc.Alert(error_msg, color="danger", dismissable=True), dash.no_update, dash.no_update
+    
+    # 外汇列表多选功能回调
+    @app.callback(
+        [Output('forex-list-table', 'selected_rows'),
+         Output('forex-selection-status', 'children'),
+         Output('selected-forex-codes', 'children')],
+        [Input('select-all-forex', 'n_clicks'),
+         Input('deselect-all-forex', 'n_clicks'),
+         Input('forex-list-table', 'selected_rows')],
+        [State('forex-list-table', 'data')],
+        prevent_initial_call=True
+    )
+    def handle_forex_selection(select_all_clicks, deselect_all_clicks, selected_rows, table_data):
+        """处理外汇选择操作"""
+        ctx = dash.callback_context
+        if not ctx.triggered:
+            return [], "", "[]"
+        
+        trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
+        
+        # 处理全选
+        if trigger_id == 'select-all-forex' and select_all_clicks:
+            all_rows = list(range(len(table_data))) if table_data else []
+            selected_codes = [table_data[i]['外汇代码'] for i in all_rows if table_data]
+            status_text = f"已选择 {len(all_rows)} 个外汇对"
+            return all_rows, status_text, json.dumps(selected_codes)
+        
+        # 处理取消全选
+        if trigger_id == 'deselect-all-forex' and deselect_all_clicks:
+            return [], "已取消选择", "[]"
+        
+        # 处理手动选择
+        if trigger_id == 'forex-list-table' and selected_rows is not None:
+            selected_codes = [table_data[i]['外汇代码'] for i in selected_rows if i < len(table_data)]
+            if len(selected_rows) == 0:
+                status_text = "未选择外汇"
+            elif len(selected_rows) == 1:
+                status_text = f"已选择 1 个外汇对: {selected_codes[0]}"
+            else:
+                status_text = f"已选择 {len(selected_rows)} 个外汇对"
+            return selected_rows, status_text, json.dumps(selected_codes)
+        
+        return selected_rows or [], "", "[]"
+    
+    # 外汇数据更新按钮回调
+    @app.callback(
+        Output('forex-list-container', 'children', allow_duplicate=True),
+        Input('update-forex-btn', 'n_clicks'),
+        State('selected-forex-codes', 'children'),
+        prevent_initial_call=True
+    )
+    def update_selected_forex(n_clicks, selected_codes_json):
+        """更新选中的外汇数据"""
+        if not n_clicks:
+            return dash.no_update
+        
+        try:
+            selected_codes = json.loads(selected_codes_json) if selected_codes_json else []
+            
+            if not selected_codes:
+                # 如果没有选中外汇，显示提示信息
+                return html.Div([
+                    dbc.Alert("请先选择要更新的外汇", color="warning", dismissable=True, className="mb-3"),
+                    dash.no_update
+                ])
+            
+            logger.info(f"开始更新选中的外汇: {selected_codes}")
+            
+            # 创建更新外汇任务
+            task_config = {
+                "name": "update_selected_forex",
+                "description": "更新选中的外汇数据",
+                "symbols": selected_codes
+            }
+            
+            from task_data.update_forex_task import UpdateForexTask
+            task = UpdateForexTask(mysql_db, task_config)
+            task.execute()
+            
+            # 刷新外汇列表
+            db_forex = DBForexDayHist(mysql_db)
+            forex_data = db_forex.get_all_forex()
+            from task_dash.pages.products_manage import create_forex_list_display
+            updated_forex_list = create_forex_list_display(forex_data, mysql_db)
+            
+            if task.is_success:
+                logger.success(f"成功更新 {len(selected_codes)} 个外汇对")
+                # 在列表前添加成功提示
+                return html.Div([
+                    dbc.Alert(f"成功更新 {len(selected_codes)} 个外汇对: {', '.join(selected_codes)}", 
+                             color="success", dismissable=True, className="mb-3"),
+                    updated_forex_list
+                ])
+            else:
+                logger.error(f"更新外汇失败: {task.error}")
+                # 在列表前添加错误提示
+                return html.Div([
+                    dbc.Alert(f"更新失败: {task.error}", 
+                             color="danger", dismissable=True, className="mb-3"),
+                    updated_forex_list
+                ])
+                
+        except Exception as e:
+            error_msg = f"更新外汇过程中发生错误: {str(e)}"
+            logger.error(error_msg)
+            # 保持原有列表，只显示错误信息
+            db_forex = DBForexDayHist(mysql_db)
+            forex_data = db_forex.get_all_forex()
+            from task_dash.pages.products_manage import create_forex_list_display
+            forex_list = create_forex_list_display(forex_data, mysql_db)
+            
+            return html.Div([
+                dbc.Alert(error_msg, color="danger", dismissable=True, className="mb-3"),
+                forex_list
+            ])
+    
+    # 外汇管理tab - 添加新外汇回调
+    @app.callback(
+        [Output('add-forex-status', 'children'),
+         Output('forex-list-container', 'children', allow_duplicate=True),
+         Output('new-forex-code', 'value')],
+        Input('add-forex-submit', 'n_clicks'),
+        State('new-forex-code', 'value'),
+        prevent_initial_call=True
+    )
+    def add_new_forex(n_clicks, forex_code):
+        """添加新外汇"""
+        if not n_clicks or not forex_code:
+            return "", dash.no_update, dash.no_update
+        
+        try:
+            # 处理输入的代码，支持多个代码，去除空格
+            forex_codes = [code.strip() for code in forex_code.split(",") if code.strip()]
+            
+            if not forex_codes:
+                return dbc.Alert("请输入有效的外汇代码", color="warning", dismissable=True), dash.no_update, dash.no_update
+            
+            logger.info(f"开始添加新外汇: {forex_codes}")
+            
+            # 创建更新外汇任务
+            task_config = {
+                "name": "add_new_forex",
+                "description": "添加新外汇并更新数据",
+                "symbols": forex_codes
+            }
+            
+            from task_data.update_forex_task import UpdateForexTask
+            task = UpdateForexTask(mysql_db, task_config)
+            task.execute()
+            
+            if task.is_success:
+                # 添加成功，更新外汇列表
+                db_forex = DBForexDayHist(mysql_db)
+                forex_data = db_forex.get_all_forex()
+                from task_dash.pages.products_manage import create_forex_list_display
+                new_forex_list = create_forex_list_display(forex_data, mysql_db)
+                
+                success_msg = f"成功添加 {len(forex_codes)} 个外汇对: {', '.join(forex_codes)}"
+                return dbc.Alert(success_msg, color="success", dismissable=True), new_forex_list, ""
+            else:
+                error_msg = f"添加失败: {task.error}"
+                return dbc.Alert(error_msg, color="danger", dismissable=True), dash.no_update, dash.no_update
+                
+        except Exception as e:
+            error_msg = f"添加外汇过程中发生错误: {str(e)}"
+            logger.error(error_msg)
+            return dbc.Alert(error_msg, color="danger", dismissable=True), dash.no_update, dash.no_update
+    
+    # 修改更新数据按钮回调，支持选中的基金更新
+    @app.callback(
+        Output('fund-list-container', 'children', allow_duplicate=True),
+        Input('update-fund-btn', 'n_clicks'),
+        State('selected-fund-codes', 'children'),
+        prevent_initial_call=True
+    )
+    def update_selected_funds(n_clicks, selected_codes_json):
+        """更新选中的基金数据"""
+        if not n_clicks:
+            return dash.no_update
+        
+        try:
+            selected_codes = json.loads(selected_codes_json) if selected_codes_json else []
+            
+            if not selected_codes:
+                # 如果没有选中基金，显示提示信息
+                return html.Div([
+                    dbc.Alert("请先选择要更新的基金", color="warning", dismissable=True, className="mb-3"),
+                    dash.no_update
+                ])
+            
+            logger.info(f"开始更新选中的基金: {selected_codes}")
+            
+            # 创建更新基金任务
+            task_config = {
+                "name": "update_selected_funds",
+                "description": "更新选中的基金数据",
+                "fund_codes": selected_codes,
+                "update_all": False
+            }
+            
+            from task_data.update_funds_task import UpdateFundsTask
+            task = UpdateFundsTask(task_config, mysql_db)
+            task.execute()
+            
+            # 刷新基金列表
+            db_funds = DBFunds(mysql_db)
+            funds_df = db_funds.get_all_funds()
+            from task_dash.pages.products_manage import create_fund_list_display
+            updated_fund_list = create_fund_list_display(funds_df, mysql_db)
+            
+            if task.is_success:
+                logger.success(f"成功更新 {len(selected_codes)} 只基金")
+                # 在列表前添加成功提示
+                return html.Div([
+                    dbc.Alert(f"成功更新 {len(selected_codes)} 只基金: {', '.join(selected_codes)}", 
+                             color="success", dismissable=True, className="mb-3"),
+                    updated_fund_list
+                ])
+            else:
+                logger.error(f"更新基金失败: {task.error}")
+                # 在列表前添加错误提示
+                return html.Div([
+                    dbc.Alert(f"更新失败: {task.error}", 
+                             color="danger", dismissable=True, className="mb-3"),
+                    updated_fund_list
+                ])
+                
+        except Exception as e:
+            error_msg = f"更新基金过程中发生错误: {str(e)}"
+            logger.error(error_msg)
+            # 保持原有列表，只显示错误信息
+            db_funds = DBFunds(mysql_db)
+            funds_df = db_funds.get_all_funds()
+            from task_dash.pages.products_manage import create_fund_list_display
+            fund_list = create_fund_list_display(funds_df, mysql_db)
+            
+            return html.Div([
+                dbc.Alert(error_msg, color="danger", dismissable=True, className="mb-3"),
+                fund_list
+            ])
+    
     # 导航栏切换回调
     @app.callback(
         [Output('products-content-area', 'children'),
@@ -172,14 +681,14 @@ def register_product_manage_callbacks(app, mysql_db):
                         "fund_codes": product_codes,
                         "update_all": False
                     }
-                    task = UpdateFundsTask(task_config)
+                    task = UpdateFundsTask(task_config, mysql_db)
                 elif product_type == "stock":
                     # 创建更新股票任务
                     task_config = {
                         "name": "update_stocks",
                         "description": "添加新股票并更新数据",
                         "stock_symbols": product_codes,
-                        "proxy": "http://127.0.0.1:7890",
+                        # "proxy": "http://127.0.0.1:7890",
                         "update_info": True,
                         "update_hist": True
                     }
@@ -523,7 +1032,7 @@ def register_product_manage_callbacks(app, mysql_db):
 
         # 创建并执行更新任务
         try:
-            task = UpdateFundsTask(task_config)
+            task = UpdateFundsTask(task_config, mysql_db)
             task.execute()
             
             if task.is_success:
@@ -551,7 +1060,7 @@ def register_product_manage_callbacks(app, mysql_db):
             "name": "update_stocks",
             "description": "更新股票日线历史数据",
             "stock_symbols": selected_stocks,
-            "proxy": "http://127.0.0.1:7890",  # 根据实际情况调整代理
+            # "proxy": "http://127.0.0.1:7890",  # 根据实际情况调整代理
             "update_info": True,  # 更新基本信息
             "update_hist": True,  # 更新历史数据
         }
