@@ -99,7 +99,7 @@ register_correlation_analysis_callbacks(app, mysql_db)
 if __name__ == '__main__':
     try:
         # 设置host为0.0.0.0以便在服务器上可访问
-        app.run(debug=True, host='127.0.0.1', port=8051)  # 使用8050端口
+        app.run(debug=True, host='127.0.0.1', port=8050)  # 使用8050端口
     finally:
         # 关闭数据库连接池
         mysql_db.close_pool() 
