@@ -320,7 +320,8 @@ class DataCalculator:
         if df is None or df.empty:
             return []
             
-        dates = df[date_column].tolist()
+        # 确保日期格式正确，转换为字符串格式用于图表显示
+        dates = pd.to_datetime(df[date_column]).dt.strftime('%Y-%m-%d').tolist()
         ma_data = []
         
         values = df[value_column]
@@ -396,8 +397,8 @@ class DataCalculator:
                 if recovery_days:
                     text = f'{text}，修复：{recovery_days} days'
 
-                start_date = dd['start_date']
-                end_date = dd['end_date']
+                start_date = dd['start_date'].strftime('%Y-%m-%d') if hasattr(dd['start_date'], 'strftime') else str(dd['start_date'])
+                end_date = dd['end_date'].strftime('%Y-%m-%d') if hasattr(dd['end_date'], 'strftime') else str(dd['end_date'])
                 data.append({
                     'type': 'scatter',
                     'x': [start_date, end_date, end_date, start_date, start_date],
@@ -414,7 +415,7 @@ class DataCalculator:
                 })
                 
                 if recovery_days:
-                    recovery_date = dd['recovery_date']
+                    recovery_date = dd['recovery_date'].strftime('%Y-%m-%d') if hasattr(dd['recovery_date'], 'strftime') else str(dd['recovery_date'])
                     data.append({
                         'type': 'scatter',
                         'x': [end_date, recovery_date, recovery_date, end_date, end_date],

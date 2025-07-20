@@ -16,6 +16,7 @@ from database.db_strategys import DBStrategys
 from database.db_stocks import DBStocks
 from database.db_forex_day_hist import DBForexDayHist
 from database.db_bond_rate import DBBondRate
+from database.db_index_hist import DBIndexHist
 from task_dash.utils import get_date_range, get_data_briefs
 from task_dash.datas.data import create_data_generator
 from task_dash.datas.data_generator import TableData
@@ -138,6 +139,8 @@ def register_single_product_callbacks(app, mysql_db):
                 data = DBForexDayHist(mysql_db).get_all_forex(extend=True)
             elif selected_type == 'bond_yield':
                 data = DBBondRate(mysql_db).get_all_bond()
+            elif selected_type == 'index':
+                data = DBIndexHist(mysql_db).get_all_indices()
             else:
                 data = pd.DataFrame()
             
@@ -367,7 +370,16 @@ def register_single_product_callbacks(app, mysql_db):
                 chart_data.extend(extra_chart_data)
             
             # 创建图表
-            title = '基金净值和分红数据' if data_type == 'fund' else '策略净值数据' if data_type == 'strategy' else '股票K线数据'
+            if data_type == 'fund':
+                title = '基金净值和分红数据'
+            elif data_type == 'strategy':
+                title = '策略净值数据'
+            elif data_type == 'stock':
+                title = '股票K线数据'
+            elif data_type == 'index':
+                title = '指数价格走势'
+            else:
+                title = '价格数据'
             
             # 根据数据类型设置不同的x轴配置
             xaxis_config = {
@@ -389,7 +401,7 @@ def register_single_product_callbacks(app, mysql_db):
                 'layout': {
                     'title': f'{title} - {selected_data}',
                     'xaxis': xaxis_config,
-                    'yaxis': {'title': '价格' if data_type == 'stock' else '净值'},
+                    'yaxis': {'title': '价格' if data_type in ['stock', 'index'] else '净值'},
                     'plot_bgcolor': 'white',
                     'hovermode': 'x unified'
                 }

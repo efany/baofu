@@ -2,10 +2,11 @@ from mysql_database import MySQLDatabase  # 导入 MySQLDatabase 类
 
 if __name__ == "__main__":
     db = MySQLDatabase(
-        host='127.0.0.1',
+        host='113.44.90.2',
         user='baofu',
         password='TYeKmJPfw2b7kxGK',
-        database='baofu'
+        database='baofu',
+        pool_size=5
     )
     
     if db.check_table_exists('funds'):
@@ -201,5 +202,43 @@ if __name__ == "__main__":
             print("数据表 'bond_rate_history' 校验。")
         else:
             print("数据表 'bond_rate_history' 创建失败。")
+
+    if db.check_table_exists('index_hist_data'):
+        print("数据表 'index_hist_data' 已存在")
+    else:
+        # symbol      | str     | 指数代码（如：sh000001, sz399001等）
+        # date        | date    | 交易日期
+        # open        | decimal | 开盘价
+        # high        | decimal | 最高价
+        # low         | decimal | 最低价
+        # close       | decimal | 收盘价
+        # volume      | bigint  | 成交量
+        # turnover    | decimal | 成交额
+        # nav         | decimal | 净值（基金指数用）
+        # change_pct  | decimal | 涨跌幅（%）
+        table_schema = """
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        symbol VARCHAR(20) NOT NULL COMMENT '指数代码',
+        date DATE NOT NULL COMMENT '交易日期',
+        open DECIMAL(10,4) DEFAULT NULL COMMENT '开盘价',
+        high DECIMAL(10,4) DEFAULT NULL COMMENT '最高价',
+        low DECIMAL(10,4) DEFAULT NULL COMMENT '最低价',
+        close DECIMAL(10,4) DEFAULT NULL COMMENT '收盘价',
+        volume BIGINT DEFAULT NULL COMMENT '成交量',
+        turnover DECIMAL(15,2) DEFAULT NULL COMMENT '成交额',
+        nav DECIMAL(10,4) DEFAULT NULL COMMENT '净值（基金指数用）',
+        change_pct DECIMAL(8,4) DEFAULT NULL COMMENT '涨跌幅（%）',
+        create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+        update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+        UNIQUE KEY unique_symbol_date (symbol, date),
+        INDEX idx_symbol (symbol),
+        INDEX idx_date (date),
+        INDEX idx_symbol_date (symbol, date)
+        """
+        db.create_table('index_hist_data', table_schema)
+        if db.check_table_exists('index_hist_data'):
+            print("数据表 'index_hist_data' 校验。")
+        else:
+            print("数据表 'index_hist_data' 创建失败。")
 
     db.close_connection()

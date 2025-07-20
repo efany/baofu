@@ -4,7 +4,10 @@
       "Bash(rg:*)",
       "Bash(find:*)",
       "Bash(rm:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "WebFetch(domain:www.csindex.com.cn)",
+      "WebFetch(domain:akshare.akfamily.xyz)",
+      "WebFetch(domain:github.com)"
     ],
     "deny": []
   }

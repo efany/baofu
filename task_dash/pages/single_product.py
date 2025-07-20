@@ -40,7 +40,8 @@ def create_single_product_value_graph(mysql_db, data_type):
                                 {'label': '🎯 策略', 'value': 'strategy'},
                                 {'label': '📊 股票', 'value': 'stock'},
                                 {'label': '💱 外汇', 'value': 'forex'},
-                                {'label': '🏦 国债收益率', 'value': 'bond_yield'}
+                                {'label': '🏦 国债收益率', 'value': 'bond_yield'},
+                                {'label': '📊 指数', 'value': 'index'}
                             ],
                             value=data_type,
                             clearable=False

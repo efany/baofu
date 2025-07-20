@@ -15,6 +15,7 @@ from database.db_strategys import DBStrategys
 from task_dash.pages.single_product import create_single_product_value_graph
 from task_dash.callback.single_product_callbacks import register_single_product_callbacks
 
+
 from task_dash.pages.strategy_manage import create_strategy_management
 from task_dash.callback.strategy_manage_callbacks import register_strategy_manage_callbacks
 
@@ -64,6 +65,8 @@ def display_page(pathname):
         return create_single_product_value_graph(mysql_db, "stock")  # Call the function to get the layout
     elif pathname == '/single_strategy':
         return create_single_product_value_graph(mysql_db, "strategy")  # Call the function to get the layout
+    elif pathname == '/single_index':
+        return create_single_product_value_graph(mysql_db, "index")
     elif pathname == '/strategy_manage':
         return create_strategy_management(mysql_db)
     elif pathname == '/products_compare':
@@ -79,6 +82,7 @@ def display_page(pathname):
 
 # 注册基金相关的回调
 register_single_product_callbacks(app, mysql_db)
+
 
 # 注册策略管理相关的回调
 register_strategy_manage_callbacks(app, mysql_db)

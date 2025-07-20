@@ -8,6 +8,7 @@ from loguru import logger
 from database.db_funds import DBFunds
 from database.db_stocks import DBStocks
 from database.db_forex_day_hist import DBForexDayHist
+from database.db_index_hist import DBIndexHist
 # from database.db_data_sources import DBDataSources
 
 def create_products_overview_content(mysql_db):
@@ -19,6 +20,7 @@ def create_products_overview_content(mysql_db):
         db_funds = DBFunds(mysql_db)
         db_stocks = DBStocks(mysql_db)
         db_forex = DBForexDayHist(mysql_db)
+        db_index = DBIndexHist(mysql_db)
         # db_sources = DBDataSources()
         
         # 获取基金统计
@@ -27,6 +29,8 @@ def create_products_overview_content(mysql_db):
         stocks_stats = get_stocks_statistics(db_stocks)
         # 获取外汇统计
         forex_stats = get_forex_statistics(db_forex)
+        # 获取指数统计
+        index_stats = get_index_statistics(db_index)
         # 获取数据源统计（暂时使用模拟数据）
         sources_stats = {'active_sources': 5, 'total_sources': 7}
         
@@ -45,7 +49,7 @@ def create_products_overview_content(mysql_db):
                     create_stat_card("外汇对数", forex_stats.get('total_forex', 0), "info", "💱", "forex")
                 ], width=3),
                 dbc.Col([
-                    create_stat_card("数据源数", sources_stats.get('active_sources', 0), "warning", "🔗")
+                    create_stat_card("指数总数", index_stats.get('total_indices', 0), "secondary", "📊", "index")
                 ], width=3)
             ], className="mb-4"),
             
@@ -54,23 +58,26 @@ def create_products_overview_content(mysql_db):
             dbc.Row([
                 dbc.Col([
                     create_update_status_card("基金数据", funds_stats.get('latest_update', 'N/A'))
-                ], width=4),
+                ], width=3),
                 dbc.Col([
                     create_update_status_card("股票数据", stocks_stats.get('latest_update', 'N/A'))
-                ], width=4),
+                ], width=3),
                 dbc.Col([
                     create_update_status_card("外汇数据", forex_stats.get('latest_update', 'N/A'))
-                ], width=4)
+                ], width=3),
+                dbc.Col([
+                    create_update_status_card("指数数据", index_stats.get('latest_update', 'N/A'))
+                ], width=3)
             ], className="mb-4"),
             
             # 数据质量概览
             html.H5("数据质量概览", className="mb-3"),
             dbc.Row([
                 dbc.Col([
-                    create_data_quality_chart(funds_stats, stocks_stats, forex_stats)
+                    create_data_quality_chart(funds_stats, stocks_stats, forex_stats, index_stats)
                 ], width=6),
                 dbc.Col([
-                    create_data_coverage_chart(funds_stats, stocks_stats, forex_stats)
+                    create_data_coverage_chart(funds_stats, stocks_stats, forex_stats, index_stats)
                 ], width=6)
             ])
         ], className="p-4")
@@ -285,6 +292,77 @@ def create_products_forex_content(mysql_db):
             dbc.Alert([
                 html.I(className="fas fa-exclamation-triangle me-2"),
                 f"加载外汇数据时发生错误: {str(e)}"
+            ], color="danger", className="text-center")
+        ], className="p-4")
+
+def create_products_index_content(mysql_db):
+    """创建指数数据内容"""
+    try:
+        db_index = DBIndexHist(mysql_db)
+        # 获取所有指数的最新数据日期
+        latest_dates = db_index.get_all_indices_latest_hist_date()
+        
+        return html.Div([
+            html.H3("指数数据", className="mb-4 text-primary"),
+            
+            # 操作按钮
+            html.Div([
+                dbc.Button([
+                    html.I(className="fas fa-sync me-2"),
+                    "更新数据"
+                ], id="update-index-btn", color="success", className="me-2"),
+                dbc.Button([
+                    html.I(className="fas fa-download me-2"),
+                    "导出数据"
+                ], id="export-index-btn", color="info")
+            ], className="mb-3"),
+            
+            # 添加指数表单
+            dbc.Card([
+                dbc.CardBody([
+                    html.H5("添加新指数", className="mb-3"),
+                    dbc.Row([
+                        dbc.Col([
+                            dcc.Dropdown(
+                                id="new-index-code",
+                                options=[
+                                    {'label': '📈 上证综指 (sh000001)', 'value': 'sh000001'},
+                                    {'label': '📊 上证A股指数 (sh000002)', 'value': 'sh000002'},
+                                    {'label': '🎯 上证50 (sh000016)', 'value': 'sh000016'},
+                                    {'label': '📈 沪深300 (sh000300)', 'value': 'sh000300'},
+                                    {'label': '📊 中证500 (sh000905)', 'value': 'sh000905'},
+                                    {'label': '📈 中证800 (sh000906)', 'value': 'sh000906'},
+                                    {'label': '📊 深证成指 (sz399001)', 'value': 'sz399001'},
+                                    {'label': '📈 中小板指 (sz399005)', 'value': 'sz399005'},
+                                    {'label': '🚀 创业板指 (sz399006)', 'value': 'sz399006'}
+                                ],
+                                placeholder="选择要添加的指数",
+                                multi=True
+                            )
+                        ], width=8),
+                        dbc.Col([
+                            dbc.Button([
+                                html.I(className="fas fa-plus me-2"),
+                                "添加指数"
+                            ], id="add-index-submit", color="primary", className="w-100")
+                        ], width=4)
+                    ]),
+                    html.Small("支持选择多个指数同时添加", className="text-muted mt-2 d-block"),
+                    html.Div(id="add-index-status", className="mt-2")
+                ])
+            ], className="mb-3"),
+            
+            # 指数列表
+            html.Div(id="index-list-container", children=[
+                create_index_list_display(latest_dates, mysql_db)
+            ])
+        ], className="p-4")
+        
+    except Exception as e:
+        return html.Div([
+            dbc.Alert([
+                html.I(className="fas fa-exclamation-triangle me-2"),
+                f"加载指数数据时发生错误: {str(e)}"
             ], color="danger", className="text-center")
         ], className="p-4")
 
@@ -617,6 +695,117 @@ def create_forex_list_display(forex_data, mysql_db=None):
         html.Div(id="selected-forex-codes", style={"display": "none"})
     ])
 
+def create_index_list_display(latest_dates, mysql_db=None):
+    """创建指数列表显示"""
+    # 指数名称映射
+    index_names = {
+        'sh000001': '上证综指',
+        'sh000002': '上证A股指数',
+        'sh000016': '上证50',
+        'sh000300': '沪深300',
+        'sh000905': '中证500',
+        'sh000906': '中证800',
+        'sz399001': '深证成指',
+        'sz399005': '中小板指',
+        'sz399006': '创业板指'
+    }
+    
+    # 准备表格数据
+    display_data = []
+    if latest_dates:
+        for symbol, latest_date in latest_dates.items():
+            display_data.append({
+                '指数代码': symbol,
+                '指数名称': index_names.get(symbol, symbol),
+                '指数类型': '股票指数',
+                '市场': '上海' if symbol.startswith('sh') else '深圳',
+                '最新数据时间': latest_date if latest_date else '-'
+            })
+    
+    # 显示友好提示信息（当无数据时）
+    info_section = []
+    if not display_data:
+        info_section = [
+            dbc.Alert([
+                html.I(className="fas fa-info-circle me-2"),
+                "暂无指数数据，请使用上方的添加功能来添加指数"
+            ], color="info", className="mb-3")
+        ]
+    
+    return html.Div([
+        # 无数据时的提示信息
+        *info_section,
+        
+        # 批量操作按钮
+        html.Div([
+            dbc.Button([
+                html.I(className="fas fa-check-square me-2"),
+                "全选"
+            ], id="select-all-indices", color="secondary", size="sm", className="me-2", disabled=not display_data),
+            dbc.Button([
+                html.I(className="fas fa-square me-2"),
+                "取消全选"
+            ], id="deselect-all-indices", color="secondary", size="sm", className="me-2", disabled=not display_data),
+            html.Span(f"共 {len(display_data)} 个指数", className="text-muted ms-3")
+        ], className="mb-3"),
+        
+        # 指数表格
+        dash_table.DataTable(
+            id='index-list-table',
+            data=display_data,
+            columns=[
+                {'name': '指数代码', 'id': '指数代码'},
+                {'name': '指数名称', 'id': '指数名称'},
+                {'name': '指数类型', 'id': '指数类型'},
+                {'name': '市场', 'id': '市场'},
+                {'name': '最新数据时间', 'id': '最新数据时间'}
+            ],
+            style_cell={
+                'textAlign': 'left',
+                'padding': '12px',
+                'fontFamily': 'Arial, sans-serif',
+                'fontSize': '14px',
+                'whiteSpace': 'normal',
+                'height': 'auto'
+            },
+            style_header={
+                'backgroundColor': '#f8f9fa',
+                'fontWeight': 'bold',
+                'color': '#495057',
+                'textAlign': 'center'
+            },
+            style_data_conditional=[
+                {
+                    'if': {'row_index': 'odd'},
+                    'backgroundColor': '#f8f9fa'
+                },
+                # 数据时间为空或较旧时的样式
+                {
+                    'if': {
+                        'filter_query': '{最新数据时间} = -',
+                        'column_id': '最新数据时间'
+                    },
+                    'backgroundColor': '#f8d7da',
+                    'color': '#721c24'
+                }
+            ],
+            style_table={
+                'overflowX': 'auto'
+            },
+            page_size=15,
+            sort_action='native',
+            filter_action='native',
+            row_selectable='multi',
+            selected_rows=[]
+        ),
+        
+        # 选中状态显示
+        html.Div(id="index-selection-status", className="mt-2 text-muted"),
+        
+        # 隐藏的div存储选中的指数代码
+        html.Div(id="selected-index-codes", style={"display": "none"})
+    ])
+
 
 def create_stat_card(title, value, color, icon, product_type=None):
     """
@@ -682,17 +871,18 @@ def create_update_status_card(title, last_update):
     ])
 
 
-def create_data_quality_chart(funds_stats, stocks_stats, forex_stats):
+def create_data_quality_chart(funds_stats, stocks_stats, forex_stats, index_stats):
     """
     创建数据质量图表
     """
     try:
         data = {
-            '产品类型': ['基金', '股票', '外汇'],
+            '产品类型': ['基金', '股票', '外汇', '指数'],
             '数据完整性': [
                 funds_stats.get('completeness', 0),
                 stocks_stats.get('completeness', 0),
-                forex_stats.get('completeness', 0)
+                forex_stats.get('completeness', 0),
+                index_stats.get('completeness', 0)
             ]
         }
         
@@ -715,16 +905,17 @@ def create_data_quality_chart(funds_stats, stocks_stats, forex_stats):
         return html.Div("数据质量图表加载失败", className="text-muted")
 
 
-def create_data_coverage_chart(funds_stats, stocks_stats, forex_stats):
+def create_data_coverage_chart(funds_stats, stocks_stats, forex_stats, index_stats):
     """
     创建数据覆盖率图表
     """
     try:
-        labels = ['基金', '股票', '外汇']
+        labels = ['基金', '股票', '外汇', '指数']
         values = [
             funds_stats.get('total_funds', 0),
             stocks_stats.get('total_stocks', 0),
-            forex_stats.get('total_forex', 0)
+            forex_stats.get('total_forex', 0),
+            index_stats.get('total_indices', 0)
         ]
         
         fig = px.pie(
@@ -821,6 +1012,40 @@ def get_forex_statistics(db_forex):
         logger.error(f"获取外汇统计信息时发生错误: {e}")
         return {'total_forex': 0, 'latest_update': 'N/A', 'completeness': 0}
 
+def get_index_statistics(db_index):
+    """
+    获取指数统计信息
+    """
+    try:
+        stats = {}
+        # 获取指数总数
+        try:
+            latest_dates = db_index.get_all_indices_latest_hist_date()
+            stats['total_indices'] = len(latest_dates) if latest_dates else 0
+            
+            # 获取最新更新时间
+            if latest_dates and latest_dates.values():
+                # 过滤掉None值
+                valid_dates = [date for date in latest_dates.values() if date is not None]
+                latest_update = max(valid_dates) if valid_dates else None
+                stats['latest_update'] = latest_update if latest_update else 'N/A'
+            else:
+                stats['latest_update'] = 'N/A'
+                
+        except Exception as db_error:
+            # 如果数据库表不存在或查询失败
+            logger.warning(f"获取指数数据失败，可能是表不存在: {db_error}")
+            stats['total_indices'] = 0
+            stats['latest_update'] = 'N/A'
+        
+        # 数据完整性评分（示例）
+        stats['completeness'] = 88 if stats['total_indices'] > 0 else 0
+        
+        return stats
+    except Exception as e:
+        logger.error(f"获取指数统计信息时发生错误: {e}")
+        return {'total_indices': 0, 'latest_update': 'N/A', 'completeness': 0}
+
 
 def create_product_management(mysql_db):
     """
@@ -862,7 +1087,12 @@ def create_product_management(mysql_db):
                         dbc.NavItem(dbc.NavLink([
                             html.I(className="fas fa-dollar-sign me-2"),
                             "外汇数据"
-                        ], id="nav-products-forex", href="#", className="products-nav-link"))
+                        ], id="nav-products-forex", href="#", className="products-nav-link")),
+                        
+                        dbc.NavItem(dbc.NavLink([
+                            html.I(className="fas fa-chart-area me-2"),
+                            "指数数据"
+                        ], id="nav-products-index", href="#", className="products-nav-link"))
                     ], vertical=True, pills=True, className="products-nav-menu")
                 ], className="products-nav-container")
             ], width=3),

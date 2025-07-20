@@ -101,6 +101,8 @@ def get_data_briefs(data_type, data) -> list:
         return [{'label': f"{get_forex_name(item['symbol'])}({item['symbol']})", 'value': item['symbol']} for index, item in data.iterrows()]
     elif data_type == "bond_yield":
         return [{'label': f"{get_bond_name(item['bond_type'])}({item['bond_type']})", 'value': item['bond_type']} for index, item in data.iterrows()]
+    elif data_type == "index":
+        return [{'label': f"{item['name']}({item['symbol']})", 'value': item['symbol']} for index, item in data.iterrows()]
     else:
         return []
 

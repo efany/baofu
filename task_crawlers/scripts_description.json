@@ -41,6 +41,12 @@
       "description": "使用AkShare获取ETF历史交易数据",
       "data_type": "etf",
       "is_active": true
+    },
+    "akshare_index_history_task.py": {
+      "class_name": "AKShareIndexHistoryTask",
+      "description": "使用AkShare获取指数历史数据，支持股票指数和基金指数",
+      "data_type": "index",
+      "is_active": true
     }
   }
 }

@@ -7,6 +7,7 @@ from loguru import logger
 from database.db_funds import DBFunds
 from database.db_stocks import DBStocks
 from database.db_forex_day_hist import DBForexDayHist
+from database.db_index_hist import DBIndexHist
 from task_dash.utils import get_data_briefs
 import json
 from task_data.update_funds_task import UpdateFundsTask
@@ -14,6 +15,7 @@ from task_data.update_stocks_task import UpdateStocksTask
 from task_data.update_forex_task import UpdateForexTask
 from task_data.update_stocks_info_task import UpdateStocksInfoTask
 from task_data.update_stocks_day_hist_task import UpdateStocksDayHistTask
+from task_data.update_index_task import UpdateIndexTask
 from database.mysql_database import MySQLDatabase
 
 def register_product_manage_callbacks(app, mysql_db):
@@ -540,47 +542,53 @@ def register_product_manage_callbacks(app, mysql_db):
          Output('nav-products-overview', 'active'),
          Output('nav-products-fund', 'active'),
          Output('nav-products-stock', 'active'),
-         Output('nav-products-forex', 'active')],
+         Output('nav-products-forex', 'active'),
+         Output('nav-products-index', 'active')],
         [Input('nav-products-overview', 'n_clicks'),
          Input('nav-products-fund', 'n_clicks'),
          Input('nav-products-stock', 'n_clicks'),
-         Input('nav-products-forex', 'n_clicks')],
+         Input('nav-products-forex', 'n_clicks'),
+         Input('nav-products-index', 'n_clicks')],
         prevent_initial_call=True
     )
-    def update_products_content(overview_clicks, fund_clicks, stock_clicks, forex_clicks):
+    def update_products_content(overview_clicks, fund_clicks, stock_clicks, forex_clicks, index_clicks):
         """更新产品管理内容区域"""
         ctx = dash.callback_context
         if not ctx.triggered:
             from task_dash.pages.products_manage import create_products_overview_content
-            return (create_products_overview_content(mysql_db), True, False, False, False)
+            return (create_products_overview_content(mysql_db), True, False, False, False, False)
         
         button_id = ctx.triggered[0]['prop_id'].split('.')[0]
         
         if button_id == 'nav-products-overview':
             from task_dash.pages.products_manage import create_products_overview_content
-            return (create_products_overview_content(mysql_db), True, False, False, False)
+            return (create_products_overview_content(mysql_db), True, False, False, False, False)
         elif button_id == 'nav-products-fund':
             from task_dash.pages.products_manage import create_products_fund_content
-            return (create_products_fund_content(mysql_db), False, True, False, False)
+            return (create_products_fund_content(mysql_db), False, True, False, False, False)
         elif button_id == 'nav-products-stock':
             from task_dash.pages.products_manage import create_products_stock_content
-            return (create_products_stock_content(mysql_db), False, False, True, False)
+            return (create_products_stock_content(mysql_db), False, False, True, False, False)
         elif button_id == 'nav-products-forex':
             from task_dash.pages.products_manage import create_products_forex_content
-            return (create_products_forex_content(mysql_db), False, False, False, True)
+            return (create_products_forex_content(mysql_db), False, False, False, True, False)
+        elif button_id == 'nav-products-index':
+            from task_dash.pages.products_manage import create_products_index_content
+            return (create_products_index_content(mysql_db), False, False, False, False, True)
         
         from task_dash.pages.products_manage import create_products_overview_content
-        return (create_products_overview_content(mysql_db), True, False, False, False)
+        return (create_products_overview_content(mysql_db), True, False, False, False, False)
     
     # 统计卡片点击跳转回调
     @app.callback(
         Output("url", "pathname"),
         [Input("stat-card-fund", "n_clicks"),
          Input("stat-card-stock", "n_clicks"),
-         Input("stat-card-forex", "n_clicks")],
+         Input("stat-card-forex", "n_clicks"),
+         Input("stat-card-index", "n_clicks")],
         prevent_initial_call=True
     )
-    def navigate_from_stat_cards(fund_clicks, stock_clicks, forex_clicks):
+    def navigate_from_stat_cards(fund_clicks, stock_clicks, forex_clicks, index_clicks):
         """响应统计卡片点击事件，跳转到对应的单产品页面"""
         ctx = dash.callback_context
         if not ctx.triggered:
@@ -594,8 +602,136 @@ def register_product_manage_callbacks(app, mysql_db):
             return "/single_stock"
         elif button_id == "stat-card-forex" and forex_clicks:
             return "/single_forex"
+        elif button_id == "stat-card-index" and index_clicks:
+            return "/single_index"
         
         return dash.no_update
+    
+    # 指数管理tab - 添加新指数回调
+    @app.callback(
+        [Output('add-index-status', 'children'),
+         Output('index-list-container', 'children'),
+         Output('new-index-code', 'value')],
+        Input('add-index-submit', 'n_clicks'),
+        State('new-index-code', 'value'),
+        prevent_initial_call=True
+    )
+    def add_new_index(n_clicks, index_codes):
+        """添加新指数"""
+        if not n_clicks or not index_codes:
+            return "", dash.no_update, dash.no_update
+        
+        try:
+            logger.info(f"开始添加新指数: {index_codes}")
+            
+            # 创建更新指数任务
+            task_config = {
+                "name": "add_new_indices",
+                "description": "添加新指数并更新数据",
+                "index_symbols": index_codes
+            }
+            
+            task = UpdateIndexTask(task_config, mysql_db)
+            task.execute()
+            
+            if task.is_success:
+                # 添加成功，更新指数列表
+                db_index = DBIndexHist(mysql_db)
+                latest_dates = db_index.get_all_indices_latest_hist_date()
+                from task_dash.pages.products_manage import create_index_list_display
+                updated_index_list = create_index_list_display(latest_dates, mysql_db)
+                
+                success_msg = f"成功添加 {len(index_codes)} 个指数: {', '.join(index_codes)}"
+                logger.success(success_msg)
+                
+                return (
+                    dbc.Alert(success_msg, color="success", dismissable=True),
+                    updated_index_list,
+                    None
+                )
+            else:
+                error_msg = f"添加指数失败: {task.error}"
+                logger.error(error_msg)
+                return dbc.Alert(error_msg, color="danger", dismissable=True), dash.no_update, dash.no_update
+                
+        except Exception as e:
+            error_msg = f"添加指数过程中发生错误: {str(e)}"
+            logger.error(error_msg)
+            return dbc.Alert(error_msg, color="danger", dismissable=True), dash.no_update, dash.no_update
+    
+    # 指数管理tab - 更新指数数据回调
+    @app.callback(
+        Output('index-list-container', 'children', allow_duplicate=True),
+        Input('update-index-btn', 'n_clicks'),
+        prevent_initial_call=True
+    )
+    def update_index_data(n_clicks):
+        """更新指数数据"""
+        if not n_clicks:
+            return dash.no_update
+        
+        try:
+            logger.info("开始更新指数数据")
+            
+            # 获取当前所有指数
+            db_index = DBIndexHist(mysql_db)
+            latest_dates = db_index.get_all_indices_latest_hist_date()
+            
+            if not latest_dates:
+                # 刷新列表显示，但没有数据更新
+                from task_dash.pages.products_manage import create_index_list_display
+                empty_index_list = create_index_list_display({}, mysql_db)
+                return html.Div([
+                    dbc.Alert("没有找到需要更新的指数，请先添加指数", color="info", dismissable=True, className="mb-3"),
+                    empty_index_list
+                ])
+            
+            # 创建更新任务
+            task_config = {
+                "name": "update_all_indices",
+                "description": "更新所有指数数据",
+                "index_symbols": list(latest_dates.keys())
+            }
+            
+            task = UpdateIndexTask(task_config, mysql_db)
+            task.execute()
+            
+            # 刷新指数列表
+            updated_latest_dates = db_index.get_all_indices_latest_hist_date()
+            from task_dash.pages.products_manage import create_index_list_display
+            updated_index_list = create_index_list_display(updated_latest_dates, mysql_db)
+            
+            if task.is_success:
+                result = task.task_result
+                success_msg = f"成功更新 {result.get('success_count', 0)} 个指数"
+                logger.success(success_msg)
+                # 在列表前添加成功提示
+                return html.Div([
+                    dbc.Alert(success_msg, color="success", dismissable=True, className="mb-3"),
+                    updated_index_list
+                ])
+            else:
+                error_msg = f"更新指数失败: {task.error}"
+                logger.error(error_msg)
+                # 在列表前添加错误提示
+                return html.Div([
+                    dbc.Alert(error_msg, color="danger", dismissable=True, className="mb-3"),
+                    updated_index_list
+                ])
+                
+        except Exception as e:
+            error_msg = f"更新指数过程中发生错误: {str(e)}"
+            logger.error(error_msg)
+            # 保持原有列表，只显示错误信息
+            db_index = DBIndexHist(mysql_db)
+            latest_dates = db_index.get_all_indices_latest_hist_date()
+            from task_dash.pages.products_manage import create_index_list_display
+            index_list = create_index_list_display(latest_dates, mysql_db)
+            
+            return html.Div([
+                dbc.Alert(error_msg, color="danger", dismissable=True, className="mb-3"),
+                index_list
+            ])
     
     # 更新产品列表标题
     @app.callback(
