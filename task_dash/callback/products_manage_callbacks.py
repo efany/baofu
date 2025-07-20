@@ -8,7 +8,10 @@ from database.db_funds import DBFunds
 from database.db_stocks import DBStocks
 from database.db_forex_day_hist import DBForexDayHist
 from database.db_index_hist import DBIndexHist
-from task_dash.utils import get_data_briefs
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+from utils import get_data_briefs
 import json
 from task_data.update_funds_task import UpdateFundsTask
 from task_data.update_stocks_task import UpdateStocksTask

@@ -13,7 +13,10 @@ from task_dash.pages.correlation_analysis import (
     calculate_correlation_matrix,
     calculate_rolling_correlation
 )
-from task_dash.utils import get_stock_name
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+from utils import get_stock_name
 
 
 def get_display_name(product_id: str, product_names: Dict[str, str]) -> str:

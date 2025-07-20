@@ -1,6 +1,8 @@
 import sys
 import os
 import dash
+import atexit
+import signal
 from loguru import logger
 from dash import dcc, html
 import dash_bootstrap_components as dbc
@@ -29,6 +31,7 @@ from task_dash.pages.correlation_analysis import create_correlation_analysis_pag
 from task_dash.callback.correlation_analysis_callbacks import register_correlation_analysis_callbacks
 
 from task_dash.pages.data_sources_manage import layout as data_sources_layout
+from task_dash.pages.database_monitor import create_database_monitor_layout, register_database_monitor_callbacks
 
 # 初始化Dash应用
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP], suppress_callback_exceptions=True)
@@ -39,7 +42,7 @@ mysql_db = MySQLDatabase(
     user='baofu',
     password='TYeKmJPfw2b7kxGK',
     database='baofu',
-    pool_size=5
+    pool_size=30  # 增加连接池大小
 )
 
 # 应用布局
@@ -77,6 +80,8 @@ def display_page(pathname):
         return create_correlation_analysis_page(mysql_db)
     elif pathname == '/data_sources_manage':
         return data_sources_layout()
+    elif pathname == '/database_monitor':
+        return create_database_monitor_layout()
     else:
         return html.H1("404: Not Found")
 
@@ -96,10 +101,36 @@ register_product_manage_callbacks(app, mysql_db)
 # 注册相关性分析相关的回调
 register_correlation_analysis_callbacks(app, mysql_db)
 
+# 注册数据库监控相关的回调
+register_database_monitor_callbacks(app, mysql_db)
+
+def cleanup_connections():
+    """清理数据库连接"""
+    logger.info("正在清理数据库连接...")
+    mysql_db.close_pool()
+
+def signal_handler(signum, frame):
+    """信号处理器"""
+    logger.info(f"接收到信号 {signum}，准备关闭应用...")
+    cleanup_connections()
+    sys.exit(0)
+
+# 注册清理函数
+atexit.register(cleanup_connections)
+signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGTERM, signal_handler)
+
 if __name__ == '__main__':
     try:
+        logger.info("启动Dash应用...")
+        logger.info(f"数据库连接池状态: {mysql_db.get_pool_status()}")
+        
         # 设置host为0.0.0.0以便在服务器上可访问
         app.run(debug=True, host='127.0.0.1', port=8050)  # 使用8050端口
+    except KeyboardInterrupt:
+        logger.info("应用被手动终止")
+    except Exception as e:
+        logger.error(f"应用运行出错: {e}")
     finally:
         # 关闭数据库连接池
-        mysql_db.close_pool() 
+        cleanup_connections() 

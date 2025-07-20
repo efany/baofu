@@ -17,9 +17,13 @@ from database.db_stocks import DBStocks
 from database.db_forex_day_hist import DBForexDayHist
 from database.db_bond_rate import DBBondRate
 from database.db_index_hist import DBIndexHist
-from task_dash.utils import get_date_range, get_data_briefs
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+from utils import get_date_range, get_data_briefs
 from task_dash.datas.data import create_data_generator
 from task_dash.datas.data_generator import TableData
+from task_dash.common.cache_manager import cache_manager
 
 def create_summary_table(table_data):
     """创建摘要表格"""
@@ -129,6 +133,16 @@ def register_single_product_callbacks(app, mysql_db):
     def update_data_options(selected_type):
         """更新数据选项"""
         try:
+            # 使用缓存减少数据库查询
+            cache_key = f"data_options_{selected_type}"
+            cached_result = cache_manager.get(cache_key)
+            
+            if cached_result is not None:
+                options, default_value = cached_result
+                logger.debug(f"从缓存获取数据选项: {selected_type}")
+                return options, default_value
+            
+            # 缓存未命中，查询数据库
             if selected_type == 'fund':
                 data = DBFunds(mysql_db).get_all_funds()
             elif selected_type == 'strategy':
@@ -147,6 +161,10 @@ def register_single_product_callbacks(app, mysql_db):
             options = get_data_briefs(selected_type, data)
             # 如果有选项，返回第一个选项的值作为默认值，否则返回空字符串
             default_value = options[0]['value'] if options else ''
+            
+            # 缓存结果5分钟
+            cache_manager.set(cache_key, (options, default_value), ttl=300)
+            logger.debug(f"缓存数据选项: {selected_type}")
             
             return options, default_value
             

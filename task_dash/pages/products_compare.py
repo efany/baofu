@@ -4,7 +4,10 @@ from typing import List, Dict, Any
 from loguru import logger
 from database.db_funds import DBFunds
 from database.db_strategys import DBStrategys
-from task_dash.utils import get_data_briefs
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+from utils import get_data_briefs
 
 def create_products_compare_page(mysql_db):
     """创建产品对比页面"""

@@ -9,6 +9,17 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from database.mysql_database import MySQLDatabase  # 导入 MySQLDatabase 类
 
+# 尝试导入缓存管理器，如果失败则定义一个简单的装饰器
+try:
+    sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'task_dash'))
+    from common.cache_manager import cached
+except ImportError:
+    # 如果无法导入缓存管理器，定义一个简单的装饰器
+    def cached(key, ttl=None):
+        def decorator(func):
+            return func
+        return decorator
+
 class DBFunds:
     """提供对funds表的便捷操作"""
     
@@ -95,6 +106,7 @@ class DBFunds:
         print(sql)
         return self.mysql_db.execute_query(sql, list(fund_info.values()) + [fund_code]) is not None
 
+    @cached("all_funds", ttl=600)  # 缓存10分钟
     def get_all_funds(self) -> pd.DataFrame:
         """
         获取所有基金信息

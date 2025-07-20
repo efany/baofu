@@ -6,7 +6,10 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Any
 import numpy as np
 from scipy import stats
-from task_dash.utils import get_stock_name
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+from utils import get_stock_name
 
 
 def create_correlation_analysis_page(mysql_db):

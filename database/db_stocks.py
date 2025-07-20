@@ -8,6 +8,17 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from database.mysql_database import MySQLDatabase
 
+# 尝试导入缓存管理器，如果失败则定义一个简单的装饰器
+try:
+    sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'task_dash'))
+    from common.cache_manager import cached
+except ImportError:
+    # 如果无法导入缓存管理器，定义一个简单的装饰器
+    def cached(key, ttl=None):
+        def decorator(func):
+            return func
+        return decorator
+
 class DBStocks:
     """股票数据库操作类"""
 
@@ -92,6 +103,7 @@ class DBStocks:
         
         return self.mysql_db.execute_query(sql, params) is not None
 
+    @cached("all_stocks", ttl=600)  # 缓存10分钟
     def get_all_stocks(self) -> pd.DataFrame:
         """
         获取所有股票信息

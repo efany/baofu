@@ -9,10 +9,6 @@ from dash.dependencies import Input, Output
 import mysql.connector
 from mysql.connector import Error
 
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-
-from task_dash.utils import get_data_briefs
-
 def create_single_product_value_graph(mysql_db, data_type):
     """创建单个产品价值图表页面"""
     return dbc.Container([

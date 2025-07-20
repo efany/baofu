@@ -9,7 +9,10 @@ from database.db_funds import DBFunds
 from database.db_stocks import DBStocks
 from database.db_forex_day_hist import DBForexDayHist
 from database.db_index_hist import DBIndexHist
-from task_dash.utils import get_stock_name
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+from utils import get_stock_name
 # from database.db_data_sources import DBDataSources
 
 def create_products_overview_content(mysql_db):

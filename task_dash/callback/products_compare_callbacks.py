@@ -15,7 +15,7 @@ from database.db_funds import DBFunds
 from database.db_stocks import DBStocks
 from database.db_forex_day_hist import DBForexDayHist
 from database.db_strategys import DBStrategys
-from task_dash.utils import get_date_range, get_data_briefs
+from utils import get_date_range, get_data_briefs
 from task_dash.callback.single_product_callbacks import create_table
 
 def create_summary_table(table_data, product_name="产品"):
