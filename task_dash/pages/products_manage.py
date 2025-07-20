@@ -9,6 +9,7 @@ from database.db_funds import DBFunds
 from database.db_stocks import DBStocks
 from database.db_forex_day_hist import DBForexDayHist
 from database.db_index_hist import DBIndexHist
+from task_dash.utils import get_stock_name
 # from database.db_data_sources import DBDataSources
 
 def create_products_overview_content(mysql_db):
@@ -491,9 +492,16 @@ def create_stock_list_display(stocks_df, mysql_db=None):
         if latest_hist_date is None:
             latest_hist_date = '-'
         
+        # 优先使用 get_stock_name 获取中文名称，如果没有映射则使用数据库中的名称
+        stock_name_from_map = get_stock_name(symbol)
+        if stock_name_from_map != symbol:  # 如果 get_stock_name 返回了映射的中文名称
+            stock_name = stock_name_from_map
+        else:  # 否则使用数据库中的名称
+            stock_name = row['name'] if 'name' in row else (row['stock_name'] if 'stock_name' in row else symbol)
+        
         display_data.append({
             '股票代码': symbol,
-            '股票名称': row['name'] if 'name' in row else (row['stock_name'] if 'stock_name' in row else '-'),
+            '股票名称': stock_name,
             '货币': row['currency'] if 'currency' in row else '-',
             '交易所': row['exchange'] if 'exchange' in row else '-',
             '所属市场': row['market'] if 'market' in row else '-',
