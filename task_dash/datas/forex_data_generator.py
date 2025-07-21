@@ -32,6 +32,13 @@ class ForexDataGenerator(DataGenerator):
         start_date = self.params['start_date'] if 'start_date' in self.params else None
         end_date = self.params['end_date'] if 'end_date' in self.params else None
 
+        # 如果指定了start_date，先获取在start_date前的最后一个有效数据日期
+        if start_date is not None:
+            latest_dates = self.db_forex_hist.get_all_forex_latest_hist_date(start_date)
+            if self.forex_code in latest_dates and latest_dates[self.forex_code] is not None:
+                # 修正start_date为前一个有效数据日期，确保数据起点包含指定日期的前一个数据
+                start_date = latest_dates[self.forex_code]
+
         self.data = self.db_forex_hist.get_extend_forex_hist_data(self.forex_code, start_date, end_date)
         
         if not self.data.empty:

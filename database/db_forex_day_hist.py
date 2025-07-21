@@ -331,19 +331,31 @@ class DBForexDayHist:
         else:
             return str(latest_date)
 
-    def get_all_forex_latest_hist_date(self) -> Dict[str, Optional[str]]:
+    def get_all_forex_latest_hist_date(self, date: Optional[date] = None) -> Dict[str, Optional[str]]:
         """
         获取所有外汇的最新历史数据日期
+        
+        Args:
+            date: 可选，如果提供则查询在该日期前的最后一个历史数据日期
         
         Returns:
             Dict[str, Optional[str]]: 外汇代码到最新历史数据日期的映射
         """
-        sql = """
-            SELECT symbol, MAX(date) as latest_date
-            FROM forex_day_hist_data
-            GROUP BY symbol
-        """
-        results = self.mysql_db.execute_query(sql)
+        if date is not None:
+            sql = """
+                SELECT symbol, MAX(date) as latest_date
+                FROM forex_day_hist_data
+                WHERE date < %s
+                GROUP BY symbol
+            """
+            results = self.mysql_db.execute_query(sql, (date,))
+        else:
+            sql = """
+                SELECT symbol, MAX(date) as latest_date
+                FROM forex_day_hist_data
+                GROUP BY symbol
+            """
+            results = self.mysql_db.execute_query(sql)
         if not results:
             return {}
         
