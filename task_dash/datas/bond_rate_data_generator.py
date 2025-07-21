@@ -32,6 +32,13 @@ class BondRateDataGenerator(DataGenerator):
         start_date = self.params['start_date'] if 'start_date' in self.params else None
         end_date = self.params['end_date'] if 'end_date' in self.params else None
 
+        # 如果指定了start_date，先获取在start_date前的最后一个有效数据日期
+        if start_date is not None:
+            latest_date = self.db_bond_rate.get_latest_date(self.bond_type, start_date)
+            if latest_date is not None:
+                # 修正start_date为前一个有效数据日期，确保数据起点包含指定日期的前一个数据
+                start_date = latest_date
+
         self.data = self.db_bond_rate.get_bond_rate(self.bond_type, start_date, end_date)
         if not self.data.empty:
             self.data['date'] = pd.to_datetime(self.data['date'])

@@ -203,22 +203,32 @@ class DBBondRate:
             
         return self.mysql_db.execute_query(sql, tuple(params)) is not None
 
-    def get_latest_date(self, bond_type: str = None) -> Optional[date]:
+    def get_latest_date(self, bond_type: str = None, date: Optional[date] = None) -> Optional[date]:
         """
         获取债券利率数据的最新日期
         
         Args:
             bond_type: 债券类型，为None时查询所有类型的最新日期
+            date: 可选，如果提供则查询在该日期前的最新有效数据日期
             
         Returns:
             Optional[date]: 最新日期，如果没有数据返回None
         """
         sql = "SELECT MAX(date) as latest_date FROM bond_rate_history"
         params = []
+        conditions = []
         
         if bond_type is not None:
-            sql += " WHERE bond_type = %s"
+            conditions.append("bond_type = %s")
             params.append(bond_type)
+            
+        if date is not None:
+            conditions.append("date < %s")
+            params.append(date)
+            
+        if conditions:
+            sql += " WHERE " + " AND ".join(conditions)
+            
         logger.info(f"查询SQL: {sql}, 参数: {tuple(params)}")
             
         result = self.mysql_db.execute_query(sql, tuple(params))
