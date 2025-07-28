@@ -1,0 +1,50 @@
+{
+  "template_name": "默认产品数据综合报告",
+  "template_description": "包含基金、股票和策略的综合分析报告模板",
+  "template_content": [
+    {
+      "block_id": "title_block",
+      "block_type": "text",
+      "block_title": "报告标题",
+      "config": {
+        "content": "产品数据综合报告",
+        "style": "header",
+        "alignment": "left"
+      }
+    },
+    {
+      "block_id": "summary_block",
+      "block_type": "text",
+      "block_title": "报告摘要",
+      "config": {
+        "content": "本报告包含基金、股票和策略的综合分析数据。",
+        "style": "paragraph"
+      }
+    },
+    {
+      "block_id": "text_block",
+      "block_type": "text",
+      "block_title": "摘要",
+      "config": {
+        "content": "这是一段摘要",
+        "style": "paragraph",
+        "alignment": "left"
+      }
+    },
+    {
+      "block_id": "fund_block",
+      "block_type": "fund",
+      "block_title": "基金",
+      "config": {
+        "fund_code": "",
+        "start_date": "",
+        "end_date": "",
+        "display_type": "summary",
+        "chart_type": "line",
+        "show_dividends": true,
+        "normalize_data": false,
+        "include_stats": true
+      }
+    }
+  ]
+}

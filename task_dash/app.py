@@ -32,15 +32,17 @@ from task_dash.callback.correlation_analysis_callbacks import register_correlati
 
 from task_dash.pages.data_sources_manage import layout as data_sources_layout
 from task_dash.pages.database_monitor import create_database_monitor_layout, register_database_monitor_callbacks
+from task_dash.pages.template_editor import create_template_editor_page
+from task_dash.callback.template_editor_callbacks import register_template_editor_callbacks
 
 # 初始化Dash应用
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP], suppress_callback_exceptions=True)
 
 # 创建数据库连接池
 mysql_db = MySQLDatabase(
-    host='113.44.90.2',
-    user='baofu',
-    password='TYeKmJPfw2b7kxGK',
+    host='192.168.0.11',
+    user='root',
+    password='123456',
     database='baofu',
     pool_size=30  # 增加连接池大小
 )
@@ -82,6 +84,8 @@ def display_page(pathname):
         return data_sources_layout()
     elif pathname == '/database_monitor':
         return create_database_monitor_layout()
+    elif pathname == '/template_editor':
+        return create_template_editor_page(mysql_db)
     else:
         return html.H1("404: Not Found")
 
@@ -103,6 +107,9 @@ register_correlation_analysis_callbacks(app, mysql_db)
 
 # 注册数据库监控相关的回调
 register_database_monitor_callbacks(app, mysql_db)
+
+# 注册模板编辑器相关的回调
+register_template_editor_callbacks(app, mysql_db)
 
 def cleanup_connections():
     """清理数据库连接"""
