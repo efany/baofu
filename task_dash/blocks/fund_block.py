@@ -257,131 +257,6 @@ class FundBlock(BaseBlock):
                 # 普通字符串
                 return str_value
 
-    def _create_fancy_table(self, df: pd.DataFrame, title: str) -> str:
-        """创建美化的表格markdown"""
-        if df.empty:
-            return f"#### 📊 {title}\n\n*暂无数据*\n\n"
-        
-        markdown = f"#### 📊 {title}\n\n"
-        
-        # 获取列名和格式化数据
-        headers = df.columns.tolist()
-        formatted_headers = [header.center(15) for header in headers]
-        
-        # 创建表格顶部边框
-        markdown += "┌" + "┬".join("─" * 15 for _ in headers) + "┐\n"
-        
-        # 创建表头
-        markdown += "│" + "│".join(formatted_headers) + "│\n"
-        
-        # 创建表头分隔线
-        markdown += "├" + "┼".join("─" * 15 for _ in headers) + "┤\n"
-        
-        # 添加数据行（限制显示前10行）
-        display_rows = df.head(10)
-        for idx, (_, row) in enumerate(display_rows.iterrows()):
-            formatted_row = []
-            for col_idx, (col_name, value) in enumerate(zip(headers, row)):
-                formatted_value = self._format_table_value(value, col_name)
-                # 根据列类型调整对齐方式
-                if isinstance(value, (int, float)) and not pd.isna(value):
-                    formatted_row.append(formatted_value.center(15))
-                else:
-                    formatted_row.append(formatted_value.center(15))
-            
-            markdown += "│" + "│".join(formatted_row) + "│\n"
-            
-            # 在数据行之间添加细分隔线（每隔一行）
-            if idx < len(display_rows) - 1 and (idx + 1) % 2 == 0:
-                markdown += "├" + "┼".join("╌" * 15 for _ in headers) + "┤\n"
-        
-        # 如果有更多数据，显示省略信息
-        if len(df) > 10:
-            markdown += "├" + "┼".join("─" * 15 for _ in headers) + "┤\n"
-            more_info = f"... 还有 {len(df) - 10} 行数据 ..."
-            colspan_width = len(headers) * 15 + (len(headers) - 1)
-            markdown += "│" + more_info.center(colspan_width) + "│\n"
-        
-        # 创建表格底部边框
-        markdown += "└" + "┴".join("─" * 15 for _ in headers) + "┘\n\n"
-        
-        return markdown
-
-    def _create_simple_table(self, df: pd.DataFrame, title: str) -> str:
-        """创建简化版美化表格（markdown标准格式）"""
-        if df.empty:
-            return f"#### 📊 {title}\n\n*暂无数据*\n\n"
-        
-        markdown = f"#### 📊 {title}\n\n"
-        
-        # 获取列名
-        headers = df.columns.tolist()
-        
-        # 创建表格头 - 使用图标和粗体
-        header_icons = {
-            '指标': '📋', '数值': '💰', '年份': '📅', '季度': '📈',
-            '收益率': '📊', '年化收益率': '📈', '最大回撤': '📉',
-            '波动率': '📊', '年化波动率': '🌊'
-        }
-        
-        formatted_headers = []
-        for header in headers:
-            icon = header_icons.get(header, '📋')
-            formatted_headers.append(f"{icon} **{header}**")
-        
-        header_line = "| " + " | ".join(formatted_headers) + " |\n"
-        
-        # 创建分隔线 - 所有列都设置为居中对齐
-        separators = [":---:"] * len(headers)  # 所有列都居中对齐
-        
-        separator_line = "| " + " | ".join(separators) + " |\n"
-        
-        markdown += header_line + separator_line
-        
-        # 添加数据行（限制显示前10行）
-        display_rows = df.head(10)
-        for row_idx, (_, row) in enumerate(display_rows.iterrows()):
-            row_data = []
-            for col_name, value in zip(headers, row):
-                formatted_value = self._format_table_value(value, col_name)
-                
-                # 为重要数值添加视觉增强
-                if isinstance(value, (int, float)) and not pd.isna(value):
-                    # 百分比数值的颜色标识
-                    if '率' in col_name or '收益' in col_name or '回撤' in col_name:
-                        if value > 0:
-                            formatted_value = f"🟢 **{formatted_value}**"
-                        elif value < 0:
-                            formatted_value = f"🔴 **{formatted_value}**"
-                        else:
-                            formatted_value = f"⚫ {formatted_value}"
-                    # 净值等重要数值加粗
-                    elif '净值' in col_name or '价格' in col_name:
-                        formatted_value = f"**{formatted_value}**"
-                
-                # 处理字符串中已包含百分比和符号的情况
-                elif isinstance(value, str) and '%' in str(value):
-                    if '+' in str(value):
-                        formatted_value = f"🟢 **{formatted_value}**"
-                    elif '-' in str(value) and '回撤' not in str(value):  # 排除"投资最大回撤"这种标签
-                        formatted_value = f"🔴 **{formatted_value}**"
-                
-                row_data.append(formatted_value)
-            
-            # 添加行分隔（每两行添加一个微分隔）
-            markdown += "| " + " | ".join(row_data) + " |\n"
-            
-            # 在重要的行后添加空行效果（通过添加细分隔线）
-            if row_idx == 0 and '基础指标' in title:  # 第一行后加分隔线
-                pass  # markdown中不支持行内分隔，跳过
-        
-        # 如果有更多数据，添加汇总行
-        if len(df) > 10:
-            summary_data = ["⋯"] * (len(headers) - 1) + [f"📊 *共 {len(df)} 行数据*"]
-            markdown += "| " + " | ".join(summary_data) + " |\n"
-        
-        markdown += "\n"
-        return markdown
 
     def _calculate_period_dates(self) -> tuple:
         """根据时间周期计算开始和结束日期"""
@@ -464,8 +339,8 @@ class FundBlock(BaseBlock):
         except Exception as e:
             return {"error": f"数据生成失败: {str(e)}"}
     
-    def render_to_markdown(self, for_pdf: bool = False) -> str:
-        """渲染为Markdown
+    def render_to_html(self, for_pdf: bool = False) -> str:
+        """渲染为HTML
         
         Args:
             for_pdf: 是否为PDF导出，True时使用绝对路径生成图片
@@ -475,29 +350,32 @@ class FundBlock(BaseBlock):
         # 生成基金数据
         data_result = self._generate_fund_data()
 
-        markdown = f"## {self.block_title}\n\n"
+        html = f"<h2>{self.block_title}</h2>\n\n"
 
         # 如果有错误，显示错误信息
         if "error" in data_result:
-            markdown += f"**❌ 错误**: {data_result['error']}\n\n"
-            return markdown
+            html += f'<div class="alert alert-danger"><strong>❌ 错误</strong>: {data_result["error"]}</div>\n\n'
+            return html
         
         # 基金基础信息
         fund_code = data_result["fund_code"]
         summary = data_result["summary"]
         
         if display_type in ["summary", "full"]:
-            markdown += "### 📊 基金概览\n\n"
+            html += '<h3>📊 基金概览</h3>\n\n'
             
             if summary:
+                html += '<div class="fund-summary">\n'
+                html += '<ul class="list-unstyled">\n'
                 for label, value in summary:
-                    markdown += f"- **{label}**: {value}\n"
-                markdown += "\n"
+                    html += f'  <li><strong>{label}</strong>: {value}</li>\n'
+                html += '</ul>\n'
+                html += '</div>\n\n'
             else:
-                markdown += "*暂无摘要数据*\n\n"
+                html += '<p><em>暂无摘要数据</em></p>\n\n'
         
         if display_type in ["chart", "full"]:
-            markdown += "### 📈 净值走势\n\n"
+            html += '<h3>📈 净值走势</h3>\n\n'
             chart_data = data_result["chart"]
             
             if chart_data:
@@ -507,20 +385,22 @@ class FundBlock(BaseBlock):
                     image_path = generate_chart_image(chart_data, "fund", fund_code, return_absolute_path=for_pdf)
                     
                     if image_path:
-                        # 插入图片到markdown
-                        markdown += f"![净值走势图]({image_path})\n\n"
+                        # 插入图片到HTML
+                        html += f'<div class="chart-container" style="text-align: center; margin: 20px 0;">\n'
+                        html += f'  <img src="{image_path}" alt="净值走势图" style="max-width: 100%; height: auto; border: 1px solid #ddd; border-radius: 4px;" />\n'
+                        html += f'</div>\n\n'
                     else:
-                        # 如果图片生成失败，显示文本描述
-                        markdown += "```\n"
-                        markdown += "📈 [净值走势图]\n"
-                        markdown += f"基金代码: {fund_code}\n"
-                        markdown += "```\n\n"
+                        # 如果图片生成失败，显示占位符
+                        html += '<div class="chart-placeholder" style="background-color: #f8f9fa; border: 2px dashed #bdc3c7; padding: 40px; text-align: center; color: #7f8c8d; margin: 20px 0;">\n'
+                        html += '<p>📈 [净值走势图]</p>\n'
+                        html += f'<p>基金代码: {fund_code}</p>\n'
+                        html += '</div>\n\n'
                 except Exception:
-                    # 如果有任何错误，显示文本描述
-                    markdown += "```\n"
-                    markdown += "📈 [净值走势图]\n"
-                    markdown += f"基金代码: {fund_code}\n"
-                    markdown += "```\n\n"
+                    # 如果有任何错误，显示占位符
+                    html += '<div class="chart-placeholder" style="background-color: #f8f9fa; border: 2px dashed #bdc3c7; padding: 40px; text-align: center; color: #7f8c8d; margin: 20px 0;">\n'
+                    html += '<p>📈 [净值走势图]</p>\n'
+                    html += f'<p>基金代码: {fund_code}</p>\n'
+                    html += '</div>\n\n'
                 
                 # 显示数据概览
                 if chart_data:
@@ -534,13 +414,16 @@ class FundBlock(BaseBlock):
                             start_value = values[0]
                             end_value = values[-1]
                             
-                            markdown += f"**时间范围**: {start_date} 至 {end_date}\n\n"
-                            markdown += f"**起始净值**: {start_value:.4f}\n\n"
-                            markdown += f"**最新净值**: {end_value:.4f}\n\n"
+                            html += '<div class="data-overview" style="background-color: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0;">\n'
+                            html += f'<p><strong>时间范围</strong>: {start_date} 至 {end_date}</p>\n'
+                            html += f'<p><strong>起始净值</strong>: {start_value:.4f}</p>\n'
+                            html += f'<p><strong>最新净值</strong>: {end_value:.4f}</p>\n'
                             
                             if start_value and end_value:
                                 return_rate = (end_value - start_value) / start_value * 100
-                                markdown += f"**区间收益**: {return_rate:+.2f}%\n\n"
+                                color = "green" if return_rate >= 0 else "red"
+                                html += f'<p><strong>区间收益</strong>: <span style="color: {color}; font-weight: bold;">{return_rate:+.2f}%</span></p>\n'
+                            html += '</div>\n\n'
                 
                 # 显示图表配置信息
                 chart_type = self.get_parameter_value("chart_type", "line")
@@ -555,17 +438,19 @@ class FundBlock(BaseBlock):
                     config_info.append("数据已归一化")
                 
                 if config_info:
-                    markdown += f"**图表配置**: {', '.join(config_info)}\n\n"
+                    html += f'<p><strong>图表配置</strong>: {", ".join(config_info)}</p>\n\n'
             else:
-                markdown += "*暂无图表数据*\n\n"
+                html += '<p><em>暂无图表数据</em></p>\n\n'
         
         if display_type in ["table", "full"]:
-            markdown += "### 📋 统计数据\n\n"
+            html += '<h3>📋 统计数据</h3>\n\n'
             extra_data = data_result["extra_data"]
             
             if extra_data:
                 # 添加数据概览框
-                markdown += "> 📊 **数据概览**: 以下表格显示了基金的详细统计信息，包括基础指标、年度统计和季度统计等。\n\n"
+                html += '<div class="alert alert-info">\n'
+                html += '<p><strong>📊 数据概览</strong>: 以下表格显示了基金的详细统计信息，包括基础指标、年度统计和季度统计等。</p>\n'
+                html += '</div>\n\n'
                 
                 for i, table_data in enumerate(extra_data):
                     table_title = table_data.get('name', '数据表')
@@ -574,17 +459,17 @@ class FundBlock(BaseBlock):
                     if 'pd_data' in table_data and not table_data['pd_data'].empty:
                         df = table_data['pd_data']
                         
-                        # 使用美化的表格渲染
-                        table_markdown = self._create_simple_table(df, table_title)
-                        markdown += table_markdown
+                        # 使用HTML表格渲染
+                        table_html = self._create_html_table(df, table_title)
+                        html += table_html
                         
                         # 为重要表格添加解释说明
                         if '基础指标' in table_title:
-                            markdown += "> 💡 **说明**: 基础指标显示了投资的核心收益和风险指标，帮助评估基金表现。\n\n"
+                            html += '<div class="alert alert-light"><small>💡 <strong>说明</strong>: 基础指标显示了投资的核心收益和风险指标，帮助评估基金表现。</small></div>\n\n'
                         elif '年度统计' in table_title:
-                            markdown += "> 📅 **说明**: 年度统计按年份展示收益表现，便于进行历史业绩比较。\n\n"
+                            html += '<div class="alert alert-light"><small>📅 <strong>说明</strong>: 年度统计按年份展示收益表现，便于进行历史业绩比较。</small></div>\n\n'
                         elif '季度统计' in table_title:
-                            markdown += "> 📈 **说明**: 季度统计提供更细粒度的业绩分析，有助于识别季节性表现模式。\n\n"
+                            html += '<div class="alert alert-light"><small>📈 <strong>说明</strong>: 季度统计提供更细粒度的业绩分析，有助于识别季节性表现模式。</small></div>\n\n'
                     
                     # 兼容旧格式（columns和data字段）
                     elif 'columns' in table_data and 'data' in table_data:
@@ -592,46 +477,136 @@ class FundBlock(BaseBlock):
                         table_rows = table_data.get('data', [])
                         
                         if table_columns and table_rows:
-                            markdown += f"#### 📊 {table_title}\n\n"
+                            html += f'<h4>📊 {table_title}</h4>\n\n'
                             
-                            # 创建表格头 - 使用粗体
+                            # 创建HTML表格
+                            html += '<table class="table table-striped table-bordered" style="margin: 20px 0;">\n'
+                            
+                            # 表头
+                            html += '  <thead class="table-dark">\n'
+                            html += '    <tr>\n'
                             headers = [col.get('name', '') for col in table_columns]
-                            header_line = "| " + " | ".join(f"**{header}**" for header in headers) + " |\n"
+                            for header in headers:
+                                html += f'      <th style="text-align: center; padding: 12px;">{header}</th>\n'
+                            html += '    </tr>\n'
+                            html += '  </thead>\n'
                             
-                            # 创建分隔线 - 所有列居中对齐
-                            separator_line = "| " + " | ".join([":---:"] * len(headers)) + " |\n"
-                            markdown += header_line + separator_line
-                            
-                            # 添加数据行（限制显示前10行）
+                            # 表体
+                            html += '  <tbody>\n'
                             display_rows = table_rows[:10]
                             for row in display_rows:
-                                row_data = []
+                                html += '    <tr>\n'
                                 for col in table_columns:
                                     col_id = col.get('id', '')
                                     value = row.get(col_id, '')
                                     formatted_value = self._format_table_value(value, col_id)
-                                    row_data.append(formatted_value)
-                                
-                                markdown += "| " + " | ".join(row_data) + " |\n"
+                                    html += f'      <td style="text-align: center; padding: 8px;">{formatted_value}</td>\n'
+                                html += '    </tr>\n'
                             
                             if len(table_rows) > 10:
-                                summary_cols = ["..."] * (len(headers) - 1) + [f"*共 {len(table_rows)} 行*"]
-                                markdown += "| " + " | ".join(summary_cols) + " |\n"
+                                html += '    <tr>\n'
+                                summary_cols = ["..."] * (len(headers) - 1) + [f"<em>共 {len(table_rows)} 行</em>"]
+                                for col in summary_cols:
+                                    html += f'      <td style="text-align: center; padding: 8px; font-style: italic;">{col}</td>\n'
+                                html += '    </tr>\n'
                             
-                            markdown += "\n"
+                            html += '  </tbody>\n'
+                            html += '</table>\n\n'
                         else:
-                            markdown += f"#### 📊 {table_title}\n\n*暂无表格数据*\n\n"
+                            html += f'<h4>📊 {table_title}</h4>\n<p><em>暂无表格数据</em></p>\n\n'
                     else:
-                        markdown += f"#### 📊 {table_title}\n\n*暂无表格数据*\n\n"
+                        html += f'<h4>📊 {table_title}</h4>\n<p><em>暂无表格数据</em></p>\n\n'
                 
                 # 添加数据汇总信息
-                markdown += "---\n\n"
-                markdown += f"📋 **统计汇总**: 共展示了 {len(extra_data)} 个数据表格\n\n"
+                html += '<hr style="margin: 30px 0;">\n'
+                html += f'<p><strong>📋 统计汇总</strong>: 共展示了 {len(extra_data)} 个数据表格</p>\n\n'
             else:
-                markdown += "**ℹ️ 提示**: 当前未选择包含统计表格，或者没有可用的统计数据。\n\n"
+                html += '<div class="alert alert-info"><strong>ℹ️ 提示</strong>: 当前未选择包含统计表格，或者没有可用的统计数据。</div>\n\n'
         
         # 添加数据源信息
-        markdown += "---\n\n"
-        markdown += "*数据来源: baofu基金数据库*\n"
+        html += '<hr style="margin: 30px 0;">\n'
+        html += '<p><small><em>数据来源: baofu基金数据库</em></small></p>\n'
         
-        return markdown
+        return html
+    
+    def _create_html_table(self, df: pd.DataFrame, title: str) -> str:
+        """创建HTML表格"""
+        if df.empty:
+            return f'<h4>📊 {title}</h4>\n<p><em>暂无数据</em></p>\n\n'
+        
+        html = f'<h4>📊 {title}</h4>\n\n'
+        
+        # 创建HTML表格
+        html += '<table class="table table-striped table-bordered" style="margin: 20px 0; font-size: 14px;">\n'
+        
+        # 表头
+        html += '  <thead style="background-color: #1a5490; color: white;">\n'
+        html += '    <tr>\n'
+        headers = df.columns.tolist()
+        
+        # 表头图标映射
+        header_icons = {
+            '指标': '📋', '数值': '💰', '年份': '📅', '季度': '📈',
+            '收益率': '📊', '年化收益率': '📈', '最大回撤': '📉',
+            '波动率': '📊', '年化波动率': '🌊'
+        }
+        
+        for header in headers:
+            icon = header_icons.get(header, '📋')
+            html += f'      <th style="text-align: center; padding: 12px; font-weight: bold;">{icon} {header}</th>\n'
+        html += '    </tr>\n'
+        html += '  </thead>\n'
+        
+        # 表体
+        html += '  <tbody>\n'
+        display_rows = df.head(10)
+        for row_idx, (_, row) in enumerate(display_rows.iterrows()):
+            # 交替行颜色
+            bg_color = "#f8f9fa" if row_idx % 2 == 0 else "#ffffff"
+            html += f'    <tr style="background-color: {bg_color};">\n'
+            
+            for col_name, value in zip(headers, row):
+                formatted_value = self._format_table_value(value, col_name)
+                
+                # 为重要数值添加颜色和样式
+                cell_style = "text-align: center; padding: 8px;"
+                
+                if isinstance(value, (int, float)) and not pd.isna(value):
+                    # 百分比数值的颜色标识
+                    if '率' in col_name or '收益' in col_name or '回撤' in col_name:
+                        if value > 0:
+                            cell_style += " color: green; font-weight: bold;"
+                            formatted_value = f"🟢 {formatted_value}"
+                        elif value < 0:
+                            cell_style += " color: red; font-weight: bold;"
+                            formatted_value = f"🔴 {formatted_value}"
+                        else:
+                            formatted_value = f"⚫ {formatted_value}"
+                    # 净值等重要数值加粗
+                    elif '净值' in col_name or '价格' in col_name:
+                        cell_style += " font-weight: bold;"
+                
+                # 处理字符串中已包含百分比和符号的情况
+                elif isinstance(value, str) and '%' in str(value):
+                    if '+' in str(value):
+                        cell_style += " color: green; font-weight: bold;"
+                        formatted_value = f"🟢 {formatted_value}"
+                    elif '-' in str(value) and '回撤' not in str(value):
+                        cell_style += " color: red; font-weight: bold;"
+                        formatted_value = f"🔴 {formatted_value}"
+                
+                html += f'      <td style="{cell_style}">{formatted_value}</td>\n'
+            html += '    </tr>\n'
+        
+        # 如果有更多数据，添加汇总行
+        if len(df) > 10:
+            html += '    <tr style="background-color: #e9ecef; font-style: italic;">\n'
+            summary_data = ["⋯"] * (len(headers) - 1) + [f"📊 <em>共 {len(df)} 行数据</em>"]
+            for cell in summary_data:
+                html += f'      <td style="text-align: center; padding: 8px;">{cell}</td>\n'
+            html += '    </tr>\n'
+        
+        html += '  </tbody>\n'
+        html += '</table>\n\n'
+        
+        return html

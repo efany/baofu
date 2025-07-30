@@ -322,11 +322,11 @@ def template_to_pdf(
     custom_css: str = None
 ) -> str:
     """
-    将模板数据转换为PDF
+    将模板数据转换为PDF（仅支持HTML渲染）
     
     Args:
         template_data: 模板数据字典
-        render_block_func: 渲染块的函数
+        render_block_func: 渲染块的函数（应返回HTML内容）
         output_path: 输出路径，如果为None则自动生成
         custom_css: 自定义CSS样式
         
@@ -336,49 +336,445 @@ def template_to_pdf(
     Raises:
         Exception: 转换失败
     """
-    # 生成完整的Markdown内容
-    full_markdown = ""
+    return template_to_pdf_html(template_data, render_block_func, output_path, custom_css)
+
+def template_to_pdf_html(
+    template_data: Dict,
+    render_block_func,
+    output_path: str = None,
+    custom_css: str = None
+) -> str:
+    """
+    将模板数据转换为PDF（HTML渲染模式）
+    
+    Args:
+        template_data: 模板数据字典
+        render_block_func: 渲染块的函数（应返回HTML内容）
+        output_path: 输出路径，如果为None则自动生成
+        custom_css: 自定义CSS样式
+        
+    Returns:
+        str: 生成的PDF文件路径
+        
+    Raises:
+        Exception: 转换失败
+    """
+    # 生成完整的HTML内容
     template_name = template_data.get('template_name', '未命名模板')
     template_description = template_data.get('template_description', '')
     
-    # 添加模板标题和描述
-    full_markdown += f"# {template_name}\n\n"
+    full_html = f"""<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{template_name}</title>
+    <style>
+        {get_default_pdf_css()}
+        {custom_css or ''}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1 class="document-title">{template_name}</h1>
+"""
+    
     if template_description:
-        full_markdown += f"*{template_description}*\n\n---\n\n"
-    else:
-        full_markdown += "---\n\n"
+        full_html += f'            <p class="document-description"><em>{template_description}</em></p>\n'
+    
+    full_html += '        </header>\n\n        <main>\n'
     
     # 遍历所有块
     blocks = template_data.get('template_content', [])
     for i, block_data in enumerate(blocks):
         try:
-            block_markdown = render_block_func(block_data)
-            full_markdown += block_markdown
-            
-            if i < len(blocks) - 1:
-                full_markdown += "\n---\n\n"
+            block_html = render_block_func(block_data)
+            full_html += f'            <section class="block-section">\n'
+            full_html += f'                {block_html}\n'
+            full_html += '            </section>\n\n'
                 
         except Exception as e:
             block_title = block_data.get('block_title', f'块 #{i+1}')
-            full_markdown += f"**[错误: {block_title}]**\n\n"
-            full_markdown += f"```\n渲染失败: {str(e)}\n```\n\n"
+            full_html += f'            <section class="block-section error">\n'
+            full_html += f'                <div class="alert alert-danger">\n'
+            full_html += f'                    <strong>错误: {block_title}</strong><br>\n'
+            full_html += f'                    渲染失败: {str(e)}\n'
+            full_html += '                </div>\n'
+            full_html += '            </section>\n\n'
+    
+    full_html += """        </main>
+        
+        <footer>
+            <p><small><em>由baofu系统自动生成</em></small></p>
+        </footer>
+    </div>
+</body>
+</html>"""
     
     # 如果没有指定输出路径，自动生成
     if output_path is None:
         output_path = generate_pdf_filename(template_name)
     
     # 转换为PDF
-    success = markdown_to_pdf(
-        markdown_content=full_markdown,
+    success = html_to_pdf(
+        html_content=full_html,
         output_path=output_path,
-        title=template_name,
-        custom_css=custom_css
+        title=template_name
     )
     
     if success:
         return output_path
     else:
         raise Exception("PDF生成失败")
+
+
+
+def html_to_pdf(
+    html_content: str,
+    output_path: str,
+    title: str = "Document"
+) -> bool:
+    """
+    将HTML内容转换为PDF文件
+    
+    Args:
+        html_content: HTML文本内容
+        output_path: 输出PDF文件路径
+        title: 文档标题
+        
+    Returns:
+        bool: 转换是否成功
+        
+    Raises:
+        ImportError: 缺少必要的依赖库
+        Exception: PDF生成失败
+    """
+    
+    if not PYPANDOC_AVAILABLE:
+        raise ImportError("缺少pypandoc库，请安装: pip install pypandoc")
+    
+    # 确保输出目录存在
+    output_dir = os.path.dirname(output_path)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+    
+    # 默认PDF选项
+    default_options = [
+        '--pdf-engine=wkhtmltopdf',  # 使用wkhtmltopdf引擎，更好支持HTML和CSS
+        '--page-size=A4',  # 页面大小
+        '--margin-top=20mm',  # 上边距
+        '--margin-bottom=20mm',  # 下边距
+        '--margin-left=15mm',  # 左边距
+        '--margin-right=15mm',  # 右边距
+        '--encoding=UTF-8',  # 编码
+    ]
+    
+    # 添加标题
+    if title and title != "Document":
+        default_options.extend([
+            f'--variable=title:{title}',
+            f'--variable=author:baofu系统',
+            f'--variable=date:{datetime.now().strftime("%Y年%m月%d日")}'
+        ])
+    
+    try:
+        # 使用pypandoc转换
+        output = pypandoc.convert_text(
+            html_content,
+            'pdf',
+            format='html',
+            outputfile=output_path,
+            extra_args=default_options
+        )
+        
+        return True
+        
+    except Exception as e:
+        # 如果wkhtmltopdf不可用，尝试使用weasyprint
+        try:
+            fallback_options = [
+                '--pdf-engine=weasyprint',
+            ]
+            
+            if title and title != "Document":
+                fallback_options.extend([
+                    f'--variable=title:{title}',
+                    f'--variable=author:baofu系统',
+                    f'--variable=date:{datetime.now().strftime("%Y年%m月%d日")}'
+                ])
+            
+            output = pypandoc.convert_text(
+                html_content,
+                'pdf',
+                format='html',
+                outputfile=output_path,
+                extra_args=fallback_options
+            )
+            
+            return True
+            
+        except Exception as e2:
+            raise Exception(f"PDF生成失败: {str(e)}。请确保已安装wkhtmltopdf或weasyprint。")
+
+
+def get_default_pdf_css() -> str:
+    """
+    获取默认的PDF样式CSS
+    
+    Returns:
+        str: CSS样式字符串
+    """
+    return '''
+        body {
+            font-family: "Source Han Sans CN", "Microsoft YaHei", "SimSun", sans-serif;
+            line-height: 1.6;
+            color: #333;
+            margin: 0;
+            padding: 0;
+            background-color: #fff;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+            border-bottom: 3px solid #1a5490;
+            padding-bottom: 20px;
+        }
+        
+        .document-title {
+            color: #1a5490;
+            font-size: 28px;
+            margin: 0 0 10px 0;
+            font-weight: bold;
+        }
+        
+        .document-description {
+            color: #666;
+            font-size: 16px;
+            margin: 10px 0;
+            font-style: italic;
+        }
+        
+        main {
+            margin: 20px 0;
+        }
+        
+        .block-section {
+            margin: 30px 0;
+            padding: 20px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .block-section:last-child {
+            border-bottom: none;
+        }
+        
+        h1, h2, h3, h4, h5, h6 {
+            color: #2c3e50;
+            margin-top: 2em;
+            margin-bottom: 1em;
+        }
+        
+        h1 {
+            font-size: 24px;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+        
+        h2 {
+            font-size: 20px;
+            border-left: 4px solid #3498db;
+            padding-left: 15px;
+        }
+        
+        h3 {
+            font-size: 18px;
+            color: #34495e;
+        }
+        
+        h4 {
+            font-size: 16px;
+            color: #34495e;
+        }
+        
+        p {
+            margin: 1em 0;
+            text-align: justify;
+        }
+        
+        ul, ol {
+            margin: 1em 0;
+            padding-left: 2em;
+        }
+        
+        li {
+            margin: 0.5em 0;
+        }
+        
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 1.5em 0;
+            font-size: 12px;
+            page-break-inside: avoid;
+        }
+        
+        th {
+            background-color: #1a5490;
+            color: white;
+            font-weight: bold;
+            padding: 8px 6px;
+            text-align: center;
+            border: 1px solid #ddd;
+        }
+        
+        td {
+            border: 1px solid #ddd;
+            padding: 6px;
+            text-align: center;
+        }
+        
+        tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+        
+        .chart-container {
+            text-align: center;
+            margin: 20px 0;
+            page-break-inside: avoid;
+        }
+        
+        .chart-container img {
+            max-width: 100%;
+            height: auto;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        .chart-placeholder {
+            background-color: #f8f9fa;
+            border: 2px dashed #bdc3c7;
+            padding: 40px;
+            text-align: center;
+            color: #7f8c8d;
+            margin: 20px 0;
+        }
+        
+        .data-overview {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            border-left: 4px solid #3498db;
+        }
+        
+        .fund-summary ul {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        .fund-summary li {
+            margin: 0.8em 0;
+            padding: 5px 0;
+            border-bottom: 1px dotted #ccc;
+        }
+        
+        .alert {
+            padding: 12px 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+            border-left: 4px solid;
+        }
+        
+        .alert-info {
+            background-color: #e8f4f8;
+            border-left-color: #1a5490;
+            color: #2c5282;
+        }
+        
+        .alert-light {
+            background-color: #f8f9fa;
+            border-left-color: #6c757d;
+            color: #495057;
+        }
+        
+        .alert-danger {
+            background-color: #fdf2f2;
+            border-left-color: #e74c3c;
+            color: #c53030;
+        }
+        
+        blockquote {
+            border-left: 4px solid #ccc;
+            padding-left: 1em;
+            margin: 1em 0;
+            font-style: italic;
+            color: #666;
+        }
+        
+        pre {
+            background-color: #f5f5f5;
+            padding: 1em;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-family: "Courier New", monospace;
+        }
+        
+        code {
+            background-color: #f1f1f1;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: "Courier New", monospace;
+            font-size: 0.9em;
+        }
+        
+        hr {
+            border: none;
+            border-top: 1px solid #ddd;
+            margin: 30px 0;
+        }
+        
+        footer {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            color: #666;
+            font-size: 12px;
+        }
+        
+        /* 打印专用样式 */
+        @media print {
+            .container {
+                max-width: none;
+                margin: 0;
+                padding: 15px;
+            }
+            
+            .block-section {
+                page-break-inside: avoid;
+            }
+            
+            h1, h2, h3 {
+                page-break-after: avoid;
+            }
+            
+            table {
+                font-size: 10px;
+            }
+            
+            th, td {
+                padding: 4px;
+            }
+        }
+    '''
 
 
 def check_pdf_dependencies() -> Dict[str, bool]:

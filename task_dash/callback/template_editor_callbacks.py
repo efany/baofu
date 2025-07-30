@@ -17,7 +17,7 @@ from typing import Dict, List, Any
 import uuid
 import traceback
 from task_utils.pdf_utils import template_to_pdf, check_pdf_dependencies, get_dependency_install_instructions, generate_pdf_filename
-from task_dash.pages.template_editor import render_block_to_markdown, DEFAULT_TEMPLATE, BLOCK_TYPES, create_block_card, _legacy_render_block_preview
+from task_dash.pages.template_editor import render_block_to_html, DEFAULT_TEMPLATE, BLOCK_TYPES, create_block_card, _legacy_render_block_preview
 import logging
 
 # 添加项目路径
@@ -526,12 +526,12 @@ def register_template_editor_callbacks(app, mysql_db):
             block_title = block_data.get('block_title', '未命名块')
             
             # 渲染为Markdown
-            markdown_content = render_block_to_markdown(block_data, mysql_db=mysql_db)
+            html_content = render_block_to_html(block_data, mysql_db=mysql_db)
             
             # 创建预览内容 - 只显示渲染效果
             preview_content = html.Div([
                 dcc.Markdown(
-                    markdown_content,
+                    html_content,
                     dangerously_allow_html=True,
                     style={
                         'fontFamily': '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
@@ -797,96 +797,216 @@ def register_template_editor_callbacks(app, mysql_db):
                 
                 return True, empty_content
             
-            # 组合所有块的Markdown内容
-            full_markdown = ""
+            # 组合所有块的内容
             template_name = template_data.get('template_name', '未命名模板')
             template_description = template_data.get('template_description', '')
             
-            # 添加模板标题和描述
-            full_markdown += f"# {template_name}\n\n"
-            if template_description:
-                full_markdown += f"*{template_description}*\n\n---\n\n"
-            else:
-                full_markdown += "---\n\n"
+            # 创建预览内容的组件列表
+            preview_components = []
             
-            # 遍历所有块，按顺序生成Markdown
+            # 添加模板标题
+            preview_components.append(
+                html.Header([
+                    html.H1(template_name, style={
+                        'color': '#1a5490',
+                        'textAlign': 'center',
+                        'margin': '0 0 10px 0',
+                        'borderBottom': '2px solid #1a5490',
+                        'paddingBottom': '15px'
+                    })
+                ], style={'marginBottom': '30px'})
+            )
+            
+            # 添加模板描述
+            if template_description:
+                preview_components.append(
+                    html.P(template_description, style={
+                        'color': '#666',
+                        'fontStyle': 'italic',
+                        'textAlign': 'center',
+                        'margin': '10px 0 30px 0'
+                    })
+                )
+            
+            # 遍历所有块，按顺序生成组件
             blocks = template_data.get('template_content', [])
             for i, block_data in enumerate(blocks):
                 try:
-                    block_markdown = render_block_to_markdown(block_data, mysql_db=mysql_db)
-                    full_markdown += block_markdown
+                    block_html = render_block_to_html(block_data, mysql_db=mysql_db)
                     
-                    # 在块之间添加分隔符（除了最后一个块）
-                    if i < len(blocks) - 1:
-                        full_markdown += "\n---\n\n"
+                    # 使用dcc.Markdown来渲染HTML内容
+                    block_component = html.Section([
+                        dcc.Markdown(
+                            block_html,
+                            dangerously_allow_html=True
+                        )
+                    ], style={
+                        'margin': '25px 0',
+                        'padding': '15px 0',
+                        'borderBottom': '1px solid #eee'
+                    })
+                    
+                    preview_components.append(block_component)
                         
                 except Exception as e:
                     # 如果某个块渲染失败，添加错误信息
                     block_title = block_data.get('block_title', f'块 #{i+1}')
-                    full_markdown += f"**[错误: {block_title}]**\n\n"
-                    full_markdown += f"```\n渲染失败: {str(e)}\n```\n\n"
+                    error_component = html.Section([
+                        html.Div([
+                            html.Strong(f"错误: {block_title}"),
+                            html.Br(),
+                            f"渲染失败: {str(e)}"
+                        ], style={
+                            'backgroundColor': '#fdf2f2',
+                            'borderLeft': '4px solid #e74c3c',
+                            'padding': '12px 15px',
+                            'borderRadius': '4px'
+                        })
+                    ], style={
+                        'margin': '25px 0',
+                        'padding': '15px 0',
+                        'borderBottom': '1px solid #eee'
+                    })
+                    
+                    preview_components.append(error_component)
             
-            # 创建渲染后的内容
-            markdown_content = dcc.Markdown(
-                full_markdown,
-                dangerously_allow_html=True,
+            # 创建完整的预览内容
+            html_content = html.Div(
+                preview_components,
                 style={
-                    'fontFamily': '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                    'fontFamily': '"Source Han Sans CN", "Microsoft YaHei", sans-serif',
                     'lineHeight': '1.6',
-                    'color': '#333'
+                    'color': '#333',
+                    'maxWidth': '800px',
+                    'margin': '0 auto',
+                    'padding': '20px'
                 }
             )
             
-            return True, markdown_content
+            return True, html_content
         
         return is_open, no_update
 
     @app.callback(
-        Output('export-markdown-btn', 'href'),
-        Input('export-markdown-btn', 'n_clicks'),
+        Output('export-html-link', 'href'),
+        Input('export-html-link', 'n_clicks'),
         State('template-store', 'data'),
         prevent_initial_call=True
     )
-    def generate_markdown_download(n_clicks, template_data):
-        """生成Markdown下载链接"""
-        logger.info(f"生成Markdown下载 - clicks:{n_clicks}")
+    def generate_html_download(n_clicks, template_data):
+        """生成HTML下载链接"""
+        logger.info(f"生成HTML下载 - clicks:{n_clicks}")
         
         if not n_clicks or not template_data:
             return ""
         
-        # 生成完整的Markdown内容
-        full_markdown = ""
+        # 生成完整的HTML内容
         template_name = template_data.get('template_name', '未命名模板')
         template_description = template_data.get('template_description', '')
         
-        # 添加模板标题和描述
-        full_markdown += f"# {template_name}\n\n"
+        full_html = f"""<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{template_name}</title>
+    <style>
+        body {{
+            font-family: "Source Han Sans CN", "Microsoft YaHei", sans-serif;
+            line-height: 1.6;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            background-color: #fff;
+        }}
+        .container {{
+            max-width: 800px;
+            margin: 0 auto;
+        }}
+        header {{
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #1a5490;
+            padding-bottom: 15px;
+        }}
+        h1 {{
+            color: #1a5490;
+            margin: 0 0 10px 0;
+        }}
+        .description {{
+            color: #666;
+            font-style: italic;
+            margin: 5px 0;
+        }}
+        .block-section {{
+            margin: 25px 0;
+            padding: 15px 0;
+            border-bottom: 1px solid #eee;
+        }}
+        table {{
+            border-collapse: collapse;
+            width: 100%;
+            margin: 15px 0;
+        }}
+        th, td {{
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: center;
+        }}
+        th {{
+            background-color: #1a5490;
+            color: white;
+        }}
+        .chart-container {{
+            text-align: center;
+            margin: 20px 0;
+        }}
+        .chart-container img {{
+            max-width: 100%;
+            height: auto;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>{template_name}</h1>
+"""
+        
         if template_description:
-            full_markdown += f"*{template_description}*\n\n---\n\n"
-        else:
-            full_markdown += "---\n\n"
+            full_html += f'            <p class="description">{template_description}</p>\n'
+        
+        full_html += '        </header>\n        <main>\n'
         
         # 遍历所有块
         blocks = template_data.get('template_content', [])
         for i, block_data in enumerate(blocks):
             try:
-                block_markdown = render_block_to_markdown(block_data, mysql_db=mysql_db)
-                full_markdown += block_markdown
-                
-                if i < len(blocks) - 1:
-                    full_markdown += "\n---\n\n"
+                block_html = render_block_to_html(block_data, mysql_db=mysql_db)
+                full_html += f'            <section class="block-section">{block_html}</section>\n'
                     
             except Exception as e:
                 block_title = block_data.get('block_title', f'块 #{i+1}')
-                full_markdown += f"**[错误: {block_title}]**\n\n"
-                full_markdown += f"```\n渲染失败: {str(e)}\n```\n\n"
+                full_html += f'''            <section class="block-section">
+                <div style="background-color: #fdf2f2; border-left: 4px solid #e74c3c; padding: 12px 15px; border-radius: 4px;">
+                    <strong>错误: {block_title}</strong><br>
+                    渲染失败: {str(e)}
+                </div>
+            </section>\n'''
+        
+        full_html += """        </main>
+    </div>
+</body>
+</html>"""
         
         # 创建下载链接
-        encoded_content = urllib.parse.quote(full_markdown)
+        encoded_content = urllib.parse.quote(full_html)
         safe_filename = "".join(c for c in template_name if c.isalnum() or c in (' ', '-', '_')).rstrip()
-        filename = f"{safe_filename}.md" if safe_filename else "template.md"
+        filename = f"{safe_filename}.html" if safe_filename else "template.html"
         
-        return f"data:text/markdown;charset=utf-8,{encoded_content}"
+        return f"data:text/html;charset=utf-8,{encoded_content}"
 
     @app.callback(
         [Output('message-display', 'children', allow_duplicate=True),
@@ -924,9 +1044,9 @@ def register_template_editor_callbacks(app, mysql_db):
             
             logger.info("开始调用 template_to_pdf 函数")
             
-            # 创建包含mysql_db参数的渲染函数包装器，并设置为PDF导出模式
+            # 创建包含mysql_db参数的HTML渲染函数包装器，并设置为PDF导出模式
             def render_block_with_db(block_data):
-                return render_block_to_markdown(block_data, mysql_db=mysql_db, for_pdf=True)
+                return render_block_to_html(block_data, mysql_db=mysql_db, for_pdf=True)
             
             output_path = template_to_pdf(
                 template_data=template_data,

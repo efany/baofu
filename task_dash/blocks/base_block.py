@@ -114,11 +114,11 @@ class BaseBlock(ABC):
         return errors
     
     @abstractmethod
-    def render_to_markdown(self, for_pdf: bool = False) -> str:
-        """渲染为Markdown
+    def render_to_html(self, for_pdf: bool = False) -> str:
+        """渲染为HTML
         
         Args:
-            for_pdf: 是否为PDF导出，影响图片路径格式
+            for_pdf: 是否为PDF导出，影响图片路径和样式
         """
         pass
     

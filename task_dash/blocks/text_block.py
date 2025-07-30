@@ -62,32 +62,68 @@ class TextBlock(BaseBlock):
             )
         ]
     
-    def render_to_markdown(self, for_pdf: bool = False) -> str:
-        """渲染为Markdown
-        
-        Args:
-            for_pdf: 是否为PDF导出（此块类型不受影响）
-        """
+    def render_to_html(self, for_pdf: bool = False) -> str:
+        """渲染为HTML"""
         content = self.get_parameter_value("content", "空白文本")
         style = self.get_parameter_value("style", "paragraph")
         alignment = self.get_parameter_value("alignment", "left")
         
+        import re
+        import html
+        
+        # HTML转义内容以防止XSS
+        escaped_content = html.escape(content)
+        
+        # 简单的Markdown到HTML转换
+        html_content = escaped_content
+        
+        # 转换粗体
+        html_content = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', html_content)
+        html_content = re.sub(r'\*(.*?)\*', r'<em>\1</em>', html_content)
+        
+        # 转换代码
+        html_content = re.sub(r'`(.*?)`', r'<code>\1</code>', html_content)
+        
+        # 转换换行
+        html_content = html_content.replace('\n', '<br>')
+        
         # 根据样式格式化内容
         if style == "header":
-            formatted_content = f"# {content}"
+            tag = "h1"
         elif style == "subheader":
-            formatted_content = f"## {content}"
+            tag = "h2"
         elif style == "quote":
-            formatted_content = f"> {content}"
+            tag = "blockquote"
         elif style == "code":
-            formatted_content = f"```\n{content}\n```"
+            tag = "pre"
+            # 对于代码块，使用原始转义的内容，不进行Markdown转换
+            html_content = f"<code>{escaped_content}</code>"
         else:  # paragraph
-            formatted_content = content
-
-        # 添加对齐方式（使用HTML标签，因为Markdown本身不支持对齐）
-        if alignment == "center":
-            formatted_content = f"<div align='center'>\n\n{formatted_content}\n\n</div>"
-        elif alignment == "right":
-            formatted_content = f"<div align='right'>\n\n{formatted_content}\n\n</div>"
+            tag = "p"
         
-        return formatted_content + "\n\n"
+        # 创建样式字符串
+        styles = [f"text-align: {alignment}"]
+        
+        if style == "quote":
+            styles.extend([
+                "border-left: 4px solid #ccc",
+                "padding-left: 1em",
+                "margin: 1em 0",
+                "color: #666",
+                "font-style: italic"
+            ])
+        elif style == "code":
+            styles.extend([
+                "background-color: #f5f5f5",
+                "padding: 1em",
+                "border-radius: 4px",
+                "overflow-x: auto",
+                "font-family: 'Courier New', monospace"
+            ])
+        
+        style_attr = "; ".join(styles)
+        
+        # 创建HTML元素
+        formatted_html = f'<{tag} style="{style_attr}">{html_content}</{tag}>'
+        
+        return formatted_html

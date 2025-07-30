@@ -259,18 +259,18 @@ def create_block_card(block_data: Dict, index: int, mysql_db=None) -> dbc.Card:
         ])
     ], className="mb-3")
 
-def render_block_to_markdown(block_data: Dict, mysql_db=None, for_pdf: bool = False) -> str:
-    """将block渲染为Markdown格式（使用新的块系统）"""
+def render_block_to_html(block_data: Dict, mysql_db=None, for_pdf: bool = False) -> str:
+    """将block渲染为HTML格式（使用新的块系统）"""
     try:
         # 使用新的块系统
         block = create_block(block_data, mysql_db=mysql_db)
-        return block.render_to_markdown(for_pdf=for_pdf)
+        return block.render_to_html(for_pdf=for_pdf)
     except Exception as e:
         # 降级到旧版本处理
-        return _legacy_render_block_to_markdown(block_data)
+        return _legacy_render_block_to_html(block_data)
 
-def _legacy_render_block_to_markdown(block_data: Dict) -> str:
-    """旧版本的block渲染逻辑（作为后备方案）"""
+def _legacy_render_block_to_html(block_data: Dict) -> str:
+    """旧版本的block HTML渲染逻辑（作为后备方案）"""
     block_type = block_data.get('block_type', 'text')
     config = block_data.get('config', {})
     block_title = block_data.get('block_title', '未命名块')
@@ -281,15 +281,13 @@ def _legacy_render_block_to_markdown(block_data: Dict) -> str:
         style = config.get('style', 'paragraph')
         
         if style == 'header':
-            return f"# {content}\n\n"
+            return f"<h1>{content}</h1>\n"
         elif style == 'paragraph':
-            return f"{content}\n\n"
+            return f"<p>{content}</p>\n"
         else:
-            return f"{content}\n\n"
-    
-    
+            return f"<p>{content}</p>\n"
     else:
-        return f"## {block_title}\n\n*未知块类型: {block_type}*\n\n"
+        return f'<h2>{block_title}</h2>\n<p><em>未知块类型: {block_type}</em></p>\n'
 
 def _render_block_preview(block_data: Dict) -> html.Div:
     """渲染块预览"""
@@ -353,11 +351,11 @@ def create_add_block_modal():
     ], id="add-block-modal", size="lg", is_open=False)
 
 def create_full_markdown_preview_modal():
-    """创建全文Markdown预览模态框"""
+    """创建全文HTML预览模态框"""
     return dbc.Modal([
         dbc.ModalHeader([
             html.H4("完整报告预览", className="modal-title"),
-            html.Small("(所有块的Markdown内容)", className="text-muted ms-2")
+            html.Small("(所有块的渲染内容)", className="text-muted ms-2")
         ]),
         dbc.ModalBody([
             dcc.Loading(
@@ -382,12 +380,12 @@ def create_full_markdown_preview_modal():
             dbc.ButtonGroup([
                 html.A(
                     dbc.Button(
-                        [html.I(className="fas fa-download me-2"), "导出Markdown"],
+                        [html.I(className="fas fa-download me-2"), "导出HTML"],
                         color="success",
                         size="sm"
                     ),
-                    id="export-markdown-link",
-                    download="template.md",
+                    id="export-html-link",
+                    download="template.html",
                     href="",
                     style={'textDecoration': 'none'}
                 ),
@@ -501,7 +499,7 @@ def create_template_editor_page(mysql_db):
                             ], width=8),
                             dbc.Col([
                                 dbc.Button(
-                                    [html.I(className="fas fa-eye me-2"), "Markdown预览"],
+                                    [html.I(className="fas fa-eye me-2"), "完整预览"],
                                     id='full-markdown-preview-btn',
                                     color="info",
                                     size="sm",
