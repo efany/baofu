@@ -36,14 +36,16 @@
       "block_type": "fund",
       "block_title": "基金",
       "config": {
-        "fund_code": "",
+        "fund_code": "003376",
         "start_date": "",
         "end_date": "",
-        "display_type": "summary",
+        "display_type": "full",
         "chart_type": "line",
         "show_dividends": true,
-        "normalize_data": false,
-        "include_stats": true
+        "normalize_data": true,
+        "include_stats": true,
+        "period_filter": "1y",
+        "show_benchmark": false
       }
     }
   ]

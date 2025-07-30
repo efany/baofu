@@ -233,7 +233,7 @@ def register_template_editor_callbacks(app, mysql_db):
         
         block_cards = []
         for index, block in enumerate(blocks):
-            block_cards.append(create_block_card(block, index))
+            block_cards.append(create_block_card(block, index, mysql_db=mysql_db))
         
         return block_cards, {'display': 'none'}
 
@@ -526,7 +526,7 @@ def register_template_editor_callbacks(app, mysql_db):
             block_title = block_data.get('block_title', '未命名块')
             
             # 渲染为Markdown
-            markdown_content = render_block_to_markdown(block_data)
+            markdown_content = render_block_to_markdown(block_data, mysql_db=mysql_db)
             
             # 创建预览内容 - 只显示渲染效果
             preview_content = html.Div([
@@ -813,7 +813,7 @@ def register_template_editor_callbacks(app, mysql_db):
             blocks = template_data.get('template_content', [])
             for i, block_data in enumerate(blocks):
                 try:
-                    block_markdown = render_block_to_markdown(block_data)
+                    block_markdown = render_block_to_markdown(block_data, mysql_db=mysql_db)
                     full_markdown += block_markdown
                     
                     # 在块之间添加分隔符（除了最后一个块）
@@ -870,7 +870,7 @@ def register_template_editor_callbacks(app, mysql_db):
         blocks = template_data.get('template_content', [])
         for i, block_data in enumerate(blocks):
             try:
-                block_markdown = render_block_to_markdown(block_data)
+                block_markdown = render_block_to_markdown(block_data, mysql_db=mysql_db)
                 full_markdown += block_markdown
                 
                 if i < len(blocks) - 1:
@@ -923,9 +923,14 @@ def register_template_editor_callbacks(app, mysql_db):
                 logger.info(f"块 #{i+1}: type={block.get('block_type')}, title={block.get('block_title')}")
             
             logger.info("开始调用 template_to_pdf 函数")
+            
+            # 创建包含mysql_db参数的渲染函数包装器，并设置为PDF导出模式
+            def render_block_with_db(block_data):
+                return render_block_to_markdown(block_data, mysql_db=mysql_db, for_pdf=True)
+            
             output_path = template_to_pdf(
                 template_data=template_data,
-                render_block_func=render_block_to_markdown,
+                render_block_func=render_block_with_db,
                 output_path=output_path
             )
             logger.info(f"PDF生成完成，实际输出路径: {output_path}")

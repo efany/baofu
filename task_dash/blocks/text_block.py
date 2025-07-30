@@ -62,8 +62,12 @@ class TextBlock(BaseBlock):
             )
         ]
     
-    def render_to_markdown(self) -> str:
-        """渲染为Markdown"""
+    def render_to_markdown(self, for_pdf: bool = False) -> str:
+        """渲染为Markdown
+        
+        Args:
+            for_pdf: 是否为PDF导出（此块类型不受影响）
+        """
         content = self.get_parameter_value("content", "空白文本")
         style = self.get_parameter_value("style", "paragraph")
         alignment = self.get_parameter_value("alignment", "left")

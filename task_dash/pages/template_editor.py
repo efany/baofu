@@ -57,24 +57,26 @@ BLOCK_TYPES = {
         "icon": "💰",
         "description": "显示指定基金的净值走势、收益统计和详细数据",
         "default_config": {
-            "fund_code": "",
+            "fund_code": "000001.OF",
             "start_date": "",
             "end_date": "",
             "display_type": "summary",
             "chart_type": "line",
             "show_dividends": True,
             "normalize_data": False,
-            "include_stats": True
+            "include_stats": True,
+            "period_filter": "all",
+            "show_benchmark": False
         }
     }
 }
 
 
-def _create_block_parameter_components(block_data: Dict, index: int) -> List:
+def _create_block_parameter_components(block_data: Dict, index: int, mysql_db=None) -> List:
     """创建块参数编辑组件"""
     try:
         # 使用新的块系统
-        block = create_block(block_data)
+        block = create_block(block_data, mysql_db=mysql_db)
         components = []
         
         for param in block.parameters:
@@ -107,8 +109,7 @@ def _create_block_parameter_components(block_data: Dict, index: int) -> List:
             elif param.param_type == 'boolean':
                 component = dbc.Switch(
                     id=component_id,
-                    value=bool(current_value),
-                    size="sm"
+                    value=bool(current_value)
                 )
             elif param.param_type == 'select':
                 component = dcc.Dropdown(
@@ -127,11 +128,19 @@ def _create_block_parameter_components(block_data: Dict, index: int) -> List:
                     placeholder=param.description,
                     style={'fontSize': '14px'}
                 )
+            elif param.param_type == 'date':
+                component = dcc.DatePickerSingle(
+                    id=component_id,
+                    date=current_value,
+                    placeholder=getattr(param, 'placeholder', param.description),
+                    display_format='YYYY-MM-DD',
+                    style={'fontSize': '14px', 'width': '100%'}
+                )
             else:
                 component = dbc.Input(
                     id=component_id,
                     value=current_value,
-                    placeholder=param.description,
+                    placeholder=getattr(param, 'placeholder', param.description),
                     size="sm"
                 )
             
@@ -186,13 +195,13 @@ def _create_block_parameter_components(block_data: Dict, index: int) -> List:
             ], className="mb-2")
         ]
 
-def create_block_card(block_data: Dict, index: int) -> dbc.Card:
+def create_block_card(block_data: Dict, index: int, mysql_db=None) -> dbc.Card:
     """创建块卡片"""
     block_type = block_data.get('block_type', 'text')
     block_config = BLOCK_TYPES.get(block_type, BLOCK_TYPES['text'])
     
     # 创建参数编辑组件
-    param_components = _create_block_parameter_components(block_data, index)
+    param_components = _create_block_parameter_components(block_data, index, mysql_db=mysql_db)
     
     return dbc.Card([
         dbc.CardHeader([
@@ -250,12 +259,12 @@ def create_block_card(block_data: Dict, index: int) -> dbc.Card:
         ])
     ], className="mb-3")
 
-def render_block_to_markdown(block_data: Dict) -> str:
+def render_block_to_markdown(block_data: Dict, mysql_db=None, for_pdf: bool = False) -> str:
     """将block渲染为Markdown格式（使用新的块系统）"""
     try:
         # 使用新的块系统
-        block = create_block(block_data)
-        return block.render_to_markdown()
+        block = create_block(block_data, mysql_db=mysql_db)
+        return block.render_to_markdown(for_pdf=for_pdf)
     except Exception as e:
         # 降级到旧版本处理
         return _legacy_render_block_to_markdown(block_data)
@@ -425,6 +434,10 @@ def create_preview_modal():
 def create_template_editor_page(mysql_db):
     """创建模板编辑器页面"""
     
+    # 存储数据库连接用于后续使用
+    global _mysql_db
+    _mysql_db = mysql_db
+    
     layout = dbc.Container([
         # 页面标题
         html.H1("JSON模板编辑器", style=HEADER_STYLE),
@@ -561,6 +574,14 @@ def create_template_editor_page(mysql_db):
     ], fluid=True)
     
     return layout
+
+# 全局数据库连接变量
+_mysql_db = None
+
+# 辅助函数获取数据库连接
+def get_mysql_db():
+    """获取当前的数据库连接"""
+    return _mysql_db
 
 # 页面布局
 layout = create_template_editor_page(None)

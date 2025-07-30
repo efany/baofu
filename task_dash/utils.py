@@ -1,6 +1,10 @@
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
-from typing import Dict
+from typing import Dict, List, Any
+import plotly.graph_objs as go
+import plotly.io as pio
+import os
+import hashlib
 
 # 股票代码到中文简称的映射
 STOCK_NAME_MAP: Dict[str, str] = {
@@ -140,3 +144,137 @@ def get_date_range(time_range):
         return None, None
 
     return start_date, end_date
+
+
+def generate_chart_image(chart_data: List[Dict[str, Any]], data_type: str, data_id: str, 
+                        cache_dir: str = "./task_dash/assets/chart_cache", return_absolute_path: bool = False) -> str:
+    """
+    根据DataGenerator的get_chart_data返回值生成图片并保存到缓存目录
+    
+    该函数将各种类型的DataGenerator的get_chart_data()返回值转换为Plotly图表，
+    然后生成PNG图片文件，确保与single_product.py页面的展示效果一致。
+    
+    需要安装kaleido包才能生成图片: pip install kaleido
+    如果kaleido不可用，函数将返回空字符串。
+    
+    Args:
+        chart_data: DataGenerator.get_chart_data()的返回值，包含Plotly图表数据
+        data_type: 数据类型 ('fund', 'strategy', 'stock', 'forex', 'bond_yield', 'index')
+        data_id: 数据标识符，如基金代码、股票代码等
+        cache_dir: 缓存目录路径，默认为"./task_dash/assets/chart_cache"
+        return_absolute_path: 是否返回绝对路径，False时返回Web路径(/assets/...)，True时返回文件系统路径
+        
+    Returns:
+        str: 图片路径，Web路径或绝对文件系统路径，如果生成失败则返回空字符串
+        
+    Example:
+        >>> from task_dash.datas.fund_data_generator import FundDataGenerator
+        >>> generator = FundDataGenerator('000001.OF', mysql_db)
+        >>> generator.load()
+        >>> chart_data = generator.get_chart_data()
+        >>> image_path = generate_chart_image(chart_data, 'fund', '000001.OF')
+        >>> if image_path:
+        ...     print(f"图片已生成: {image_path}")
+    """
+    if not chart_data:
+        return ""
+    
+    # 确保缓存目录存在
+    os.makedirs(cache_dir, exist_ok=True)
+    
+    # 生成唯一的文件名，处理特殊字符
+    chart_hash = hashlib.md5(str(chart_data).encode()).hexdigest()[:8]
+    # 清理data_id中的特殊字符，确保文件名安全
+    safe_data_id = data_id.replace('.', '_').replace('/', '_').replace('\\', '_')
+    filename = f"{data_type}_{safe_data_id}_{chart_hash}.png"
+    file_path = os.path.join(cache_dir, filename)
+    
+    # 如果文件已存在，直接返回路径
+    if os.path.exists(file_path):
+        if return_absolute_path:
+            return os.path.abspath(file_path)
+        else:
+            # 返回相对于assets目录的路径，以便Dash能正确提供静态文件服务
+            return f"/assets/chart_cache/{filename}"
+    
+    try:
+        # 根据数据类型设置图表标题
+        if data_type == 'fund':
+            title = '基金净值和分红数据'
+        elif data_type == 'strategy':
+            title = '策略净值数据'
+        elif data_type == 'stock':
+            title = '股票K线数据'
+        elif data_type == 'index':
+            title = '指数价格走势'
+        elif data_type == 'forex':
+            title = '外汇汇率走势'
+        elif data_type == 'bond_yield':
+            title = '债券收益率走势'
+        else:
+            title = '价格数据'
+        
+        # 根据数据类型设置不同的x轴配置
+        xaxis_config = {
+            'title': '日期',
+            'rangeslider': {'visible': False}
+        }
+        
+        if data_type == 'stock':
+            xaxis_config.update({
+                'tickmode': 'auto',
+                'nticks': 20,
+                'tickangle': -45,
+                'showgrid': True,
+                'gridcolor': '#f0f0f0'
+            })
+        
+        # 创建图表布局
+        layout = {
+            'title': f'{title} - {data_id}',
+            'xaxis': xaxis_config,
+            'yaxis': {'title': '价格' if data_type in ['stock', 'index', 'forex'] else '净值/收益率'},
+            'plot_bgcolor': 'white',
+            'hovermode': 'x unified',
+            'width': 800,
+            'height': 500
+        }
+        
+        # 转换chart_data为正确的Plotly格式
+        plotly_traces = []
+        for trace_data in chart_data:
+            trace_copy = trace_data.copy()
+            
+            # 转换type字段为Plotly兼容格式
+            if trace_copy.get('type') == 'line':
+                trace_copy['type'] = 'scatter'
+                trace_copy['mode'] = 'lines'
+            elif trace_copy.get('type') == 'scatter' and 'mode' not in trace_copy:
+                trace_copy['mode'] = 'markers'
+            
+            plotly_traces.append(trace_copy)
+        
+        # 生成图片
+        fig = go.Figure(data=plotly_traces, layout=layout)
+        
+        # 检查是否可用kaleido引擎
+        try:
+            pio.write_image(fig, file_path, format='png', width=800, height=500, engine='kaleido')
+        except ValueError as ve:
+            if "kaleido" in str(ve).lower():
+                print(f"Kaleido引擎不可用，请安装: pip install kaleido")
+                return ""
+            else:
+                raise ve
+        
+        # 根据参数决定返回Web路径还是绝对文件系统路径
+        if return_absolute_path:
+            return os.path.abspath(file_path)
+        else:
+            # 返回相对于assets目录的路径，以便Dash能正确提供静态文件服务
+            return f"/assets/chart_cache/{filename}"
+        
+    except Exception as e:
+        # 如果生成失败，返回空字符串
+        print(f"生成图表图片失败: {str(e)}")
+        return ""

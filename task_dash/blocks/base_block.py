@@ -19,6 +19,7 @@ class BlockParameter:
     options: Optional[List[Dict]] = None  # 选择项 (用于select类型)
     description: str = ""        # 参数描述
     validation: Optional[Dict] = None     # 验证规则
+    placeholder: str = ""        # 占位符文本
 
 
 class BaseBlock(ABC):
@@ -113,8 +114,12 @@ class BaseBlock(ABC):
         return errors
     
     @abstractmethod
-    def render_to_markdown(self) -> str:
-        """渲染为Markdown"""
+    def render_to_markdown(self, for_pdf: bool = False) -> str:
+        """渲染为Markdown
+        
+        Args:
+            for_pdf: 是否为PDF导出，影响图片路径格式
+        """
         pass
     
     def to_dict(self) -> Dict:
@@ -139,23 +144,27 @@ class BaseBlock(ABC):
         components = []
         
         for param in self.parameters:
+            placeholder_text = param.placeholder or param.description
+            
             if param.param_type == 'text':
                 component = dbc.Input(
                     id=f'{self.block_id}-{param.name}',
-                    placeholder=param.description,
-                    value=self.get_parameter_value(param.name, param.default_value)
+                    placeholder=placeholder_text,
+                    value=self.get_parameter_value(param.name, param.default_value),
+                    style={'width': '100%'}
                 )
             elif param.param_type == 'number':
                 component = dbc.Input(
                     id=f'{self.block_id}-{param.name}',
                     type='number',
-                    placeholder=param.description,
-                    value=self.get_parameter_value(param.name, param.default_value)
+                    placeholder=placeholder_text,
+                    value=self.get_parameter_value(param.name, param.default_value),
+                    style={'width': '100%'}
                 )
             elif param.param_type == 'boolean':
                 component = dbc.Switch(
                     id=f'{self.block_id}-{param.name}',
-                    label=param.description,
+                    label="",  # 空标签，因为已经有外层标签
                     value=self.get_parameter_value(param.name, param.default_value)
                 )
             elif param.param_type == 'select':
@@ -163,7 +172,8 @@ class BaseBlock(ABC):
                     id=f'{self.block_id}-{param.name}',
                     options=param.options or [],
                     value=self.get_parameter_value(param.name, param.default_value),
-                    placeholder=param.description
+                    placeholder=placeholder_text,
+                    style={'width': '100%'}
                 )
             elif param.param_type == 'multi_select':
                 component = dcc.Dropdown(
@@ -171,21 +181,32 @@ class BaseBlock(ABC):
                     options=param.options or [],
                     value=self.get_parameter_value(param.name, param.default_value) or [],
                     multi=True,
-                    placeholder=param.description
+                    placeholder=placeholder_text,
+                    style={'width': '100%'}
                 )
             elif param.param_type == 'textarea':
                 component = dbc.Textarea(
                     id=f'{self.block_id}-{param.name}',
-                    placeholder=param.description,
+                    placeholder=placeholder_text,
                     value=self.get_parameter_value(param.name, param.default_value),
-                    rows=3
+                    rows=3,
+                    style={'width': '100%'}
+                )
+            elif param.param_type == 'date':
+                component = dcc.DatePickerSingle(
+                    id=f'{self.block_id}-{param.name}',
+                    placeholder=placeholder_text,
+                    date=self.get_parameter_value(param.name, param.default_value),
+                    display_format='YYYY-MM-DD',
+                    style={'width': '100%'}
                 )
             else:
                 # 默认为文本输入
                 component = dbc.Input(
                     id=f'{self.block_id}-{param.name}',
-                    placeholder=param.description,
-                    value=self.get_parameter_value(param.name, param.default_value)
+                    placeholder=placeholder_text,
+                    value=self.get_parameter_value(param.name, param.default_value),
+                    style={'width': '100%'}
                 )
             
             # 包装组件
