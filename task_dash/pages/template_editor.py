@@ -68,6 +68,20 @@ BLOCK_TYPES = {
             "period_filter": "all",
             "show_benchmark": False
         }
+    },
+    "index_overview": {
+        "name": "指数概览",
+        "icon": "📊",
+        "description": "以三列布局展示三个指数的关键数据概览，包括当前价位、涨跌幅等信息",
+        "default_config": {
+            "index1": "sh000001",
+            "index2": "sh000300",
+            "index3": "sh000905",
+            "time_period": "1m",
+            "show_chart": True,
+            "show_volume": False,
+            "color_coding": True
+        }
     }
 }
 

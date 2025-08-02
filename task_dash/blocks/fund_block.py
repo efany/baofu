@@ -103,22 +103,6 @@ class FundBlock(BaseBlock):
                 placeholder="请选择基金"
             ),
             BlockParameter(
-                name="start_date",
-                label="开始日期",
-                param_type="date",
-                default_value="",
-                description="统计开始日期，留空则使用全部数据",
-                placeholder="选择开始日期或留空使用全部数据"
-            ),
-            BlockParameter(
-                name="end_date",
-                label="结束日期", 
-                param_type="date",
-                default_value="",
-                description="统计结束日期，留空则使用最新数据",
-                placeholder="选择结束日期或留空使用最新数据"
-            ),
-            BlockParameter(
                 name="display_type",
                 label="显示内容",
                 param_type="select",
@@ -131,18 +115,6 @@ class FundBlock(BaseBlock):
                     {"label": "📑 完整报告", "value": "full"}
                 ],
                 description="选择要显示的内容类型"
-            ),
-            BlockParameter(
-                name="chart_type",
-                label="图表样式",
-                param_type="select",
-                default_value="line",
-                options=[
-                    {"label": "📈 折线图", "value": "line"},
-                    {"label": "📊 面积图", "value": "area"},
-                    {"label": "🕯️ 蜡烛图", "value": "candlestick"}
-                ],
-                description="图表的显示样式（当显示内容包含图表时有效）"
             ),
             BlockParameter(
                 name="show_dividends",
@@ -159,26 +131,23 @@ class FundBlock(BaseBlock):
                 description="将净值数据归一化到起始点为1.0，便于比较不同基金"
             ),
             BlockParameter(
-                name="include_stats",
-                label="包含统计表格",
-                param_type="boolean",
-                default_value=True,
-                description="显示年度和季度收益统计表格"
-            ),
-            BlockParameter(
                 name="period_filter",
                 label="时间周期",
                 param_type="select",
                 default_value="all",
                 options=[
-                    {"label": "全部数据", "value": "all"},
+                    {"label": "近1天", "value": "1d"},
+                    {"label": "近1周", "value": "1w"},
+                    {"label": "近1个月", "value": "1m"},
+                    {"label": "近1个季度", "value": "3m"},
+                    {"label": "近半年", "value": "6m"},
                     {"label": "近1年", "value": "1y"},
                     {"label": "近3年", "value": "3y"},
                     {"label": "近5年", "value": "5y"},
                     {"label": "今年至今", "value": "ytd"},
-                    {"label": "自定义", "value": "custom"}
+                    {"label": "全部数据", "value": "all"}
                 ],
-                description="快速选择时间范围（选择自定义时使用上述开始/结束日期）"
+                description="选择时间范围"
             ),
             BlockParameter(
                 name="show_benchmark",
@@ -258,32 +227,60 @@ class FundBlock(BaseBlock):
                 return str_value
 
 
-    def _calculate_period_dates(self) -> tuple:
+    def _get_last_valid_date(self, fund_code: str) -> date:
+        """获取指定基金的最后有效日期"""
+        try:
+            from database.db_funds_nav import DBFundsNav
+            
+            db_funds_nav = DBFundsNav(self.mysql_db)
+            latest_date_str = db_funds_nav.get_latest_nav_date(fund_code)
+            
+            if latest_date_str:
+                return datetime.strptime(latest_date_str, '%Y-%m-%d').date()
+        except Exception:
+            pass
+        
+        return date.today()
+    
+    def _calculate_period_dates(self, fund_code: str = None) -> tuple:
         """根据时间周期计算开始和结束日期"""
         from datetime import timedelta
         
         period_filter = self.get_parameter_value("period_filter", "all")
         
-        if period_filter == "custom":
-            # 使用自定义日期
-            start_date_str = self.get_parameter_value("start_date", "")
-            end_date_str = self.get_parameter_value("end_date", "")
-            return self._parse_date(start_date_str), self._parse_date(end_date_str)
+        # 获取最后有效日期作为end_date
+        if fund_code:
+            end_date = self._get_last_valid_date(fund_code)
+        else:
+            end_date = date.today()
         
-        today = date.today()
-        
-        if period_filter == "1y":
-            start_date = today - timedelta(days=365)
-            return start_date, today
+        if period_filter == "1d":
+            start_date = end_date - timedelta(days=1)
+            return start_date, end_date
+        elif period_filter == "1w":
+            start_date = end_date - timedelta(days=7)
+            return start_date, end_date
+        elif period_filter == "1m":
+            start_date = end_date - timedelta(days=30)
+            return start_date, end_date
+        elif period_filter == "3m":
+            start_date = end_date - timedelta(days=90)
+            return start_date, end_date
+        elif period_filter == "6m":
+            start_date = end_date - timedelta(days=180)
+            return start_date, end_date
+        elif period_filter == "1y":
+            start_date = end_date - timedelta(days=365)
+            return start_date, end_date
         elif period_filter == "3y":
-            start_date = today - timedelta(days=365 * 3)
-            return start_date, today
+            start_date = end_date - timedelta(days=365 * 3)
+            return start_date, end_date
         elif period_filter == "5y":
-            start_date = today - timedelta(days=365 * 5)
-            return start_date, today
+            start_date = end_date - timedelta(days=365 * 5)
+            return start_date, end_date
         elif period_filter == "ytd":
-            start_date = date(today.year, 1, 1)
-            return start_date, today
+            start_date = date(end_date.year, 1, 1)
+            return start_date, end_date
         else:  # "all"
             return None, None
 
@@ -298,7 +295,7 @@ class FundBlock(BaseBlock):
             return {"error": "数据库连接未初始化"}
         
         # 计算日期范围
-        start_date, end_date = self._calculate_period_dates()
+        start_date, end_date = self._calculate_period_dates(fund_code)
         
         try:
             # 导入所需模块（延迟导入以避免循环依赖）
@@ -322,7 +319,7 @@ class FundBlock(BaseBlock):
             chart_data = generator.get_chart_data(
                 normalize=self.get_parameter_value("normalize_data", False)
             )
-            extra_data = generator.get_extra_datas() if self.get_parameter_value("include_stats", True) else []
+            extra_data = generator.get_extra_datas()
             
             return {
                 "success": True,
@@ -426,12 +423,11 @@ class FundBlock(BaseBlock):
                             html += '</div>\n\n'
                 
                 # 显示图表配置信息
-                chart_type = self.get_parameter_value("chart_type", "line")
                 show_dividends = self.get_parameter_value("show_dividends", True)
                 normalize_data = self.get_parameter_value("normalize_data", False)
 
                 config_info = []
-                config_info.append(f"图表类型: {chart_type}")
+                config_info.append("图表类型: 折线图")
                 if show_dividends:
                     config_info.append("包含分红标记")
                 if normalize_data:
@@ -521,7 +517,7 @@ class FundBlock(BaseBlock):
                 html += '<hr style="margin: 30px 0;">\n'
                 html += f'<p><strong>📋 统计汇总</strong>: 共展示了 {len(extra_data)} 个数据表格</p>\n\n'
             else:
-                html += '<div class="alert alert-info"><strong>ℹ️ 提示</strong>: 当前未选择包含统计表格，或者没有可用的统计数据。</div>\n\n'
+                html += '<div class="alert alert-info"><strong>ℹ️ 提示</strong>: 没有可用的统计数据。</div>\n\n'
         
         # 添加数据源信息
         html += '<hr style="margin: 30px 0;">\n'

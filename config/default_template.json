@@ -28,7 +28,21 @@
       "config": {
         "content": "这是一段摘要",
         "style": "paragraph",
-        "alignment": "left"
+        "alignment": "center"
+      }
+    },
+    {
+      "block_id": "index_overview_block",
+      "block_type": "index_overview",
+      "block_title": "大盘指数",
+      "config": {
+        "index1": "sh000001",
+        "index2": "sz399001",
+        "index3": "sz399006",
+        "time_period": "1d",
+        "show_chart": true,
+        "show_volume": false,
+        "color_coding": true
       }
     },
     {
@@ -40,11 +54,11 @@
         "start_date": "",
         "end_date": "",
         "display_type": "full",
-        "chart_type": "line",
+        "chart_type": "candlestick",
         "show_dividends": true,
-        "normalize_data": true,
-        "include_stats": true,
-        "period_filter": "1y",
+        "normalize_data": false,
+        "include_stats": false,
+        "period_filter": "1w",
         "show_benchmark": false
       }
     }

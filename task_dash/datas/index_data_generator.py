@@ -95,7 +95,8 @@ class IndexDataGenerator(DataGenerator):
             ('指数代码', self.index_symbol),
             ('指数名称', self.data.iloc[0]['name']),
             ('统计区间', date_range),
-            ('区间收益率', f"{return_rate:+.2f}% ({first_close:.2f} -> {last_close:.2f})"),
+            ('区间收益率', f"{return_rate:+.2f}%"),
+            ('指数变化', f"({first_close:.2f} -> {last_close:.2f})"),
             ('期间最高', f"{max_close:.2f}"),
             ('期间最低', f"{min_close:.2f}"),
             ('平均成交量', f"{avg_volume:,.0f}" if avg_volume > 0 else "无数据")
