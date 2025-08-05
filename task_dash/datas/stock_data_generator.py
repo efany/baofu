@@ -89,7 +89,8 @@ class StockDataGenerator(DataGenerator):
             ('股票代码', self.stock_info['symbol']),
             ('股票名称', self.stock_info['name']),
             ('统计区间', date_range),
-            ('区间收益率', f"{return_rate:+.2f}% ({first_close:.2f} -> {last_close:.2f})")
+            ('区间收益率', f"{return_rate:+.2f}%"),
+            ('价格变化', f"{first_close:.2f} -> {last_close:.2f}")
         ]
 
     def get_chart_data(self, normalize: bool = False, chart_type: int = 0) -> List[Dict[str, Any]]:

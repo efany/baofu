@@ -46,6 +46,25 @@
       }
     },
     {
+      "block_id": "etf_overview_block",
+      "block_type": "etf_overview",
+      "block_title": "新ETF概览",
+      "config": {
+        "selected_etfs": [
+          "159949.SZ",
+          "512550.SS",
+          "159633.SZ",
+          "159628.SZ",
+          "159766.SZ",
+          "512000.SS",
+          "159996.SZ",
+          "512480.SS",
+          "512800.SS"
+        ],
+        "time_period": "1d"
+      }
+    },
+    {
       "block_id": "fund_block",
       "block_type": "fund",
       "block_title": "基金",

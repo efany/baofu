@@ -7,12 +7,14 @@ from .base_block import BaseBlock
 from .text_block import TextBlock
 from .fund_block import FundBlock
 from .index_overview_block import IndexOverviewBlock
+from .etf_overview_block import EtfOverviewBlock
 
 # 注册所有可用的块类型
 BLOCK_REGISTRY = {
     'text': TextBlock,
     'fund': FundBlock,
-    'index_overview': IndexOverviewBlock
+    'index_overview': IndexOverviewBlock,
+    'etf_overview': EtfOverviewBlock
 }
 
 def get_block_class(block_type: str):
@@ -25,7 +27,7 @@ def create_block(block_data: dict, mysql_db=None):
     block_class = get_block_class(block_type)
     
     # 对于需要数据库连接的块类型，传入mysql_db参数
-    if block_type in ['fund', 'index_overview'] and mysql_db is not None:
+    if block_type in ['fund', 'index_overview', 'etf_overview'] and mysql_db is not None:
         return block_class(block_data, mysql_db=mysql_db)
     else:
         return block_class(block_data)
@@ -35,6 +37,7 @@ __all__ = [
     'TextBlock',
     'FundBlock',
     'IndexOverviewBlock',
+    'EtfOverviewBlock',
     'BLOCK_REGISTRY',
     'get_block_class',
     'create_block'

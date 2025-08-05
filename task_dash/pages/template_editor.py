@@ -3,7 +3,7 @@ JSON模板编辑器页面 - 基于新的模板结构
 支持编辑包含模板名称、描述和内容块的报告模板
 """
 
-from dash import html, dcc, dash_table
+from dash import html, dcc
 import dash_bootstrap_components as dbc
 from typing import Dict, List
 from datetime import datetime
@@ -17,15 +17,6 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '../..'))
 from task_dash.blocks import create_block
 
 # 全局样式
-CARD_STYLE = {
-    'backgroundColor': '#ffffff',
-    'border': '1px solid #e0e0e0',
-    'borderRadius': '8px',
-    'padding': '20px',
-    'margin': '10px',
-    'boxShadow': '0 2px 4px rgba(0,0,0,0.1)'
-}
-
 HEADER_STYLE = {
     'textAlign': 'center',
     'color': '#2c3e50',
@@ -46,7 +37,7 @@ BLOCK_TYPES = {
     "text": {
         "name": "文本块",
         "icon": "📝",
-        "description": "纯文本内容，支持Markdown格式",
+        "description": "纯文本内容，支持HTML格式",
         "default_config": {
             "content": "请输入文本内容",
             "style": "paragraph"
@@ -81,6 +72,15 @@ BLOCK_TYPES = {
             "show_chart": True,
             "show_volume": False,
             "color_coding": True
+        }
+    },
+    "etf_overview": {
+        "name": "ETF概览",
+        "icon": "💼",
+        "description": "以紧凑表格形式展示多个ETF的关键数据概览，每行显示4个ETF",
+        "default_config": {
+            "selected_etfs": ["159949.SZ", "512550.SS", "159633.SZ", "159628.SZ"],
+            "time_period": "1m"
         }
     }
 }
@@ -133,7 +133,7 @@ def _create_block_parameter_components(block_data: Dict, index: int, mysql_db=No
                     placeholder=param.description,
                     style={'fontSize': '14px'}
                 )
-            elif param.param_type == 'multi_select':
+            elif param.param_type in ['multi_select', 'multiselect']:
                 component = dcc.Dropdown(
                     id=component_id,
                     options=param.options or [],
@@ -280,47 +280,61 @@ def render_block_to_html(block_data: Dict, mysql_db=None, for_pdf: bool = False)
         block = create_block(block_data, mysql_db=mysql_db)
         return block.render_to_html(for_pdf=for_pdf)
     except Exception as e:
-        # 降级到旧版本处理
-        return _legacy_render_block_to_html(block_data)
-
-def _legacy_render_block_to_html(block_data: Dict) -> str:
-    """旧版本的block HTML渲染逻辑（作为后备方案）"""
-    block_type = block_data.get('block_type', 'text')
-    config = block_data.get('config', {})
-    block_title = block_data.get('block_title', '未命名块')
-    
-    if block_type == 'text':
-        # 文本块直接返回内容
-        content = config.get('content', '空白文本')
-        style = config.get('style', 'paragraph')
+        # 输出异常详情而不是降级
+        import traceback
+        block_title = block_data.get('block_title', '未命名块')
+        block_type = block_data.get('block_type', 'unknown')
+        error_details = traceback.format_exc()
         
-        if style == 'header':
-            return f"<h1>{content}</h1>\n"
-        elif style == 'paragraph':
-            return f"<p>{content}</p>\n"
-        else:
-            return f"<p>{content}</p>\n"
-    else:
-        return f'<h2>{block_title}</h2>\n<p><em>未知块类型: {block_type}</em></p>\n'
+        return f'''<div style="border: 2px solid #e74c3c; border-radius: 8px; padding: 15px; margin: 10px 0; background-color: #fdf2f2;">
+    <h4 style="color: #e74c3c; margin: 0 0 10px 0;">❌ 块渲染错误</h4>
+    <p><strong>块标题:</strong> {block_title}</p>
+    <p><strong>块类型:</strong> {block_type}</p>
+    <p><strong>错误信息:</strong> {str(e)}</p>
+    <details style="margin-top: 10px;">
+        <summary style="cursor: pointer; color: #666;">查看详细错误堆栈</summary>
+        <pre style="background-color: #f8f9fa; padding: 10px; border-radius: 4px; overflow: auto; font-size: 12px; margin-top: 5px;">{error_details}</pre>
+    </details>
+</div>'''
+
 
 def _render_block_preview(block_data: Dict) -> html.Div:
     """渲染块预览"""
-    return _legacy_render_block_preview(block_data)
-
-def _legacy_render_block_preview(block_data: Dict) -> html.Div:
-    """旧版本的块预览逻辑（作为后备方案）"""
-    block_type = block_data.get('block_type', 'text')
-    config = block_data.get('config', {})
-    
-    if block_type == 'text':
-        content = config.get('content', '空白文本')
+    try:
+        # 尝试使用新的块系统进行预览
+        block = create_block(block_data, mysql_db=get_mysql_db())
+        
+        # 尝试渲染HTML内容
+        try:
+            html_content = block.render_to_html()
+            # 如果渲染成功，显示HTML内容（使用iframe或者简化显示）
+            return html.Div([
+                html.Small("预览:", className="text-muted"),
+                html.Div([
+                    html.P("✅ HTML渲染成功", className="text-success"),
+                    html.Details([
+                        html.Summary("查看HTML源码", style={'cursor': 'pointer'}),
+                        html.Pre(html_content[:500] + "..." if len(html_content) > 500 else html_content,
+                               style={'background': '#f8f9fa', 'padding': '10px', 'fontSize': '12px'})
+                    ])
+                ], className="border-start border-3 ps-3")
+            ])
+        except Exception as render_error:
+            # 如果渲染失败，显示基本信息和错误
+            return html.Div([
+                html.Small("预览:", className="text-muted"),
+                html.P(f"{block.block_icon} {block.block_name} - {block.block_description}", 
+                       className="border-start border-3 ps-3 text-muted"),
+                html.Small(f"渲染错误: {str(render_error)}", className="text-danger")
+            ])
+        
+    except Exception as e:
+        # 显示错误信息而不是降级
         return html.Div([
             html.Small("预览:", className="text-muted"),
-            html.P(content[:100] + "..." if len(content) > 100 else content, 
-                   className="border-start border-3 ps-3 text-muted")
+            html.P(f"❌ 预览失败: {str(e)}", className="text-danger border-start border-3 ps-3")
         ])
-    else:
-        return html.P("未知块类型", className="text-muted small")
+
 
 def create_add_block_modal():
     """创建添加块的模态框"""
@@ -364,7 +378,7 @@ def create_add_block_modal():
         ])
     ], id="add-block-modal", size="lg", is_open=False)
 
-def create_full_markdown_preview_modal():
+def create_full_html_preview_modal():
     """创建全文HTML预览模态框"""
     return dbc.Modal([
         dbc.ModalHeader([
@@ -373,9 +387,9 @@ def create_full_markdown_preview_modal():
         ]),
         dbc.ModalBody([
             dcc.Loading(
-                id="full-markdown-loading",
+                id="full-html-loading",
                 children=[
-                    html.Div(id="full-markdown-content", style={
+                    html.Div(id="full-html-content", style={
                         'backgroundColor': '#ffffff',
                         'padding': '30px',
                         'borderRadius': '8px',
@@ -410,10 +424,10 @@ def create_full_markdown_preview_modal():
                     size="sm",
                     className="ms-2"
                 ),
-                dbc.Button("关闭", id="close-full-markdown-modal", color="secondary", size="sm", className="ms-2")
+                dbc.Button("关闭", id="close-full-html-modal", color="secondary", size="sm", className="ms-2")
             ])
         ])
-    ], id="full-markdown-modal", size="xl", is_open=False, scrollable=True)
+    ], id="full-html-modal", size="xl", is_open=False, scrollable=True)
 
 def create_preview_modal():
     """创建预览模态框"""
@@ -514,7 +528,7 @@ def create_template_editor_page(mysql_db):
                             dbc.Col([
                                 dbc.Button(
                                     [html.I(className="fas fa-eye me-2"), "完整预览"],
-                                    id='full-markdown-preview-btn',
+                                    id='full-html-preview-btn',
                                     color="info",
                                     size="sm",
                                     className="float-end"
@@ -573,8 +587,8 @@ def create_template_editor_page(mysql_db):
         # 预览模态框
         create_preview_modal(),
         
-        # 全文Markdown预览模态框
-        create_full_markdown_preview_modal(),
+        # 全文HTML预览模态框
+        create_full_html_preview_modal(),
         
         # 存储组件
         dcc.Store(id='template-store', data=DEFAULT_TEMPLATE.copy()),

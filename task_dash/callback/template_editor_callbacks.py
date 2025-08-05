@@ -3,7 +3,7 @@
 处理基于block结构的模板编辑器的所有交互逻辑
 """
 
-from dash import Input, Output, State, callback, ALL, no_update, html, dcc, ctx
+from dash import Input, Output, State, callback, ALL, no_update, html, ctx
 import dash_bootstrap_components as dbc
 import json
 import os
@@ -17,7 +17,7 @@ from typing import Dict, List, Any
 import uuid
 import traceback
 from task_utils.pdf_utils import template_to_pdf, check_pdf_dependencies, get_dependency_install_instructions, generate_pdf_filename
-from task_dash.pages.template_editor import render_block_to_html, DEFAULT_TEMPLATE, BLOCK_TYPES, create_block_card, _legacy_render_block_preview
+from task_dash.pages.template_editor import render_block_to_html, DEFAULT_TEMPLATE, BLOCK_TYPES, create_block_card, _render_block_preview
 import logging
 
 # 添加项目路径
@@ -525,29 +525,53 @@ def register_template_editor_callbacks(app, mysql_db):
             block_data = blocks[index]
             block_title = block_data.get('block_title', '未命名块')
             
-            # 渲染为Markdown
-            html_content = render_block_to_html(block_data, mysql_db=mysql_db)
-            
-            # 创建预览内容 - 只显示渲染效果
-            preview_content = html.Div([
-                dcc.Markdown(
-                    html_content,
-                    dangerously_allow_html=True,
-                    style={
-                        'fontFamily': '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                        'lineHeight': '1.6',
-                        'color': '#333'
-                    }
-                )
-            ], style={
-                'backgroundColor': '#ffffff',
-                'padding': '20px',
-                'borderRadius': '8px',
-                'border': '1px solid #dee2e6',
-                'minHeight': '200px',
-                'maxHeight': '600px',
-                'overflow': 'auto'
-            })
+            # 渲染为HTML
+            try:
+                html_content = render_block_to_html(block_data, mysql_db=mysql_db)
+                
+                # 创建预览内容 - 使用iframe显示渲染效果
+                preview_content = html.Div([
+                    html.Iframe(
+                        srcDoc=html_content,
+                        style={
+                            'width': '100%',
+                            'height': '500px',
+                            'border': '1px solid #dee2e6',
+                            'borderRadius': '4px'
+                        }
+                    )
+                ], style={
+                    'backgroundColor': '#ffffff',
+                    'padding': '20px',
+                    'borderRadius': '8px',
+                    'border': '1px solid #dee2e6',
+                    'minHeight': '200px',
+                    'maxHeight': '600px',
+                    'overflow': 'auto'
+                })
+                
+            except Exception as e:
+                logger.error(f"渲染块失败: {str(e)}", exc_info=True)
+                preview_content = html.Div([
+                    html.H5("渲染失败", style={'color': '#dc3545', 'marginBottom': '15px'}),
+                    html.P(f"错误: {str(e)}", style={'color': '#721c24'}),
+                    html.Details([
+                        html.Summary("查看错误详情", style={'cursor': 'pointer', 'marginTop': '10px'}),
+                        html.Pre(traceback.format_exc(), style={
+                            'backgroundColor': '#f8d7da',
+                            'padding': '10px',
+                            'borderRadius': '4px',
+                            'fontSize': '12px',
+                            'maxHeight': '200px',
+                            'overflow': 'auto'
+                        })
+                    ])
+                ], style={
+                    'backgroundColor': '#f8d7da',
+                    'padding': '20px',
+                    'borderRadius': '8px',
+                    'border': '1px solid #f5c6cb'
+                })
             
             return True, f"预览: {block_title}", preview_content
         
@@ -641,7 +665,7 @@ def register_template_editor_callbacks(app, mysql_db):
             
             # 更新参数（这里需要更复杂的逻辑来匹配参数）
             # 为了简化，暂时使用原始block数据
-            previews.append(_legacy_render_block_preview(updated_block))
+            previews.append(_render_block_preview(updated_block))
         
         return previews
 
@@ -765,17 +789,17 @@ def register_template_editor_callbacks(app, mysql_db):
             return no_update, error_msg
 
     @app.callback(
-        [Output('full-markdown-modal', 'is_open'),
-         Output('full-markdown-content', 'children')],
-        [Input('full-markdown-preview-btn', 'n_clicks'),
-         Input('close-full-markdown-modal', 'n_clicks')],
-        [State('full-markdown-modal', 'is_open'),
+        [Output('full-html-modal', 'is_open'),
+         Output('full-html-content', 'children')],
+        [Input('full-html-preview-btn', 'n_clicks'),
+         Input('close-full-html-modal', 'n_clicks')],
+        [State('full-html-modal', 'is_open'),
          State('template-store', 'data')],
         prevent_initial_call=True
     )
-    def handle_full_markdown_preview(preview_clicks, close_clicks, is_open, template_data):
-        """处理全文Markdown预览"""
-        logger.info(f"处理全文Markdown预览 - preview:{preview_clicks}, close:{close_clicks}")
+    def handle_full_html_preview(preview_clicks, close_clicks, is_open, template_data):
+        """处理全文HTML预览"""
+        logger.info(f"处理全文HTML预览 - preview:{preview_clicks}, close:{close_clicks}")
         
         if not ctx.triggered:
             return is_open, no_update
@@ -783,11 +807,11 @@ def register_template_editor_callbacks(app, mysql_db):
         triggered_id = ctx.triggered[0]['prop_id'].split('.')[0]
         
         # 关闭模态框
-        if triggered_id == 'close-full-markdown-modal':
+        if triggered_id == 'close-full-html-modal':
             return False, no_update
         
         # 打开全文预览模态框
-        if triggered_id == 'full-markdown-preview-btn' and preview_clicks:
+        if triggered_id == 'full-html-preview-btn' and preview_clicks:
             if not template_data or not template_data.get('template_content'):
                 empty_content = html.Div([
                     html.I(className="fas fa-info-circle fa-2x text-muted mb-3"),
@@ -834,11 +858,16 @@ def register_template_editor_callbacks(app, mysql_db):
                 try:
                     block_html = render_block_to_html(block_data, mysql_db=mysql_db)
                     
-                    # 使用dcc.Markdown来渲染HTML内容
+                    # 使用iframe来渲染HTML内容
                     block_component = html.Section([
-                        dcc.Markdown(
-                            block_html,
-                            dangerously_allow_html=True
+                        html.Iframe(
+                            srcDoc=block_html,
+                            style={
+                                'width': '100%',
+                                'minHeight': '200px',
+                                'border': '1px solid #dee2e6',
+                                'borderRadius': '4px'
+                            }
                         )
                     ], style={
                         'margin': '25px 0',

@@ -309,12 +309,6 @@ class IndexOverviewBlock(BaseBlock):
                         change_style = 'style="color: #6c757d;"'
                     
                     html += f'          <p><small {change_style}>{index_change}</small></p>\n'
-                    
-                    # 如果不是近一天，则显示期间最高最低
-                    if time_period != "1d":
-                        period_high = summary.get("期间最高", "—")
-                        period_low = summary.get("期间最低", "—")
-                        html += '          <p><small>最高: ' + str(period_high) + ' | 最低: ' + str(period_low) + '</small></p>\n'
             except Exception as e:
                 html += '          <p class="text-danger">加载出错: ' + str(e) + '</p>\n'
             
