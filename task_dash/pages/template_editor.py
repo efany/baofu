@@ -391,12 +391,12 @@ def create_full_html_preview_modal():
                 children=[
                     html.Div(id="full-html-content", style={
                         'backgroundColor': '#ffffff',
-                        'padding': '30px',
+                        'padding': '0',
                         'borderRadius': '8px',
                         'border': '1px solid #dee2e6',
                         'minHeight': '400px',
-                        'maxHeight': '80vh',
-                        'overflow': 'auto',
+                        'height': '70vh',
+                        'overflow': 'hidden',
                         'fontFamily': '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
                         'lineHeight': '1.6'
                     })
@@ -427,7 +427,7 @@ def create_full_html_preview_modal():
                 dbc.Button("关闭", id="close-full-html-modal", color="secondary", size="sm", className="ms-2")
             ])
         ])
-    ], id="full-html-modal", size="xl", is_open=False, scrollable=True)
+    ], id="full-html-modal", size="xl", is_open=False, scrollable=False)
 
 def create_preview_modal():
     """创建预览模态框"""
@@ -445,7 +445,6 @@ def create_preview_modal():
                         'borderRadius': '8px',
                         'border': '1px solid #dee2e6',
                         'minHeight': '300px',
-                        'maxHeight': '600px',
                         'overflow': 'auto'
                     })
                 ],

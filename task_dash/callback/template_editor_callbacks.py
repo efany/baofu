@@ -3,7 +3,7 @@
 处理基于block结构的模板编辑器的所有交互逻辑
 """
 
-from dash import Input, Output, State, callback, ALL, no_update, html, ctx
+from dash import Input, Output, State, callback, ALL, no_update, html, ctx, clientside_callback
 import dash_bootstrap_components as dbc
 import json
 import os
@@ -81,6 +81,7 @@ def generate_block_id(block_type: str, existing_ids: List[str]) -> str:
 
 def register_template_editor_callbacks(app, mysql_db):
     """注册模板编辑器相关的回调函数"""
+    
     
     @app.callback(
         [Output('template-selector', 'options'),
@@ -535,7 +536,7 @@ def register_template_editor_callbacks(app, mysql_db):
                         srcDoc=html_content,
                         style={
                             'width': '100%',
-                            'height': '500px',
+                            'height': '400px',  # 设置一个合适的默认高度
                             'border': '1px solid #dee2e6',
                             'borderRadius': '4px'
                         }
@@ -545,8 +546,6 @@ def register_template_editor_callbacks(app, mysql_db):
                     'padding': '20px',
                     'borderRadius': '8px',
                     'border': '1px solid #dee2e6',
-                    'minHeight': '200px',
-                    'maxHeight': '600px',
                     'overflow': 'auto'
                 })
                 
@@ -821,94 +820,56 @@ def register_template_editor_callbacks(app, mysql_db):
                 
                 return True, empty_content
             
-            # 组合所有块的内容
+            # 简单拼接所有块的HTML内容
             template_name = template_data.get('template_name', '未命名模板')
             template_description = template_data.get('template_description', '')
             
-            # 创建预览内容的组件列表
-            preview_components = []
+            # 拼接HTML内容
+            concatenated_html = f'''
+            <div style="font-family: 'Source Han Sans CN', 'Microsoft YaHei', sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto; padding: 20px;">
+                <header style="margin-bottom: 30px;">
+                    <h1 style="color: #1a5490; text-align: center; margin: 0 0 10px 0; border-bottom: 2px solid #1a5490; padding-bottom: 15px;">{template_name}</h1>
+            '''
             
-            # 添加模板标题
-            preview_components.append(
-                html.Header([
-                    html.H1(template_name, style={
-                        'color': '#1a5490',
-                        'textAlign': 'center',
-                        'margin': '0 0 10px 0',
-                        'borderBottom': '2px solid #1a5490',
-                        'paddingBottom': '15px'
-                    })
-                ], style={'marginBottom': '30px'})
-            )
-            
-            # 添加模板描述
             if template_description:
-                preview_components.append(
-                    html.P(template_description, style={
-                        'color': '#666',
-                        'fontStyle': 'italic',
-                        'textAlign': 'center',
-                        'margin': '10px 0 30px 0'
-                    })
-                )
+                concatenated_html += f'''
+                    <p style="color: #666; font-style: italic; text-align: center; margin: 10px 0 30px 0;">{template_description}</p>
+                '''
             
-            # 遍历所有块，按顺序生成组件
+            concatenated_html += '</header>\n'
+            
+            # 遍历所有块，按顺序拼接HTML
             blocks = template_data.get('template_content', [])
             for i, block_data in enumerate(blocks):
                 try:
                     block_html = render_block_to_html(block_data, mysql_db=mysql_db)
-                    
-                    # 使用iframe来渲染HTML内容
-                    block_component = html.Section([
-                        html.Iframe(
-                            srcDoc=block_html,
-                            style={
-                                'width': '100%',
-                                'minHeight': '200px',
-                                'border': '1px solid #dee2e6',
-                                'borderRadius': '4px'
-                            }
-                        )
-                    ], style={
-                        'margin': '25px 0',
-                        'padding': '15px 0',
-                        'borderBottom': '1px solid #eee'
-                    })
-                    
-                    preview_components.append(block_component)
+                    concatenated_html += f'''
+                    <section style="margin: 25px 0; padding: 15px 0; border-bottom: 1px solid #eee;">
+                        {block_html}
+                    </section>
+                    '''
                         
                 except Exception as e:
                     # 如果某个块渲染失败，添加错误信息
                     block_title = block_data.get('block_title', f'块 #{i+1}')
-                    error_component = html.Section([
-                        html.Div([
-                            html.Strong(f"错误: {block_title}"),
-                            html.Br(),
-                            f"渲染失败: {str(e)}"
-                        ], style={
-                            'backgroundColor': '#fdf2f2',
-                            'borderLeft': '4px solid #e74c3c',
-                            'padding': '12px 15px',
-                            'borderRadius': '4px'
-                        })
-                    ], style={
-                        'margin': '25px 0',
-                        'padding': '15px 0',
-                        'borderBottom': '1px solid #eee'
-                    })
-                    
-                    preview_components.append(error_component)
+                    concatenated_html += f'''
+                    <section style="margin: 25px 0; padding: 15px 0; border-bottom: 1px solid #eee;">
+                        <div style="background-color: #fdf2f2; border-left: 4px solid #e74c3c; padding: 12px 15px; border-radius: 4px;">
+                            <strong>错误: {block_title}</strong><br>
+                            渲染失败: {str(e)}
+                        </div>
+                    </section>
+                    '''
             
-            # 创建完整的预览内容
-            html_content = html.Div(
-                preview_components,
+            concatenated_html += '</div>'
+            
+            # 创建简单的HTML预览内容
+            html_content = html.Iframe(
+                srcDoc=concatenated_html,
                 style={
-                    'fontFamily': '"Source Han Sans CN", "Microsoft YaHei", sans-serif',
-                    'lineHeight': '1.6',
-                    'color': '#333',
-                    'maxWidth': '800px',
-                    'margin': '0 auto',
-                    'padding': '20px'
+                    'width': '100%',
+                    'height': '100%',
+                    'border': 'none'
                 }
             )
             

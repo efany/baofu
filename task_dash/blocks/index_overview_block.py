@@ -228,6 +228,10 @@ class IndexOverviewBlock(BaseBlock):
     
     def render_to_html(self, for_pdf: bool = False) -> str:
         """渲染为HTML"""
+        # 在渲染阶段进行严格验证
+        if not self.mysql_db:
+            return '<div style="color: #666; text-align: center; padding: 20px;">数据库连接未初始化，无法渲染指数概览</div>'
+        
         html = ""
         
         # 获取三个指数的配置
@@ -236,92 +240,93 @@ class IndexOverviewBlock(BaseBlock):
         index3 = self.get_parameter_value("index3", "sh000905")
         time_period = self.get_parameter_value("time_period", "1m")
         
-        # 简化的三列布局
-        html += '<div class="container-fluid">\n'
-        html += '  <div class="row">\n'
+        # 时间周期标签映射
+        time_labels = {
+            "1d": "近1天", "1w": "近1周", "1m": "近1个月", 
+            "3m": "近3个月", "6m": "近6个月", "1y": "近1年", 
+            "ytd": "今年至今", "all": "全部数据"
+        }
+        period_label = time_labels.get(time_period, time_period)
         
-        indices = [index1, index2, index3]
+        # 指数名称映射
         index_names = {
             'sh000001': '上证综指',
             'sh000300': '沪深300',
             'sh000905': '中证500',
             'sh000016': '上证50',
             'sz399001': '深证成指',
-            'sz399006': '创业板指'
+            'sz399006': '创业板指',
+            'sh000906': '中证800',
+            'sz399005': '中小板指',
+            'sh000002': '上证A股指数'
         }
         
-        for i, index_code in enumerate(indices):
+        # 三列布局
+        html += f'''<div style="margin: 20px auto; max-width: 900px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">
+    <div style="background: #f8f9fa; padding: 16px; border-radius: 6px; margin-bottom: 16px; text-align: center;">
+        <h3 style="margin: 0; color: #495057; font-size: 18px; font-weight: 500;">指数概览</h3>
+        <p style="margin: 8px 0 0 0; color: #6c757d; font-size: 14px;">统计周期: {period_label}</p>
+    </div>
+    <table style="width: 100%; border-collapse: collapse; border: 1px solid #dee2e6; border-radius: 6px; overflow: hidden;">
+        <tr>'''
+        
+        indices = [index1, index2, index3]
+        
+        for index_code in indices:
             index_name = index_names.get(index_code, index_code)
             
-            html += '    <div class="col-md-4">\n'
-            
-            # 获取数据以确定卡片样式
-            card_class = "card mb-3"
+            # 获取指数数据
             try:
                 data = self._get_index_data(index_code)
-                if "error" not in data:
-                    trend = data.get("trend", "neutral")
-                    if trend == "up":
-                        card_class = "card mb-3 border-success"
-                    elif trend == "down":
-                        card_class = "card mb-3 border-danger"
-            except:
-                pass
-            
-            html += f'      <div class="{card_class}">\n'
-            html += '        <div class="card-header text-center">\n'
-            html += '          <h5>' + index_name + '</h5>\n'
-            html += '          <small class="text-muted">' + index_code + '</small>\n'
-            html += '        </div>\n'
-            html += '        <div class="card-body text-center">\n'
-            
-            # 尝试获取真实数据
-            try:
-                data = self._get_index_data(index_code)
+                
                 if "error" in data:
-                    html += '          <p class="text-warning">数据获取失败</p>\n'
-                    html += '          <small>' + data["error"] + '</small>\n'
+                    html += f'''            <td style="width: 33.33%; padding: 16px; border: 1px solid #dee2e6; background: #f8f9fa; vertical-align: top;">
+                <div style="text-align: center;">
+                    <div style="font-weight: 600; color: #495057; margin-bottom: 4px; font-size: 14px;">{index_name}</div>
+                    <div style="color: #6c757d; font-size: 11px; margin-bottom: 8px;">{index_code}</div>
+                    <div style="color: #dc3545; font-weight: 500; font-size: 12px;">数据获取失败</div>
+                </div>
+            </td>'''
                 else:
                     summary = data.get("summary", {})
                     trend = data.get("trend", "neutral")
-                    current_price = summary.get("区间收益率", "无数据")
-                    
-                    # 根据涨跌设置颜色和样式
-                    if trend == "up":
-                        price_style = 'style="color: #28a745; font-weight: bold; background-color: #d4edda; padding: 8px; border-radius: 4px; display: inline-block;"'
-                        trend_icon = "📈"
-                    elif trend == "down":
-                        price_style = 'style="color: #dc3545; font-weight: bold; background-color: #f8d7da; padding: 8px; border-radius: 4px; display: inline-block;"'
-                        trend_icon = "📉"
-                    else:
-                        price_style = 'style="color: #6c757d; font-weight: bold; background-color: #f8f9fa; padding: 8px; border-radius: 4px; display: inline-block;"'
-                        trend_icon = "⚪"
-                    
-                    html += f'          <p class="h4" {price_style}>{trend_icon} {current_price}</p>\n'
-                    
-                    # 显示指数变化
+                    return_rate = summary.get("区间收益率", "无数据")
                     index_change = summary.get("指数变化", "—")
-                    if trend == "up":
-                        change_style = 'style="color: #155724;"'
-                    elif trend == "down":
-                        change_style = 'style="color: #721c24;"'
-                    else:
-                        change_style = 'style="color: #6c757d;"'
                     
-                    html += f'          <p><small {change_style}>{index_change}</small></p>\n'
+                    # 简洁的颜色方案
+                    if trend == "up":
+                        return_color = "#28a745"
+                        bg_color = "#f8fff8"
+                    elif trend == "down":
+                        return_color = "#dc3545"
+                        bg_color = "#fff8f8"
+                    else:
+                        return_color = "#6c757d"
+                        bg_color = "#ffffff"
+                    
+                    html += f'''            <td style="width: 33.33%; padding: 16px; border: 1px solid #dee2e6; background: {bg_color}; vertical-align: top;">
+                <div style="text-align: center;">
+                    <div style="font-weight: 600; color: #495057; margin-bottom: 4px; font-size: 14px;">{index_name}</div>
+                    <div style="color: #6c757d; font-size: 11px; margin-bottom: 8px;">{index_code}</div>
+                    <div style="color: {return_color}; font-weight: 700; font-size: 16px; margin-bottom: 4px;">{return_rate}</div>
+                    <div style="color: #6c757d; font-size: 11px;">{index_change}</div>
+                </div>
+            </td>'''
+                    
             except Exception as e:
-                html += '          <p class="text-danger">加载出错: ' + str(e) + '</p>\n'
-            
-            html += '        </div>\n'
-            html += '      </div>\n'
-            html += '    </div>\n'
+                html += f'''            <td style="width: 33.33%; padding: 16px; border: 1px solid #dee2e6; background: #f8f9fa; vertical-align: top;">
+                <div style="text-align: center;">
+                    <div style="font-weight: 600; color: #495057; margin-bottom: 4px; font-size: 14px;">{index_name}</div>
+                    <div style="color: #6c757d; font-size: 11px; margin-bottom: 8px;">{index_code}</div>
+                    <div style="color: #dc3545; font-weight: 500; font-size: 12px;">加载出错</div>
+                </div>
+            </td>'''
         
-        html += '  </div>\n'
-        html += '</div>\n'
-        
-        # 添加配置信息
-        time_labels = {"1d": "近1天", "1w": "近1周", "1m": "近1个月", "3m": "近3个月", "6m": "近6个月", "1y": "近1年", "ytd": "今年至今", "all": "全部数据"}
-        period_label = time_labels.get(time_period, time_period)
-        html += '<p class="text-center text-muted"><small>统计周期: ' + period_label + '</small></p>\n'
+        html += f'''        </tr>
+    </table>
+    <div style="text-align: center; margin-top: 16px; color: #6c757d; font-size: 12px;">
+        展示3个主要指数数据
+    </div>
+</div>'''
         
         return html
