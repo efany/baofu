@@ -15,7 +15,7 @@ from task.exceptions import TaskConfigError, TaskExecutionError
 class UpdateIndexTask(BaseTask):
     """更新指数数据任务"""
     
-    def __init__(self, config: Dict[str, Any], mysql_db: MySQLDatabase):
+    def __init__(self, config: Dict[str, Any], mysql_db=None):
         """
         初始化更新指数数据任务
         
@@ -24,7 +24,17 @@ class UpdateIndexTask(BaseTask):
             mysql_db: MySQL数据库连接
         """
         super().__init__(config)
-        self.mysql_db = mysql_db
+        if mysql_db is None:
+            # 从task_config获取数据库配置参数
+            db_config = {
+                'host': config.get('host', '127.0.0.1'),
+                'user': config.get('user', 'baofu'),
+                'password': config.get('password', 'TYeKmJPfw2b7kxGK'),
+                'database': config.get('database', 'baofu')
+            }
+            self.mysql_db = MySQLDatabase(**db_config)
+        else:
+            self.mysql_db = mysql_db
         self.db_index_hist = DBIndexHist(mysql_db)
         
         # 解析配置参数
@@ -299,79 +309,31 @@ def main():
     """测试用例"""
     print("=== UpdateIndexTask 测试 ===\n")
     
-    # 初始化数据库连接
-    mysql_db = MySQLDatabase(
-        host='113.44.90.2',
-        user='baofu',
-        password='TYeKmJPfw2b7kxGK',
-        database='baofu',
-        pool_size=5
-    )
+    # 测试配置 - 使用智能更新策略
+    test_config = {
+        'name': 'test_update_index',
+        'description': '测试智能更新指数数据',
+        'index_symbols': ['sh000001', 'sz399001'],  # 上证综指和深证成指
+        "host": "113.44.90.2",
+        "user": "baofu",
+        "password": "TYeKmJPfw2b7kxGK",
+        "database": "baofu",
+        # 不指定日期范围，让任务自动判断更新策略
+    }
     
-    try:
-        # 首先检查数据表是否存在
-        table_exists = mysql_db.check_table_exists('index_hist_data')
-        print(f"数据表 'index_hist_data' 存在: {table_exists}")
-        
-        if not table_exists:
-            print("\n⚠️  数据表不存在!")
-            print("请先运行以下命令初始化数据库:")
-            print("  cd database/")
-            print("  python database_init.py")
-            print("\n或手动创建 'index_hist_data' 表")
-            return
-        
-        # 测试配置 - 使用智能更新策略
-        test_config = {
-            'name': 'test_update_index',
-            'description': '测试智能更新指数数据',
-            'index_symbols': ['sh000001', 'sz399001'],  # 上证综指和深证成指
-            # 不指定日期范围，让任务自动判断更新策略
-        }
-        
-        print("\n预览更新策略...")
-        task = UpdateIndexTask(test_config, mysql_db)
-        
-        # 先预览每个指数的更新策略
-        for symbol in test_config['index_symbols']:
-            try:
-                start_date, end_date, get_all_data = task._determine_date_range(symbol)
-                print(f"指数 {symbol}:")
-                if get_all_data:
-                    print(f"  策略: 获取所有历史数据 (数据库中无数据)")
-                elif start_date and end_date:
-                    print(f"  策略: 增量更新 ({start_date} 到 {end_date})")
-                else:
-                    print(f"  策略: 无需更新 (数据已是最新)")
-            except Exception as e:
-                print(f"  策略判断失败: {str(e)}")
-        
-        print(f"\n开始执行更新任务...")
-        
-        try:
-            task.execute()
-            
-            if task.is_success:
-                result = task.task_result
-                print(f"✅ 更新成功: {result['message']}")
-                print(f"成功更新的指数: {result['updated_symbols']}")
-                print(f"成功数量: {result['success_count']}, 失败数量: {result['error_count']}")
-            else:
-                print(f"❌ 更新失败: {task.error}")
-                
-        except TaskConfigError as e:
-            print(f"❌ 配置错误: {str(e)}")
-        except TaskExecutionError as e:
-            print(f"❌ 执行错误: {str(e)}")
+    task = UpdateIndexTask(test_config)
     
-    except Exception as e:
-        print(f"❌ 测试过程中发生异常: {str(e)}")
-        import traceback
-        traceback.print_exc()
+    print(f"\n开始执行更新任务...")
     
-    finally:
-        # 关闭数据库连接
-        mysql_db.close_connection()
+    task.execute()
+    
+    if task.is_success:
+        result = task.task_result
+        print(f"✅ 更新成功: {result['message']}")
+        print(f"成功更新的指数: {result['updated_symbols']}")
+        print(f"成功数量: {result['success_count']}, 失败数量: {result['error_count']}")
+    else:
+        print(f"❌ 更新失败: {task.error}")
 
 if __name__ == "__main__":
     main()

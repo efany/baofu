@@ -8,6 +8,8 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from task_scheduler.scheduler import TaskScheduler
 from loguru import logger
 
+from task_data.update_funds_task import UpdateFundsTask
+
 
 class DataUpdateTaskManager:
     """数据更新任务管理器"""
@@ -23,7 +25,7 @@ class DataUpdateTaskManager:
         self.scheduler.add_task(
             name="更新基金净值",
             task_func=self._update_funds_nav,
-            cron="08:00",
+            cron="*/1",
             kwargs={}
         )
         
@@ -51,8 +53,20 @@ class DataUpdateTaskManager:
     def _update_funds_nav(self):
         """更新基金净值数据"""
         try:
-            logger.info(f"基金净值更新任务执行完成，基金代码: {fund_codes}")
- 
+            task_config = {
+                "name": "update_funds",
+                "description": "更新基金信息和净值数据",
+                "update_all": True,  # 设置为True以更新所有基金
+                "fund_codes": ["010232"],  # 可选，指定待更新的基金代码 ,
+                "host": "113.44.90.2",
+                "user": "baofu",
+                "password": "TYeKmJPfw2b7kxGK",
+                "database": "baofu",
+            }
+            task = UpdateFundsTask(task_config)
+            task.execute()
+            if not task.is_success:
+                logger.error(task.error)
         except Exception as e:
             logger.error(f"定时更新基金净值失败: {e}")
             raise

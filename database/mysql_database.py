@@ -55,7 +55,6 @@ class MySQLDatabase:
                 self._active_connections += 1
             
             connection = self.pool.get_connection()
-            logger.debug(f"获取数据库连接成功，当前活跃连接数: {self._active_connections}")
             return connection
         except mysql.connector.Error as err:
             with self._lock:
@@ -98,7 +97,6 @@ class MySQLDatabase:
                 connection.close()
                 with self._lock:
                     self._active_connections -= 1
-                logger.debug(f"释放数据库连接，当前活跃连接数: {self._active_connections}")
 
     def create_table(self, table_name, table_schema):
         """

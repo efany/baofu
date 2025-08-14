@@ -40,9 +40,12 @@ app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP], suppress_
 
 # 创建数据库连接池
 mysql_db = MySQLDatabase(
-    host='192.168.0.11',
-    user='root',
-    password='123456',
+    # host='192.168.0.11',
+    # user='root',
+    # password='123456',
+    host='113.44.90.2',
+    user='baofu',
+    password='TYeKmJPfw2b7kxGK',
     database='baofu',
     pool_size=30  # 增加连接池大小
 )

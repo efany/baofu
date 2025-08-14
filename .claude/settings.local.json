@@ -18,6 +18,7 @@
       "Bash(cp:*)",
       "Bash(mysql:*)"
     ],
-    "deny": []
+    "deny": [],
+    "defaultMode": "acceptEdits"
   }
 }

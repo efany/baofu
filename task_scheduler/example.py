@@ -28,7 +28,7 @@ def main():
     task_manager.add_custom_task(
         name="test_task",
         task_func=example_task,
-        cron="*/1",  # 每2分钟
+        cron="*/1",  # 每1分钟
         message="定时任务测试"
     )
     
