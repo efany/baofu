@@ -16,7 +16,7 @@ from database.db_funds import DBFunds
 class UpdateFundsTask(BaseTask):
     """更新基金信息和净值数据的任务"""
     
-    def __init__(self, task_config: Dict[str, Any], mysql_db):
+    def __init__(self, task_config: Dict[str, Any], mysql_db=None):
         """
         初始化任务
 
@@ -27,8 +27,22 @@ class UpdateFundsTask(BaseTask):
                 - fund_codes: 可选，待更新的基金代码列表
                 - update_all: 可选，是否更新所有已有基金，默认为False
                 - start_date: 可选，净值数据的开始日期，格式：'YYYY-MM-DD'
+                - host: 可选，MySQL主机地址
+                - user: 可选，MySQL用户名
+                - password: 可选，MySQL密码
+                - database: 可选，MySQL数据库名
         """
-        self.mysql_db = mysql_db
+        if mysql_db is None:
+            # 从task_config获取数据库配置参数
+            db_config = {
+                'host': task_config.get('host', '127.0.0.1'),
+                'user': task_config.get('user', 'baofu'),
+                'password': task_config.get('password', 'TYeKmJPfw2b7kxGK'),
+                'database': task_config.get('database', 'baofu')
+            }
+            self.mysql_db = MySQLDatabase(**db_config)
+        else:
+            self.mysql_db = mysql_db
         self.db_funds = DBFunds(self.mysql_db)
         super().__init__(task_config)
 
@@ -107,8 +121,12 @@ if __name__ == "__main__":
     task_config = {
         "name": "update_funds",
         "description": "更新基金信息和净值数据",
-        "update_all": True,  # 设置为True以更新所有基金
-        "fund_codes": ["010232","162715","006635"],  # 可选，指定待更新的基金代码 , 
+        "update_all": False,  # 设置为True以更新所有基金
+        "fund_codes": ["010232"],  # 可选，指定待更新的基金代码 ,
+        "host": "113.44.90.2",
+        "user": "baofu",
+        "password": "TYeKmJPfw2b7kxGK",
+        "database": "baofu",
     }
     task = UpdateFundsTask(task_config)
     task.execute()
